@@ -1,0 +1,56 @@
+plugins {
+    id "com.android.application"
+}
+
+def releaseSigningProperties = new Properties()
+def releaseSigningPropertiesFile = rootProject.file("release-signing.properties")
+if (releaseSigningPropertiesFile.exists()) {
+    releaseSigningPropertiesFile.withInputStream { releaseSigningProperties.load(it) }
+}
+
+def releaseStoreFile = releaseSigningProperties.getProperty("storeFile") ?: System.getenv("VIBEDECK_ANDROID_STORE_FILE")
+def releaseStorePassword = releaseSigningProperties.getProperty("storePassword") ?: System.getenv("VIBEDECK_ANDROID_STORE_PASSWORD")
+def releaseKeyAlias = releaseSigningProperties.getProperty("keyAlias") ?: System.getenv("VIBEDECK_ANDROID_KEY_ALIAS")
+def releaseKeyPassword = releaseSigningProperties.getProperty("keyPassword") ?: System.getenv("VIBEDECK_ANDROID_KEY_PASSWORD")
+def hasReleaseSigning = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
+android {
+    namespace "com.phonemonitor.app"
+    compileSdk 35
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    defaultConfig {
+        applicationId "com.phonemonitor.app"
+        minSdk 26
+        targetSdk 35
+        versionCode 7
+        versionName "0.1.6"
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation "com.squareup.okhttp3:okhttp:4.12.0"
+}

@@ -1,0 +1,295 @@
+﻿<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="VibeDeck">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="VibeDeck">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="theme-color" content="#111820">
+  <!-- Cache-bust: iOS freezes the first icon/title it saw for a host. -->
+  <link rel="manifest" href="/manifest.json?v=22">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=22" sizes="180x180">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
+  <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
+  <title>VibeDeck</title>
+  <link rel="stylesheet" href="/index.css?v=11">
+</head>
+<body>
+  <div id="iosHttpsGate" role="dialog" aria-modal="true" aria-labelledby="iosHttpsGateTitle">
+    <h1 id="iosHttpsGateTitle">iPhone 只用 HTTPS</h1>
+    <p>長亮、主畫面 App、穩定連線都需要 HTTPS。這台 iPhone 不要再用 HTTP 開 VibeDeck。</p>
+    <ol>
+      <li>先安裝本機 HTTPS 憑證（只做一次）</li>
+      <li>設定 → 一般 → 關於本機 → 憑證信任設定 → 開啟完整信任</li>
+      <li>回到這裡按「開啟 HTTPS」</li>
+    </ol>
+    <div class="gate-actions">
+      <a id="iosGateCertLink" class="gate-primary" href="/cert/phone-monitor-root.cer">1. 安裝 HTTPS 憑證</a>
+      <button id="iosGateOpenHttps" class="gate-primary" type="button">2. 開啟 HTTPS</button>
+      <a id="iosGateHttpsUrl" class="gate-secondary" href="#">複製用的 HTTPS 網址</a>
+    </div>
+    <p class="gate-note">Android 仍可用 HTTP。iPhone 固定走這一條，不再切來切去。</p>
+    <p class="gate-note">若主畫面還是舊圖示／舊名稱：長按刪除舊圖示，改從 HTTPS 頁重新「加入主畫面」。</p>
+  </div>
+  <header>
+    <div class="brand">
+      <span class="brand-mark">›_</span>
+      <div class="brand-copy">
+        <strong>VibeDeck</strong>
+        <span>手機副螢幕與資訊板 Host</span>
+      </div>
+    </div>
+    <div class="controls top-controls">
+      <div class="view-switcher" aria-label="切換檢視">
+        <button id="displayMode" class="mode-button active" type="button">顯示器</button>
+        <button id="sideboardMode" class="mode-button" type="button">資訊板</button>
+        <button id="quotaMode" class="mode-button" type="button">額度</button>
+      </div>
+      <div class="utility-controls">
+        <select id="rotation" aria-label="旋轉">
+          <option value="auto">自動旋轉</option>
+          <option value="0">0deg</option>
+          <option value="90">90deg</option>
+          <option value="180">180deg</option>
+          <option value="270">270deg</option>
+        </select>
+        <select id="orientation" aria-label="版面方向">
+          <option value="auto">跟隨裝置</option>
+          <option value="portrait">固定直向</option>
+          <option value="landscape">固定橫向</option>
+        </select>
+        <button id="keepAwake" type="button">長亮 ON</button>
+        <button id="refresh" type="button">重新整理</button>
+        <button id="fullscreen" type="button">全螢幕</button>
+        <span class="status"><span id="dot" class="dot"></span><span id="status">連線中</span></span>
+      </div>
+    </div>
+    <video id="keepAwakeVideo"
+      playsinline
+      webkit-playsinline
+      muted
+      loop
+      preload="auto"
+      src="/silent-loop.mp4"
+      style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px"
+      aria-hidden="true"></video>
+    <details class="panel">
+      <summary>串流</summary>
+      <div class="controls">
+        <select id="streamPreset">
+          <option value="battery">省電 30fps / Q48</option>
+          <option value="balanced" selected>平衡 45fps / Q56</option>
+          <option value="smooth">順暢 60fps / Q60</option>
+          <option value="sharp">清晰 60fps / Q68</option>
+          <option value="custom">自訂</option>
+        </select>
+        <input id="streamFps" type="number" min="1" max="60" step="1" value="45" aria-label="FPS">
+        <input id="streamQuality" type="number" min="25" max="85" step="1" value="56" aria-label="Stream quality">
+        <button id="applyStream" type="button">套用串流</button>
+      </div>
+    </details>
+    <details class="panel">
+      <summary>解析度</summary>
+      <div class="controls">
+        <select id="modePreset"></select>
+        <input id="modeWidth" type="number" min="320" max="3840" step="1" value="1024" aria-label="Width">
+        <input id="modeHeight" type="number" min="240" max="2560" step="1" value="576" aria-label="Height">
+        <input id="modeRefresh" type="number" min="30" max="120" step="1" value="60" aria-label="Refresh rate">
+        <button id="applyMode" type="button">套用解析度</button>
+      </div>
+    </details>
+    <div class="connect-panel">
+      <div class="connect-qr">
+        <img id="qrCode" alt="手機連線 QR Code">
+        <span id="qrCaption">掃碼下載 Android APK。按下配對後會切換成配對 QR。</span>
+      </div>
+      <div class="connect-copy">
+        <p id="iosHomeTip" class="ios-home-tip">
+          iPhone：先裝 HTTPS 憑證 → 用 HTTPS 配對 → 分享加入主畫面 → 點「長亮 ON」。
+        </p>
+        <div class="connect-title">
+          <strong>裝置連線</strong>
+          <span id="connectTitleHint">打開 VibeDeck App，它會自動找到這台 PC。第一次只需在下方允許一次。</span>
+        </div>
+        <div class="pairing-guide" aria-label="手機配對流程">
+          <div id="pairingStepInstall" class="pairing-step active">
+            <b>1</b>
+            <strong>iPhone 裝憑證</strong>
+            <span>先下載並信任本機 HTTPS 憑證。</span>
+          </div>
+          <div id="pairingStepPair" class="pairing-step">
+            <b>2</b>
+            <strong>開始配對</strong>
+            <span>PC 按配對，產生 HTTPS 配對 QR。</span>
+          </div>
+          <div id="pairingStepOpen" class="pairing-step">
+            <b>3</b>
+            <strong>手機掃碼</strong>
+            <span>相機掃碼 → Safari 開啟 → 確認已配對。</span>
+          </div>
+        </div>
+        <div class="connect-actions">
+          <button id="pairPhone" class="primary-action legacy-pairing-action" type="button" hidden>舊式 QR 配對</button>
+          <button id="copyNativePairingLink" type="button" hidden>複製 Android 配對連結</button>
+          <button id="launchDeckWindow" type="button" hidden>開啟 Deck 視窗</button>
+          <a id="androidApkLink" href="#" class="primary-action" hidden>下載 Android APK</a>
+          <a id="nativeAppLink" href="#">開啟手機 App</a>
+          <a id="httpsCertLink" href="#" hidden>安裝 HTTPS 憑證</a>
+        </div>
+        <div class="connect-status">
+          <span id="apkState" class="apk-state"></span>
+          <span id="trustState" class="trust-state"></span>
+          <span id="streamCapabilityState" class="stream-capability-state"></span>
+          <span id="wakeState" class="wake-state"></span>
+          <span id="appState" class="app-state"></span>
+          <span id="deviceState" class="device-state"></span>
+        </div>
+        <details class="connect-links">
+          <summary>進階連線資訊</summary>
+          <div class="connect-link-list">
+            <a id="prettyLink" href="#"></a>
+            <a id="httpsLink" href="#"></a>
+            <a id="httpLink" href="#"></a>
+            <a id="androidApkQrLink" href="/qr/apk.svg" target="_blank" rel="noreferrer" hidden>Android APK QR</a>
+            <a id="androidApkShaLink" href="/download/vibedeck-android.apk.sha256" target="_blank" rel="noreferrer" hidden>Android APK SHA256</a>
+            <a id="nativeCertLink" href="#">Android HTTPS 信任</a>
+            <a id="nativeQrLink" href="/qr/native.svg?mode=display" target="_blank" rel="noreferrer">手機 App QR</a>
+          </div>
+        </details>
+        <div id="trustedDevicesPanel" class="trusted-devices" hidden>
+          <div id="pendingPairingPanel" class="pending-pairings" hidden>
+            <strong>等待你的允許</strong>
+            <div id="pendingPairingList"></div>
+          </div>
+          <div class="trusted-devices-head">
+            <strong>已配對手機</strong>
+            <button id="clearTrustedDevices" type="button" data-clear-trusted-devices title="清空所有配對">清空</button>
+            <button id="refreshTrustedDevices" type="button" title="重新整理裝置">↻</button>
+          </div>
+          <div id="trustedDeviceList" class="trusted-device-list"></div>
+        </div>
+      </div>
+    </div>
+    <div id="driverState" class="driver-state"></div>
+  </header>
+  <main>
+    <div id="pairSuccessBanner" class="pair-success-banner" role="status" aria-live="polite"></div>
+    <div id="phonePairRescue" class="phone-pair-rescue">
+      <strong>等待電腦允許</strong>
+      <span>VibeDeck 已自動找到這台 Host。請回到 PC 頁面核對六位數驗證碼並按「允許」，完成後這裡會自動進入。</span>
+      <details>
+        <summary>進階：使用舊式配對連結</summary>
+        <textarea id="pairLinkInput" rows="3" placeholder="貼上包含 pairingId 與 pairingSecret 的完整連結"></textarea>
+        <button id="pairLinkSubmit" type="button">使用配對連結</button>
+      </details>
+    </div>
+    <section id="displayView" class="app-view display-view active">
+      <img id="screen" class="screen-media" alt="VibeDeck 顯示器串流">
+      <video id="rtcScreen" class="screen-media" autoplay playsinline muted hidden aria-label="VibeDeck WebRTC 顯示器串流"></video>
+    </section>
+    <section id="sideboardView" class="app-view sideboard-view">
+      <div id="sideboardShell" class="sideboard-shell skin-command">
+        <div class="sideboard-top">
+          <div class="side-title">
+            <strong id="sideHeadline">資訊板</strong>
+            <span id="sideSummary">等待電腦資訊。</span>
+          </div>
+          <div class="skin-picker" aria-label="Sideboard skin">
+            <button class="active" data-side-skin="command" type="button">A</button>
+            <button data-side-skin="dial" type="button">B</button>
+            <button data-side-skin="focus" type="button">C</button>
+          </div>
+        </div>
+
+        <section class="side-panel side-load">
+          <span class="side-kicker">系統負載</span>
+          <strong id="sideLoad" class="side-big">--</strong>
+          <div class="side-summary">
+            <span id="sideHost">主機 --</span>
+            <span id="sideUptime">運行時間 --</span>
+            <span id="sideHealth">等待資料</span>
+            <span id="sideError" class="side-error"></span>
+          </div>
+        </section>
+
+        <section class="metric-grid">
+          <article class="metric-card">
+            <span class="side-kicker">CPU</span>
+            <strong id="sideCpu" class="metric-value">--</strong>
+            <span id="sideCpuSub" class="metric-sub">--</span>
+            <div class="mini-bar"><span id="sideCpuBar"></span></div>
+          </article>
+          <article class="metric-card">
+            <span class="side-kicker">RAM</span>
+            <strong id="sideRam" class="metric-value">--</strong>
+            <span id="sideRamSub" class="metric-sub">--</span>
+            <div class="mini-bar"><span id="sideRamBar"></span></div>
+          </article>
+          <article class="metric-card">
+            <span class="side-kicker">GPU</span>
+            <strong id="sideGpu" class="metric-value">--</strong>
+            <span id="sideGpuSub" class="metric-sub">--</span>
+            <div class="mini-bar"><span id="sideGpuBar"></span></div>
+          </article>
+          <article class="metric-card">
+            <span class="side-kicker">VRAM</span>
+            <strong id="sideVram" class="metric-value">--</strong>
+            <span id="sideVramSub" class="metric-sub">--</span>
+            <div class="mini-bar"><span id="sideVramBar"></span></div>
+          </article>
+          <article class="metric-card">
+            <span class="side-kicker">磁碟</span>
+            <strong id="sideDisk" class="metric-value">--</strong>
+            <span id="sideDiskSub" class="metric-sub">--</span>
+            <div class="mini-bar"><span id="sideDiskBar"></span></div>
+          </article>
+          <article class="metric-card">
+            <span class="side-kicker">網路</span>
+            <strong id="sideNet" class="metric-value">--</strong>
+            <span id="sideNetSub" class="metric-sub">--</span>
+            <div class="mini-bar"><span id="sideNetBar"></span></div>
+          </article>
+        </section>
+
+        <section class="side-panel side-feed">
+          <span class="feed-heading">天氣 / IO</span>
+          <ul class="feed-list">
+            <li><span id="sideWeather">天氣 --</span></li>
+            <li><span id="sideWeatherSub">體感 --</span></li>
+            <li><span id="sideDiskIo">磁碟 IO --</span></li>
+          </ul>
+          <span class="feed-heading">記憶體排行</span>
+          <ul id="sideProcessList" class="feed-list process-list"></ul>
+          <span class="feed-heading">工作脈搏</span>
+          <ul id="sideWorkList" class="feed-list"></ul>
+        </section>
+      </div>
+    </section>
+    <section id="quotaView" class="app-view quota-view">
+      <div class="quota-shell">
+        <div class="quota-top">
+          <div class="quota-left">
+            <div class="quota-title">
+              <strong>AI 額度</strong>
+              <span id="quotaSummary">等待額度來源。</span>
+            </div>
+            <div id="quotaTabs" class="quota-tabs" role="tablist" aria-label="Quota provider tabs"></div>
+          </div>
+          <span id="quotaUpdated" class="quota-status">--</span>
+        </div>
+        <div id="quotaGrid" class="quota-grid"></div>
+      </div>
+    </section>
+  </main>
+  <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
+
+  <script src="/index.js?v=16" defer></script>
+</body>
+</html>

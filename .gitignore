@@ -1,0 +1,63 @@
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.log
+certs/
+outputs/
+artifacts/
+
+# Driver build output
+driver/**/x64/
+driver/**/Debug/
+driver/**/Release/
+driver/**/*.cat
+driver/**/*.cer
+driver/**/*.pfx
+
+# Android build output
+.gradle/
+build/
+captures/
+local.properties
+apps/android/release-signing.properties
+*.jks
+*.keystore
+src/PhoneMonitor.Host/wwwroot/downloads/*.apk
+src/PhoneMonitor.Host/wwwroot/downloads/*.sha256
+src/PhoneMonitor.Host/wwwroot/downloads/*.json
+
+# Legacy Xcode/IPA patterns (no apps/ios in tree; keep ignore for accidental drops)
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.dSYM/
+
+# External samples fetched by scripts/fetch-idd-sample.ps1
+third_party/Windows-driver-samples/
+
+# Local inspection / temp dumps (never publish)
+scratch/apk-*/
+test-results/
+*.user.json
+
+# Local secrets templates may live under docs; real secrets stay out of git
+.env
+.env.*
+!.env.example
+
+# Design captures that may contain real account emails / personal UI
+docs/design/phone-quotas-tabs-account1.png
+docs/design/phone-quotas-tabs-account2.png
+docs/design/phone-quotas-tabs-final-account1.png
+docs/design/phone-quotas-tabs-final-account2.png
+docs/design/phone-quotas-card.png
+docs/design/phone-quotas-viewer.png
+docs/design/phone-quotas-tabs-codex.png
+docs/design/phone-quotas-codex-pager.png
+docs/design/quota-dashboard-viewer.png
+docs/design/quota-landscape-*.png
+docs/design/quota-portrait-*.png

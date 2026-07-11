@@ -1,0 +1,68 @@
+;
+; PhoneMonitor.Idd.inf
+;
+
+[Version]
+PnpLockDown=1
+Signature="$Windows NT$"
+ClassGUID={4D36E968-E325-11CE-BFC1-08002BE10318}
+Class=Display
+ClassVer=2.0
+Provider=%ManufacturerName%
+CatalogFile=PhoneMonitor.Idd.cat
+DriverVer=07/01/2026,0.1.0.0
+
+[Manufacturer]
+%ManufacturerName%=Standard,NT$ARCH$.10.0...22000
+
+[Standard.NT$ARCH$.10.0...22000]
+%DeviceName%=PhoneMonitor_Install, Root\PhoneMonitorIdd
+%DeviceName%=PhoneMonitor_Install, PhoneMonitorIdd
+
+[SourceDisksFiles]
+PhoneMonitor.Idd.dll=1
+
+[SourceDisksNames]
+1=%DiskName%
+
+[PhoneMonitor_Install.NT]
+Include=WUDFRD.inf
+Needs=WUDFRD.NT
+CopyFiles=UMDriverCopy
+
+[PhoneMonitor_Install.NT.hw]
+Include=WUDFRD.inf
+Needs=WUDFRD.NT.HW
+AddReg=PhoneMonitor_HardwareDeviceSettings
+
+[PhoneMonitor_HardwareDeviceSettings]
+HKR,, "UpperFilters", %REG_MULTI_SZ%, "IndirectKmd"
+HKR, "WUDF", "DeviceGroupId", %REG_SZ%, "PhoneMonitorIddGroup"
+
+[PhoneMonitor_Install.NT.Services]
+Include=WUDFRD.inf
+Needs=WUDFRD.NT.Services
+
+[PhoneMonitor_Install.NT.Wdf]
+UmdfService=PhoneMonitor.Idd,PhoneMonitor_UmdfService
+UmdfServiceOrder=PhoneMonitor.Idd
+UmdfKernelModeClientPolicy=AllowKernelModeClients
+
+[PhoneMonitor_UmdfService]
+UmdfLibraryVersion=$UMDFVERSION$
+ServiceBinary=%12%\UMDF\PhoneMonitor.Idd.dll
+UmdfExtensions=IddCx0102
+
+[DestinationDirs]
+UMDriverCopy=12,UMDF
+
+[UMDriverCopy]
+PhoneMonitor.Idd.dll
+
+[Strings]
+ManufacturerName="PhoneMonitor"
+DiskName="PhoneMonitor Indirect Display Driver Installation Disk"
+DeviceName="PhoneMonitor Display"
+
+REG_MULTI_SZ=0x00010000
+REG_SZ=0x00000000
