@@ -87,6 +87,7 @@
     const quotaSummary = document.getElementById("quotaSummary");
     const quotaUpdated = document.getElementById("quotaUpdated");
     const quotaTabs = document.getElementById("quotaTabs");
+    const quotaHelp = document.getElementById("quotaHelp");
     const quotaGrid = document.getElementById("quotaGrid");
     const wsBase = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
     let selectedDisplayName = "";
@@ -1301,6 +1302,15 @@
           ? "請先配對手機，才能查看 AI 額度。"
           : error.message || "額度來源無法使用。";
         quotaUpdated.textContent = "--";
+        if (quotaHelp) {
+          quotaHelp.replaceChildren();
+          quotaHelp.append(renderQuotaHelpBlock(
+            "無法讀取額度",
+            isTrustRequiredError(error)
+              ? ["手機需先與 PC 完成配對，才能查看本機 AI 額度。"]
+              : [error.message || "額度 API 失敗。", "請確認 Host 在跑，並在 PC 本機操作額度來源。"]
+          ));
+        }
         quotaGrid.replaceChildren();
       }
     }
@@ -1312,53 +1322,282 @@
 
     function renderQuotaContent() {
       quotaGrid.replaceChildren();
+      if (quotaHelp) quotaHelp.replaceChildren();
       const snapshot = quotaSnapshotData || {};
       const providers = snapshot?.Providers || snapshot?.providers || [];
-      const tabs = buildQuotaTabs(providers);
+      const tabs = buildQuotaTabs();
       if (!tabs.some(tab => tab.id === quotaActiveTab)) {
         quotaActiveTab = tabs[0]?.id || "agy";
       }
       renderQuotaTabs(tabs);
 
       const activeTab = tabs.find(tab => tab.id === quotaActiveTab);
-      quotaSummary.textContent = providers.length
-        ? `${activeTab?.label || "AI"} 額度狀態`
-        : "目前沒有可用的額度來源。";
+      const hasUsable = providers.some(provider => {
+        const family = getProviderFamily(provider);
+        if (family !== quotaActiveTab) return false;
+        const state = String(provider.State || provider.state || "").toLowerCase();
+        return state === "ok" || family === "agy";
+      });
+      const agyAccounts = groupAgyAccounts(providers);
+      const codexProviders = groupSingleProviderAccounts(providers, "codex");
+      const codexUsable = codexProviders.some(provider => {
+        const state = String(provider.State || provider.state || "").toLowerCase();
+        return state === "ok";
+      });
+
+      if (quotaActiveTab === "agy") {
+        quotaSummary.textContent = agyAccounts.length
+          ? `AGY · ${agyAccounts.length} 個帳號`
+          : "AGY · 尚未導入帳號";
+      } else if (quotaActiveTab === "codex") {
+        quotaSummary.textContent = codexUsable
+          ? "Codex · 已讀到額度"
+          : "Codex · 等待本機 session";
+      } else {
+        quotaSummary.textContent = hasUsable
+          ? `${activeTab?.label || "AI"} 額度狀態`
+          : "目前沒有可用的額度來源。";
+      }
       quotaUpdated.textContent = snapshot?.GeneratedAt || snapshot?.generatedAt
         ? new Date(snapshot.GeneratedAt || snapshot.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
         : "--";
 
+      if (quotaHelp) {
+        quotaHelp.append(renderQuotaHelpForTab(quotaActiveTab, {
+          agyCount: agyAccounts.length,
+          codexUsable,
+          codexCount: codexProviders.length
+        }));
+      }
+
       if (quotaActiveTab === "agy") {
-        const accounts = groupAgyAccounts(providers);
-        if (accounts.length) {
-          const index = getQuotaAccountIndex("agy", accounts.length);
-          quotaGrid.append(renderAgyAccountPage(accounts[index], accounts, index, snapshot));
+        if (agyAccounts.length) {
+          const index = getQuotaAccountIndex("agy", agyAccounts.length);
+          quotaGrid.append(renderAgyAccountPage(agyAccounts[index], agyAccounts, index, snapshot));
+        } else {
+          quotaGrid.append(renderAgySetupCard());
         }
-      } else {
-        const tabProviders = groupSingleProviderAccounts(providers, quotaActiveTab);
-        const index = getQuotaAccountIndex(quotaActiveTab, tabProviders.length);
-        const provider = tabProviders[index];
-        if (provider) {
-          quotaGrid.append(renderSingleQuotaPage(provider, snapshot, { index, total: tabProviders.length, tabId: quotaActiveTab }));
+      } else if (quotaActiveTab === "codex") {
+        if (codexProviders.length) {
+          const index = getQuotaAccountIndex("codex", codexProviders.length);
+          const provider = codexProviders[index];
+          if (provider) {
+            quotaGrid.append(renderSingleQuotaPage(provider, snapshot, { index, total: codexProviders.length, tabId: "codex" }));
+          }
+        } else {
+          quotaGrid.append(renderCodexSetupCard());
         }
       }
 
       if (!quotaGrid.children.length) {
-        const card = document.createElement("article");
-        card.className = "quota-account-card offline";
-        card.textContent = "等待額度來源";
-        quotaGrid.append(card);
+        quotaGrid.append(renderQuotaEmptyCard("等待額度來源", ["切換上方分頁查看 AGY / Codex 的導入說明。"]));
       }
     }
 
-    function buildQuotaTabs(providers) {
-      const tabs = [
+    function buildQuotaTabs() {
+      return [
         { id: "agy", label: "AGY" },
-        { id: "codex", label: "Codex" },
-        { id: "claude-code", label: "Claude" }
+        { id: "codex", label: "Codex" }
       ];
-      const available = tabs.filter(tab => providers.some(provider => getProviderFamily(provider) === tab.id));
-      return available.length ? available : tabs.slice(0, 1);
+    }
+
+    function isEinkQuotaClient() {
+      return document.body.classList.contains("eink-client");
+    }
+
+    function renderQuotaHelpBlock(title, steps) {
+      const block = document.createElement("details");
+      block.className = "quota-help-block";
+      if (isEinkQuotaClient()) block.classList.add("quota-help-block-eink");
+      // Collapsed by default — pipeline notes are dense and steal vertical space.
+      block.open = false;
+      const summary = document.createElement("summary");
+      summary.className = "quota-help-summary";
+      const label = document.createElement("span");
+      label.className = "quota-help-summary-label";
+      label.textContent = title;
+      const hint = document.createElement("span");
+      hint.className = "quota-help-summary-hint";
+      hint.textContent = "pipeline";
+      summary.append(label, hint);
+      block.append(summary);
+      const body = document.createElement("div");
+      body.className = "quota-help-body";
+      const list = document.createElement("ol");
+      for (const step of steps) {
+        const li = document.createElement("li");
+        li.textContent = step;
+        list.append(li);
+      }
+      body.append(list);
+      block.append(body);
+      return block;
+    }
+
+    function renderQuotaHelpForTab(tabId, state = {}) {
+      const eink = isEinkQuotaClient();
+
+      if (tabId === "codex") {
+        if (state.codexUsable) {
+          return renderQuotaHelpBlock("Codex pipeline", eink
+            ? [
+                "Source: local session JSONL → latest rate_limits payload.",
+                "Refresh: new Codex activity on Host PC, then ↻ / POST /api/quotas/refresh."
+              ]
+            : [
+                "Ingest path: Host tails %USERPROFILE%\\.codex\\sessions\\**\\*.jsonl for the newest event_msg.rate_limits snapshot.",
+                "Identity only: auth*.json supplies account metadata (email / plan); Codex tokens are not stored by VibeDeck.",
+                "Cache: normalized rows under %LOCALAPPDATA%\\PhoneMonitor\\quotas\\codex\\accounts\\.",
+                "Re-sample: generate a newer rate_limits event on this PC, then ↻ (POST /api/quotas/refresh)."
+              ]);
+        }
+        return renderQuotaHelpBlock(eink ? "Codex bind" : "Codex bind requirements", eink
+          ? [
+              "Co-locate Codex CLI + Host on the same Windows machine.",
+              "Require at least one session JSONL containing rate_limits.",
+              "Trigger rescan via ↻. No OAuth / token-import surface."
+            ]
+          : [
+              "Runtime co-location: Codex CLI must run on the same Windows host process tree as PhoneMonitor.Host.",
+              "Filesystem probe: %USERPROFILE%\\.codex\\sessions\\**\\*.jsonl — Host scans newest files for rate_limits.",
+              "No remote bind: there is no Codex OAuth, paste-token, or cloud account import API.",
+              "State source-needed: auth identity exists but no compatible rate_limits snapshot has been observed yet.",
+              "Rescan: ↻ maps to POST /api/quotas/refresh."
+            ]);
+      }
+
+      if (state.agyCount > 0) {
+        return renderQuotaHelpBlock("AGY pipeline", eink
+          ? [
+              "Store: DPAPI-protected refresh tokens under LocalAppData\\PhoneMonitor\\quotas\\agy.",
+              "Actions: + OAuth · ↻ token refresh + quota API · ⌫ drop local account store."
+            ]
+          : [
+              "Credential store: %LOCALAPPDATA%\\PhoneMonitor\\quotas\\agy\\accounts\\ (refresh_token_protected, DPAPI CurrentUser).",
+              "Quota fetch: Host exchanges refresh → access token, then calls Antigravity quota endpoints (not Claude Code local config).",
+              "Controls: + → POST /api/quotas/agy/oauth/start · ↻ → /api/quotas/refresh · ⌫ → /api/quotas/agy/account/delete."
+            ]);
+      }
+
+      return renderQuotaHelpBlock(eink ? "AGY bind" : "AGY bind requirements", eink
+        ? [
+            "Prerequisite: Google OAuth client on Host (env or secrets JSON).",
+            "+ → loopback OAuth on PC browser (PKCE).",
+            "↻ → refresh tokens + retrieveUserQuotaSummary."
+          ]
+        : [
+              "Prerequisite: Google OAuth client on the Host — AGY_GOOGLE_CLIENT_ID / AGY_GOOGLE_CLIENT_SECRET, or %LOCALAPPDATA%\\PhoneMonitor\\secrets\\agy-google-oauth.json.",
+              "Bind: + issues POST /api/quotas/agy/oauth/start (PKCE, loopback redirect to Host); complete consent in the PC browser.",
+              "Persist: refresh tokens land in %LOCALAPPDATA%\\PhoneMonitor\\quotas\\agy\\accounts\\; quota cache under ...\\quotas\\agy\\cache\\.",
+              "Hydrate: ↻ refreshes access tokens and pulls Antigravity remaining-quota windows (Claude / Gemini buckets).",
+              "Missing client credentials: oauth/start fails closed — expected, not a device-pairing fault."
+            ]);
+    }
+
+    function renderQuotaEmptyCard(title, lines) {
+      const card = document.createElement("article");
+      card.className = "quota-account-card offline quota-setup-card";
+      const head = document.createElement("div");
+      head.className = "quota-setup-title";
+      head.textContent = title;
+      card.append(head);
+      const list = document.createElement("ul");
+      list.className = "quota-setup-list";
+      for (const line of lines) {
+        const li = document.createElement("li");
+        li.textContent = line;
+        list.append(li);
+      }
+      card.append(list);
+      return card;
+    }
+
+    function renderAgySetupCard() {
+      const card = document.createElement("article");
+      card.className = "quota-account-card quota-setup-card";
+      card.dataset.statusKey = "agy:setup";
+      const eink = isEinkQuotaClient();
+      card.innerHTML = eink
+        ? `
+        <div class="quota-setup-title">AGY · unbound</div>
+        <ul class="quota-setup-list">
+          <li>Host OAuth client required (env / secrets JSON).</li>
+          <li><b>+</b> → PKCE loopback on PC browser.</li>
+          <li><b>↻</b> → token refresh + quota API pull.</li>
+        </ul>
+        <div class="quota-footer">
+          <span class="quota-time">oauth/start</span>
+          <span></span>
+          <div class="quota-toolbox" aria-label="額度操作">
+            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">+</button>
+            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+          </div>
+        </div>
+        <div class="quota-action-status" aria-live="polite"></div>
+      `
+        : `
+        <div class="quota-setup-title">AGY · no bound account</div>
+        <ul class="quota-setup-list">
+          <li>No passive filesystem discovery for AGY — bind via OAuth only.</li>
+          <li>Client credentials must exist on Host before <b>+</b> (see pipeline notes above).</li>
+          <li>Successful consent writes DPAPI-protected refresh tokens under LocalAppData\\PhoneMonitor\\quotas\\agy.</li>
+        </ul>
+        <div class="quota-footer">
+          <span class="quota-time">POST /api/quotas/agy/oauth/start</span>
+          <span></span>
+          <div class="quota-toolbox" aria-label="額度操作">
+            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">+</button>
+            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+          </div>
+        </div>
+        <div class="quota-action-status" aria-live="polite"></div>
+      `;
+      applyQuotaCardStatus(card);
+      wireQuotaToolbox(card);
+      return card;
+    }
+
+    function renderCodexSetupCard() {
+      const card = document.createElement("article");
+      card.className = "quota-account-card quota-setup-card";
+      card.dataset.statusKey = "codex:setup";
+      const eink = isEinkQuotaClient();
+      card.innerHTML = eink
+        ? `
+        <div class="quota-setup-title">Codex · no snapshot</div>
+        <ul class="quota-setup-list">
+          <li>Await local session JSONL with rate_limits.</li>
+          <li>Rescan only — no OAuth / import API.</li>
+          <li>Co-locate Codex CLI with Host on Windows.</li>
+        </ul>
+        <div class="quota-footer">
+          <span class="quota-time">session scan</span>
+          <span></span>
+          <div class="quota-toolbox" aria-label="額度操作">
+            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+          </div>
+        </div>
+        <div class="quota-action-status" aria-live="polite"></div>
+      `
+        : `
+        <div class="quota-setup-title">Codex · no rate_limits snapshot</div>
+        <ul class="quota-setup-list">
+          <li>Passive scrape only: Host does not expose Codex OAuth or token import.</li>
+          <li>Probe path: %USERPROFILE%\\.codex\\sessions\\**\\*.jsonl (event_msg.rate_limits).</li>
+          <li>Host and Codex must share the same Windows machine / user profile.</li>
+        </ul>
+        <div class="quota-footer">
+          <span class="quota-time">POST /api/quotas/refresh</span>
+          <span></span>
+          <div class="quota-toolbox" aria-label="額度操作">
+            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+          </div>
+        </div>
+        <div class="quota-action-status" aria-live="polite"></div>
+      `;
+      applyQuotaCardStatus(card);
+      wireQuotaToolbox(card);
+      return card;
     }
 
     function renderQuotaTabs(tabs) {

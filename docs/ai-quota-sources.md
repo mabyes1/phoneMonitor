@@ -2,6 +2,22 @@
 
 PhoneMonitor quota collection must be independent. Cockpit Tools can be used as a research reference, but PhoneMonitor must not depend on Cockpit processes, ports, caches, or private local storage.
 
+## New-user paths (same text is shown on the Quotas page)
+
+### Codex → VibeDeck
+
+1. Install/sign in Codex on the **same Windows PC** as the Host.
+2. Use Codex so `%USERPROFILE%\.codex\sessions\**\*.jsonl` gets a `rate_limits` event.
+3. Open **額度 → Codex → ↻**.
+4. No import button and no Codex OAuth — local scan only.
+
+### AGY → VibeDeck
+
+1. Configure Google OAuth on the Host (`AGY_GOOGLE_*` env or `%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`).
+2. Open **額度 → AGY → +** and finish Google sign-in in the **PC** browser.
+3. Press **↻** to refresh Antigravity quota APIs.
+4. Optional one-time import from `%USERPROFILE%\.antigravity_cockpit\accounts\` via `POST /api/quotas/agy/import`.
+
 ## Current Providers
 
 ### Codex
@@ -41,15 +57,13 @@ Codex multi-account discovery does not read `.cockpit_codex_auth*`. PhoneMonitor
 
 ### Claude Code
 
-Status: source discovery only.
+Status: **removed from product surface**.
 
-Local config exists under `%USERPROFILE%\.claude`, but it does not currently expose a quota snapshot.
+Earlier builds only detected local Claude install/config and showed a tab with no way to import real usage into VibeDeck. That dead-end path is no longer returned by `/api/quotas` and the Claude tab is gone.
 
-Likely independent path:
+AGY’s own “Claude” bucket (via Antigravity) is unrelated — that still comes from AGY OAuth/quota APIs.
 
-- Use Claude authentication state owned by Claude/Anthropic, not Cockpit.
-- Query Claude usage endpoints with explicit user login/session handling.
-- Store only the normalized quota snapshot in PhoneMonitor.
+If Claude Code quota is added later, it needs a real authenticated usage source plus store/import UI, not install detection alone.
 
 ### AGY
 

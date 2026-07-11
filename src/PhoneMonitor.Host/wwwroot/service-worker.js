@@ -1,4 +1,4 @@
-const CACHE_NAME = "vibedeck-app-v28";
+const CACHE_NAME = "vibedeck-app-v33";
 const APP_SHELL = [
   "/",
   "/index.html",

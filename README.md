@@ -44,9 +44,7 @@ VibeDeck is a **Windows Host** that:
 1. Creates a real **virtual display** (Indirect Display Driver)
 2. Streams it to a phone over the **LAN** (WebRTC H.264 / JPEG)
 3. Offers a phone-sized **Sideboard** (CPU / GPU / weather / work pulse)
-4. Shows **AI quotas** (Codex / Claude Code discovery / AGY)
-
-The user-facing name is **VibeDeck**. Internal identifiers still use `PhoneMonitor` (driver, certs, headers, deep links) for compatibility.
+4. Shows **AI quotas** (Codex + AGY; no Claude Code quota path)
 
 ### Platform support
 
@@ -117,21 +115,26 @@ scripts\install-driver-dev.ps1
 
 Windows then exposes **PhoneMonitor Display** in Settings.
 
-### AGY OAuth credentials (local only)
+### First-time AI quotas (new users)
 
-Never committed. Configure either:
+Quotas are read **on the PC running the Host**, not by the phone alone. Open **額度 / Quotas** in the UI for the same steps.
 
-- Env: `AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`
-- Or file: `%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`
+**Codex**
 
-Template: [`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
+1. Install and sign in to Codex on the **same Windows PC** as the Host (`%USERPROFILE%\.codex`).
+2. Use Codex once so session logs contain a `rate_limits` event.
+3. Open VibeDeck → **額度 → Codex** → **↻**.
+4. There is **no** Codex OAuth or “import token” button — VibeDeck only scans local sessions.
 
-### Security (LAN product)
+**AGY**
 
-- Host binds `0.0.0.0` so phones can connect on your LAN
-- Pairing + device/action tokens protect non-loopback clients
-- **Do not** expose the Host port on the public internet
-- Release keystores and OAuth secrets stay on your machine
+1. Put Google OAuth client credentials on the Host PC:
+   - Env: `AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`, or
+   - File: `%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`  
+   Template: [`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
+2. Open **額度 → AGY** → **+** (PC browser completes Google sign-in).
+3. Press **↻** to refresh Claude/Gemini remaining quota from Antigravity APIs.
+4. Tokens live under `%LOCALAPPDATA%\PhoneMonitor\quotas\agy\` (not in the repo).
 
 ### Docs
 
@@ -161,9 +164,7 @@ VibeDeck 是跑在 **Windows** 上的 Host，用來：
 1. 建立真實的 **虛擬螢幕**（Indirect Display Driver）
 2. 透過 **區網** 串流到手機（WebRTC H.264 / JPEG）
 3. 提供手機尺寸的 **資訊板**（CPU / GPU / 天氣 / 工作脈搏）
-4. 顯示 **AI 額度**（Codex / Claude Code 發現 / AGY）
-
-對外產品名是 **VibeDeck**；驅動、憑證、HTTP header、deep link 等內部相容名稱仍可能是 `PhoneMonitor`。
+4. 顯示 **AI 額度**（Codex、AGY；Claude Code 尚無接入，不提供空殼分頁）
 
 ### 平台支援
 
@@ -234,21 +235,26 @@ scripts\install-driver-dev.ps1
 
 安裝後 Windows 設定會出現 **PhoneMonitor Display**。
 
-### AGY OAuth 憑證（只放本機）
+### 首次 AI 額度（新使用者）
 
-不會進 git。請設定：
+額度是在 **跑 Host 的那台 PC** 讀本機資料，手機只顯示結果。UI **額度** 頁也有同樣說明。
 
-- 環境變數：`AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`
-- 或檔案：`%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`
+**Codex**
 
-範本：[`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
+1. 在與 Host **同一台 Windows** 安裝並登入 Codex（`%USERPROFILE%\.codex`）。
+2. 先正常用一次 Codex，讓 session 出現 `rate_limits`。
+3. VibeDeck → **額度 → Codex** → **↻**。
+4. **沒有** Codex OAuth／貼 token 匯入——只掃本機 session。
 
-### 安全（區網產品）
+**AGY**
 
-- Host 聽 `0.0.0.0`，方便區網手機連
-- 配對 + device/action token 保護非本機請求
-- **不要**把 Host 埠暴露到公網
-- 簽章 keystore、OAuth secret 留在你自己的電腦
+1. 在 Host 本機放 Google OAuth：
+   - 環境變數 `AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`，或
+   - `%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`  
+   範本：[`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
+2. **額度 → AGY** → **+**（PC 瀏覽器完成 Google 登入）。
+3. 再按 **↻** 拉 Antigravity 的 Claude／Gemini 剩餘額度。
+4. Token 存在 `%LOCALAPPDATA%\PhoneMonitor\quotas\agy\`（不進 repo）。
 
 ### 授權
 

@@ -186,12 +186,117 @@ body.eink-client .quota-dot.active {
 }
 
 body.eink-client .quota-shell {
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 18px;
+  /* Keep dark-theme CSS vars from overwriting light e-ink ink. */
+  --quota-accent: #171714;
+  --quota-blue: #24241f;
+  --quota-ink: #171714;
+  --quota-muted: #3d3d36;
+  --quota-panel: #f8f7f1;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 body.eink-client .quota-title strong {
   font-size: clamp(25px, 3.2vw, 38px);
+  color: #171714;
+}
+
+body.eink-client .quota-help {
+  display: block;
+}
+
+body.eink-client .quota-help:empty {
+  display: none;
+}
+
+/* Help / setup copy must be high-contrast on cream paper; dark glass styles are unreadable. */
+body.eink-client .quota-help-block {
+  border: 3px solid #24241f;
+  border-radius: 0;
+  background: #fffef8;
+  color: #171714;
+  font-size: clamp(15px, 2.1vw, 18px);
+  line-height: 1.5;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+body.eink-client .quota-help-summary {
+  padding: 12px 14px;
+  min-height: 48px;
+  color: #171714;
+  font-size: clamp(16px, 2.2vw, 20px);
+  font-weight: 800;
+}
+
+body.eink-client .quota-help-summary-hint {
+  border: 2px solid #24241f;
+  border-radius: 0;
+  background: #f2f0e8;
+  color: #171714;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+body.eink-client .quota-help-body {
+  padding: 0 14px 14px;
+  border-top: 2px solid #24241f;
+}
+
+body.eink-client .quota-help-block ol {
+  margin: 10px 0 0;
+  padding-left: 1.35em;
+}
+
+body.eink-client .quota-help-block li {
+  color: #171714;
+  font-weight: 600;
+}
+
+body.eink-client .quota-help-block li + li {
+  margin-top: 8px;
+}
+
+body.eink-client .quota-setup-card {
+  gap: 14px;
+  padding: 16px 18px;
+  border: 3px solid #24241f;
+  background: #fffef8;
+}
+
+body.eink-client .quota-setup-title {
+  color: #171714;
+  font-size: clamp(18px, 2.6vw, 24px);
+  font-weight: 800;
+}
+
+body.eink-client .quota-setup-list {
+  color: #24241f;
+  font-size: clamp(15px, 2.1vw, 18px);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+body.eink-client .quota-setup-list b {
+  color: #171714;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+body.eink-client .quota-setup-card .quota-footer {
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 2px solid #24241f;
+}
+
+body.eink-client .quota-setup-card .quota-time {
+  color: #171714 !important;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 body.eink-client .quota-account-card {
@@ -212,10 +317,15 @@ body.eink-client .quota-toolbox {
 
 body.eink-client .quota-toolbox button,
 body.eink-client .quota-page-button {
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  border: 3px solid #24241f;
   border-radius: 2px;
+  color: #171714;
+  background: #f2f0e8;
+  font-size: 20px;
+  font-weight: 800;
 }
 
 @media (orientation: portrait), (max-width: 760px) {
@@ -1111,6 +1221,121 @@ body.eink-client .quota-page-button {
       border-color: rgba(112,217,139,.48);
       background: rgba(112,217,139,.2);
       color: var(--quota-ink);
+    }
+
+    .quota-help {
+      min-width: 0;
+    }
+
+    .quota-help:empty {
+      display: none;
+    }
+
+    .quota-help-block {
+      border: 1px solid rgba(112, 217, 139, .22);
+      border-radius: 8px;
+      background: rgba(8, 14, 16, .72);
+      color: var(--quota-muted);
+      font-size: clamp(11px, 1.5vw, 13px);
+      line-height: 1.45;
+      overflow: hidden;
+    }
+
+    .quota-help-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 36px;
+      padding: 8px 12px;
+      cursor: pointer;
+      list-style: none;
+      color: var(--quota-ink);
+      font-size: clamp(12px, 1.7vw, 14px);
+      font-weight: 800;
+      user-select: none;
+    }
+
+    .quota-help-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .quota-help-summary::after {
+      content: "▸";
+      flex: 0 0 auto;
+      color: var(--quota-muted);
+      font-size: 12px;
+      transition: transform .12s ease;
+    }
+
+    .quota-help-block[open] > .quota-help-summary::after {
+      transform: rotate(90deg);
+    }
+
+    .quota-help-summary-label {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .quota-help-summary-hint {
+      flex: 0 0 auto;
+      padding: 2px 7px;
+      border: 1px solid rgba(112, 217, 139, .35);
+      border-radius: 999px;
+      background: rgba(112, 217, 139, .12);
+      color: var(--quota-accent);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .quota-help-body {
+      padding: 0 12px 10px;
+      border-top: 1px solid rgba(255, 255, 255, .08);
+    }
+
+    .quota-help-block ol {
+      margin: 8px 0 0;
+      padding-left: 1.2em;
+    }
+
+    .quota-help-block li + li {
+      margin-top: 4px;
+    }
+
+    body.eink-client .quota-help-summary::after {
+      transition: none;
+    }
+
+    .quota-setup-card {
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .quota-setup-title {
+      font-size: clamp(15px, 2.4vw, 18px);
+      font-weight: 800;
+      color: var(--quota-ink);
+    }
+
+    .quota-setup-list {
+      margin: 0;
+      padding-left: 1.15em;
+      color: var(--quota-muted);
+      font-size: clamp(11px, 1.5vw, 13px);
+      line-height: 1.45;
+    }
+
+    .quota-setup-list li + li {
+      margin-top: 4px;
+    }
+
+    .quota-setup-list b {
+      color: var(--quota-accent);
     }
 
     .quota-grid {

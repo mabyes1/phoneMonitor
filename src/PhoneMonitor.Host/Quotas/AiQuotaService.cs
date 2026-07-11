@@ -335,7 +335,7 @@ namespace PhoneMonitor.Host.Quotas
                 Providers = new List<AiQuotaStatus>()
             };
             snapshot.Providers.AddRange(ReadCodexQuotas());
-            snapshot.Providers.Add(ReadClaudeCodeQuota());
+            // Claude Code: detection-only was a dead end (no ingest path). Do not surface until real quota exists.
             snapshot.Providers.AddRange(await ReadAgyQuotasAsync(forceAgyRefresh, cancellationToken));
 
             return snapshot;
@@ -733,32 +733,6 @@ namespace PhoneMonitor.Host.Quotas
                 .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
                 .Where(line => !string.IsNullOrWhiteSpace(line))
                 .ToList();
-        }
-
-        private AiQuotaStatus ReadClaudeCodeQuota()
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var claudeDir = Path.Combine(home, ".claude");
-            var claudeJson = Path.Combine(home, ".claude.json");
-            var claudeExe = FindExecutable("claude.exe");
-
-            if (claudeExe == null && !Directory.Exists(claudeDir) && !File.Exists(claudeJson))
-            {
-                return Unavailable("claude-code", "Claude Code", "Claude Code local config was not found.", claudeDir);
-            }
-
-            return new AiQuotaStatus
-            {
-                Id = "claude-code",
-                Label = "Claude Code",
-                Family = "claude-code",
-                AccountId = "local",
-                State = "source-needed",
-                Source = claudeExe ?? (Directory.Exists(claudeDir) ? claudeDir : claudeJson),
-                Detail = claudeExe != null
-                    ? "Claude CLI is installed, but quota needs an independent authenticated usage source."
-                    : "Claude config exists, but Claude CLI was not found on PATH. Quota needs an independent authenticated usage source."
-            };
         }
 
         private async Task<IEnumerable<AiQuotaStatus>> ReadAgyQuotasAsync(bool forceRefresh, CancellationToken cancellationToken)
