@@ -1,87 +1,100 @@
 # VibeDeck
 
-VibeDeck turns an idle phone into a PC side display and command dashboard.
+<p align="center">
+  <img src="docs/screenshots/app-icon.png" width="96" alt="VibeDeck icon" />
+</p>
 
-The product name is **VibeDeck**. Some internal names still say `PhoneMonitor` because the Windows driver, local certificate paths, HTTP headers, deep links, and package IDs already depend on those identifiers. Treat `PhoneMonitor` as the compatibility layer and VibeDeck as the user-facing product.
+<p align="center">
+  <strong>EN</strong> · Turn an idle phone into a PC side display and command deck<br/>
+  <strong>中文</strong> · 把閒置手機變成電腦副螢幕與指令資訊板
+</p>
 
-## What Works Now
+<p align="center">
+  <a href="#english">English</a> ·
+  <a href="#中文">中文</a> ·
+  <a href="LICENSE">MIT License</a>
+</p>
 
-- Windows Host serving the phone UI from `src/PhoneMonitor.Host`.
-- Real Windows virtual display through the PhoneMonitor Indirect Display Driver work under `driver/PhoneMonitor.Idd`.
-- Browser/PWA phone client with QR connect, pairing, HTTPS certificate download, wake-lock support, and installable app shell.
-- JPEG WebSocket display stream as the current reliable fallback.
-- **iPhone / iOS: Safari (or Add to Home Screen PWA) only** — WebRTC H.264 when FFmpeg is available, JPEG fallback otherwise. No native iOS app.
-- FFmpeg/libx264 Annex-B H.264 Host stream at `/ws/h264-annexb` for the Android native decoder, with idle-frame throttling and Host-side metrics for fps/Mbps/skipped frames.
-- Phone-first Sideboard mode with Host-owned PC telemetry, Chinese weather/location, AI quota panel, and glance-board-inspired skins.
-- PC Deck Window launcher that opens the Sideboard or Quota page on the `PhoneMonitor Display`, giving the installed Android app a native H.264 view of a real PC-controlled page.
-- Native Android WebView shell under `apps/android`, with VibeDeck branding, launcher icon, LAN discovery, deep links, native keep-awake, paired-device token handoff, APK update prompts, native Deck launch commands, and a native H.264 decoder screen.
-- Independent AI quota page for Codex, Claude Code discovery, and AGY account/OAuth flow.
+---
 
-Intentionally out of the current product UI:
+## Screenshots · 截圖
 
-- Existing-window capture.
-- Test-pattern/debug stream sources.
-- WebRTC DataChannel JPEG.
-- Fragmented-MP4 H.264 browser experiment.
-- ADB as a user-facing setup path.
-- Fit/fill/crop/stretch source controls.
+| Display stream · 顯示器串流 | Device connect · 裝置連線 |
+|:---:|:---:|
+| ![Display](docs/screenshots/01-display-stream.png) | ![Connect](docs/screenshots/02-device-connect.png) |
 
-## License
+| Sideboard · 資訊板 | Command layout · 指揮版面 |
+|:---:|:---:|
+| ![Sideboard](docs/screenshots/03-sideboard.jpg) | ![Command](docs/screenshots/04-sideboard-command.jpg) |
 
-MIT. See [LICENSE](LICENSE).
+| E-ink / BOOX · 電子紙 |
+|:---:|
+| ![BOOX](docs/screenshots/05-boox-eink.jpg) |
 
-## Security notes (LAN product)
+---
 
-- The Host listens on the LAN (`0.0.0.0:5000` / HTTPS `:5443`) by design so phones can connect.
-- Pairing, device tokens, and action tokens are the access control for non-loopback clients.
-- Do not expose the Host port on the public internet.
-- AGY Google OAuth credentials must be supplied by you (env or local secrets file). They are never committed.
+<a id="english"></a>
 
-## Run The Host
+## English
 
-From the repo root:
+### What is VibeDeck?
+
+VibeDeck is a **Windows Host** that:
+
+1. Creates a real **virtual display** (Indirect Display Driver)
+2. Streams it to a phone over the **LAN** (WebRTC H.264 / JPEG)
+3. Offers a phone-sized **Sideboard** (CPU / GPU / weather / work pulse)
+4. Shows **AI quotas** (Codex / Claude Code discovery / AGY)
+
+The user-facing name is **VibeDeck**. Internal identifiers still use `PhoneMonitor` (driver, certs, headers, deep links) for compatibility.
+
+### Platform support
+
+| Platform | Client | Notes |
+|----------|--------|--------|
+| **Windows PC** | Host + optional IDD driver | Required |
+| **iPhone** | Safari / Add to Home Screen **only** | WebRTC H.264 + JPEG fallback. **No native iOS app** |
+| **Android** | PWA and/or APK under `apps/android` | Native keep-awake + MediaCodec H.264 |
+| **BOOX / e-ink** | Browser or Android path | Same Host protocol |
+
+### Features
+
+- LAN pairing with QR + PC approval, device tokens, revoke list
+- Local HTTPS (`:5443`) with auto-generated root cert for Wake Lock / PWA
+- JPEG WebSocket fallback; WebRTC H.264 when FFmpeg is available
+- Sideboard telemetry owned by the Host (no external dashboard required)
+- AI quota page with AGY OAuth (credentials **not** in the repo)
+- Android native shell: deep links, Deck Window, H.264 viewer
+
+### Quick start
 
 ```powershell
+# From repo root
 scripts\dev-run.ps1
 ```
 
-Or build and run the Host executable directly:
+Or:
 
 ```powershell
 dotnet build PhoneMonitor.sln
 src\PhoneMonitor.Host\bin\Debug\netcoreapp3.1\PhoneMonitor.Host.exe --urls http://0.0.0.0:5000
 ```
 
-Useful URLs:
+| URL | Use |
+|-----|-----|
+| `http://127.0.0.1:5000` | PC local |
+| `http://<PC-LAN-IP>:5000` | Phone HTTP bootstrap |
+| `https://<PC-LAN-IP>:5443` | Phone HTTPS (after trusting cert) |
 
-- PC local: `http://127.0.0.1:5000`
-- Phone LAN: `http://<PC-LAN-IP>:5000`
-- HTTPS LAN: `https://<PC-LAN-IP>:5443` after the local certificate is trusted.
+### iPhone setup (canonical path)
 
-Useful checks:
+1. Open Host **HTTP** → install `phone-monitor-root.cer`
+2. iOS Settings → General → About → Certificate Trust Settings → enable full trust
+3. Open Host **HTTPS** → pair once on the PC
+4. Share → **Add to Home Screen**
+5. Use **Display** (WebRTC H.264) and turn **Keep awake** on when needed
 
-```powershell
-Invoke-RestMethod http://127.0.0.1:5000/health
-Invoke-RestMethod http://127.0.0.1:5000/api/connect | ConvertTo-Json -Depth 4
-Invoke-RestMethod http://127.0.0.1:5000/api/stream/capabilities | ConvertTo-Json -Depth 4
-Invoke-RestMethod http://127.0.0.1:5000/api/displays | ConvertTo-Json -Depth 3
-Invoke-RestMethod http://127.0.0.1:5000/api/sideboard/stats | ConvertTo-Json -Depth 6
-Invoke-RestMethod http://127.0.0.1:5000/api/quotas | ConvertTo-Json -Depth 6
-```
-
-## Phone Setup
-
-### Browser / PWA (including all iPhones)
-
-Open the Host URL on the phone and use the `手機連線` panel.
-
-- **iPhone**: Safari is the supported client. Prefer HTTPS after trusting the local root certificate, pair once, then Share → Add to Home Screen. WebRTC H.264 is the primary display path; JPEG is the fallback. There is **no** VibeDeck iOS App Store / TestFlight / Xcode project.
-- Android Chrome/Edge can install the PWA when the browser allows it.
-- HTTPS is preferred for browser wake lock. Phones still require installing/trusting the local root certificate from system UI.
-
-### Android Native App
-
-Build and install:
+### Android (optional native)
 
 ```powershell
 scripts\check-android-toolchain.ps1
@@ -89,17 +102,10 @@ scripts\build-android-app.ps1
 scripts\install-android-app-dev.ps1
 ```
 
-The debug APK is here:
+Debug APK: `apps\android\app\build\outputs\apk\debug\app-debug.apk`  
+Release flow: `docs/android-apk-distribution.md`
 
-```text
-apps\android\app\build\outputs\apk\debug\app-debug.apk
-```
-
-The installed app keeps the screen awake natively, can scan the LAN for the Host, opens `phonemonitor://` deep links from the Host page, and includes a native H.264 decoder screen. Pair from the Host page once so the app shell can receive the device token; after that `顯示器` opens the native H.264 viewer, while `資訊板` and `額度` ask the PC Host to open a Deck Window on the virtual display and then switch into native H.264.
-
-## Driver Development
-
-The Windows driver needs Visual Studio C++ and WDK.
+### Virtual display driver (optional)
 
 ```powershell
 scripts\check-driver-toolchain.ps1
@@ -109,22 +115,147 @@ scripts\build-driver.ps1
 scripts\install-driver-dev.ps1
 ```
 
-After install, Windows should expose `PhoneMonitor Display` in Settings. That display name is still internal/driver-facing.
+Windows then exposes **PhoneMonitor Display** in Settings.
 
-## Product Direction
+### AGY OAuth credentials (local only)
 
-VibeDeck is not trying to be only a spacedesk clone. The virtual display is the base layer; the sharper wedge is a phone-sized command deck:
+Never committed. Configure either:
 
-1. **Display**: show the real Windows virtual display when needed.
-2. **Deck Window**: open a PC-rendered Sideboard or Quota page directly on the virtual display.
-3. **Sideboard**: readable PC telemetry, weather, work pulse, quick glance panels.
-4. **AI Quotas**: account-aware quota page for coding/AI tools.
-5. **Android native app** (optional): keep-awake, deep links, native H.264; **iPhone stays web/PWA**.
+- Env: `AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`
+- Or file: `%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`
 
-Near-term focus:
+Template: [`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
 
-- Keep JPEG as the reliable display fallback.
-- Keep iPhone on Safari/PWA WebRTC H.264; use the Android app only where native H.264 / Deck Window is worth it.
-- Replace or tune the current FFmpeg/libx264 process with a Windows GPU encoder once latency/CPU profiling says it is worth it.
-- Polish pairing/onboarding so normal users do not need ADB.
-- Continue migrating user-facing language from PhoneMonitor to VibeDeck while preserving internal compatibility.
+### Security (LAN product)
+
+- Host binds `0.0.0.0` so phones can connect on your LAN
+- Pairing + device/action tokens protect non-loopback clients
+- **Do not** expose the Host port on the public internet
+- Release keystores and OAuth secrets stay on your machine
+
+### Docs
+
+| Doc | Topic |
+|-----|--------|
+| [docs/protocol.md](docs/protocol.md) | Pairing & streams |
+| [docs/https-onboarding.md](docs/https-onboarding.md) | Cert / HTTPS |
+| [docs/mobile-app.md](docs/mobile-app.md) | PWA + Android |
+| [docs/product-vision.md](docs/product-vision.md) | Product direction |
+| [docs/remote-desktop-streaming.md](docs/remote-desktop-streaming.md) | H.264 / WebRTC notes |
+| [docs/ai-quota-sources.md](docs/ai-quota-sources.md) | Quota providers |
+
+### License
+
+[MIT](LICENSE)
+
+---
+
+<a id="中文"></a>
+
+## 中文
+
+### VibeDeck 是什麼？
+
+VibeDeck 是跑在 **Windows** 上的 Host，用來：
+
+1. 建立真實的 **虛擬螢幕**（Indirect Display Driver）
+2. 透過 **區網** 串流到手機（WebRTC H.264 / JPEG）
+3. 提供手機尺寸的 **資訊板**（CPU / GPU / 天氣 / 工作脈搏）
+4. 顯示 **AI 額度**（Codex / Claude Code 發現 / AGY）
+
+對外產品名是 **VibeDeck**；驅動、憑證、HTTP header、deep link 等內部相容名稱仍可能是 `PhoneMonitor`。
+
+### 平台支援
+
+| 平台 | 用戶端 | 說明 |
+|------|--------|------|
+| **Windows PC** | Host + 可選虛擬顯示驅動 | 必要 |
+| **iPhone** | **僅** Safari / 加入主畫面 | WebRTC H.264 + JPEG。**沒有 iOS 原生 App** |
+| **Android** | PWA 與／或 `apps/android` APK | 原生長亮 + MediaCodec H.264 |
+| **BOOX / 電子紙** | 瀏覽器或 Android 路徑 | 同一套 Host 協定 |
+
+### 功能重點
+
+- 區網配對：QR + PC 核准、裝置 token、可撤銷
+- 本機 HTTPS（`:5443`）自動憑證，支援長亮 / PWA
+- JPEG WebSocket 備援；有 FFmpeg 時走 WebRTC H.264
+- 資訊板遙測由 Host 自己收集
+- AI 額度頁；AGY OAuth **憑證不進 repo**
+- Android 原生殼：deep link、Deck 視窗、H.264 檢視
+
+### 快速啟動
+
+```powershell
+# 在 repo 根目錄
+scripts\dev-run.ps1
+```
+
+或：
+
+```powershell
+dotnet build PhoneMonitor.sln
+src\PhoneMonitor.Host\bin\Debug\netcoreapp3.1\PhoneMonitor.Host.exe --urls http://0.0.0.0:5000
+```
+
+| 網址 | 用途 |
+|------|------|
+| `http://127.0.0.1:5000` | 本機 PC |
+| `http://<電腦區網IP>:5000` | 手機 HTTP 起步 |
+| `https://<電腦區網IP>:5443` | 手機 HTTPS（憑證信任後） |
+
+### iPhone 標準路徑（推薦）
+
+1. 用 **HTTP** 開 Host → 安裝 `phone-monitor-root.cer`
+2. 設定 → 一般 → 關於本機 → 憑證信任設定 → 開啟完整信任
+3. 改開 **HTTPS** → 在 PC 上完成一次配對
+4. 分享 → **加入主畫面**
+5. 用 **顯示器**（WebRTC H.264），需要時開 **長亮**
+
+### Android（可選原生）
+
+```powershell
+scripts\check-android-toolchain.ps1
+scripts\build-android-app.ps1
+scripts\install-android-app-dev.ps1
+```
+
+除錯 APK：`apps\android\app\build\outputs\apk\debug\app-debug.apk`  
+發行流程：`docs/android-apk-distribution.md`
+
+### 虛擬顯示驅動（可選）
+
+```powershell
+scripts\check-driver-toolchain.ps1
+scripts\install-driver-toolchain.ps1
+scripts\fetch-idd-sample.ps1
+scripts\build-driver.ps1
+scripts\install-driver-dev.ps1
+```
+
+安裝後 Windows 設定會出現 **PhoneMonitor Display**。
+
+### AGY OAuth 憑證（只放本機）
+
+不會進 git。請設定：
+
+- 環境變數：`AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`
+- 或檔案：`%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`
+
+範本：[`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
+
+### 安全（區網產品）
+
+- Host 聽 `0.0.0.0`，方便區網手機連
+- 配對 + device/action token 保護非本機請求
+- **不要**把 Host 埠暴露到公網
+- 簽章 keystore、OAuth secret 留在你自己的電腦
+
+### 授權
+
+[MIT](LICENSE)
+
+---
+
+<p align="center">
+  Built for desk-side phones · 給桌邊那支閒置手機
+</p>
