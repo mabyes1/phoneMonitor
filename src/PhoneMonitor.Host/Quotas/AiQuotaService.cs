@@ -1225,7 +1225,7 @@ namespace PhoneMonitor.Host.Quotas
                 {
                     throw;
                 }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException || ex is HttpRequestException)
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException || ex is HttpRequestException || ex is InvalidOperationException)
                 {
                 }
             }
