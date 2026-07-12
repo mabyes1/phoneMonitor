@@ -9,7 +9,7 @@
 ### 你需要
 
 - Windows PC
-- .NET SDK（目前專案目標為 .NET Core 3.1）
+- .NET 6 SDK 以上（[下載](https://dotnet.microsoft.com/download)）
 - 手機與 PC 在同一個 Wi‑Fi，或兩邊都登入同一個 Tailscale Tailnet
 - 虛擬顯示驅動只在你要使用「顯示器」模式時需要；資訊板與額度不需要
 

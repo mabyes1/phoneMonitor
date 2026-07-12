@@ -14,7 +14,7 @@ echo Checking environment...
 where dotnet >nul 2>nul
 if %errorlevel% neq 0 (
     echo [ERROR] .NET SDK dotnet CLI is not installed or not in your PATH.
-    echo Please install the .NET SDK version 3.1 or newer to run this application.
+    echo Please install the .NET 6 SDK or newer to run this application.
     echo Download link: https://dotnet.microsoft.com/download
     echo.
     pause
