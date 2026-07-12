@@ -168,7 +168,11 @@ namespace PhoneMonitor.Host
                 endpoints.MapGet("/api/session", async context =>
                 {
                     if (!IsLocalRequest(context) &&
-                        !context.RequestServices.GetRequiredService<HostAccessAuthService>().IsAuthenticated(context))
+                        !context.RequestServices.GetRequiredService<HostAccessAuthService>().IsAuthenticated(context) &&
+                        !context.RequestServices.GetRequiredService<DeviceTrustService>().IsTrusted(
+                            ReadDeviceToken(context),
+                            GetRemoteAddress(context),
+                            context.Request.Headers["User-Agent"].FirstOrDefault()))
                     {
                         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                         context.Response.ContentType = "application/json";
