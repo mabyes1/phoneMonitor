@@ -67,28 +67,16 @@ Phone home-screen app entry
 The PWA keeps the zero-install URL flow while adding a real phone app entry, cached shell assets, app icons, and shortcuts for Display, Sideboard, and Quotas.
 
 ```text
-Android native shell
+iPhone / Android / BOOX
         |
         v
-Host URL entry + WebView
-        |
-        v
-Same Display / Sideboard / Quotas phone UI
-```
-
-The first Android app lives under `apps/android`. It is a native shell around the Host UI with Android keep-screen-on behavior and launcher shortcuts.
-
-```text
-iPhone / iOS
-        |
-        v
-Safari or Home Screen PWA only
+Browser or Home Screen PWA
         |
         v
 Same Host phone UI (WebRTC H.264 + JPEG fallback)
 ```
 
-There is **no** native iOS app. iPhone is web-only by product decision. Android uses `phonemonitor://open?host=...&mode=...` deep links from `/api/connect`; iOS ignores those and stays on HTTPS/PWA.
+All phone platforms use the web/PWA path. There are no native phone binaries in the supported product flow.
 
 ## Deliberately Deprioritized
 
@@ -104,4 +92,4 @@ These were useful prototype experiments, but should not drive the product UI rig
 ## Next Architecture Step
 
 Harden the Host-to-phone panel API so built-in telemetry, AI quotas, and optional workflow panels can live beside the virtual display stream.
-Keep polishing the iPhone Safari/PWA path; continue Android native shell work under `apps/android` only.
+Keep polishing the cross-platform browser/PWA path and its WebRTC H.264 fallback behavior.

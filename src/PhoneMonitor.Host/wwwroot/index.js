@@ -25,14 +25,7 @@
     const httpsLink = document.getElementById("httpsLink");
     const httpsCertLink = document.getElementById("httpsCertLink");
     const httpLink = document.getElementById("httpLink");
-    const androidApkLink = document.getElementById("androidApkLink");
-    const androidApkQrLink = document.getElementById("androidApkQrLink");
-    const androidApkShaLink = document.getElementById("androidApkShaLink");
-    const nativeAppLink = document.getElementById("nativeAppLink");
-    const nativeCertLink = document.getElementById("nativeCertLink");
-    const nativeQrLink = document.getElementById("nativeQrLink");
     const pairPhone = document.getElementById("pairPhone");
-    const copyNativePairingLink = document.getElementById("copyNativePairingLink");
     const launchDeckWindow = document.getElementById("launchDeckWindow");
     const pairingStepInstall = document.getElementById("pairingStepInstall");
     const pairingStepPair = document.getElementById("pairingStepPair");
@@ -46,7 +39,6 @@
     const clearTrustedDevices = document.getElementById("clearTrustedDevices");
     const refreshTrustedDevices = document.getElementById("refreshTrustedDevices");
     const wakeState = document.getElementById("wakeState");
-    const apkState = document.getElementById("apkState");
     const appState = document.getElementById("appState");
     const deviceState = document.getElementById("deviceState");
     const displayView = document.getElementById("displayView");
@@ -89,6 +81,11 @@
     const quotaTabs = document.getElementById("quotaTabs");
     const quotaHelp = document.getElementById("quotaHelp");
     const quotaGrid = document.getElementById("quotaGrid");
+    const hostAuthGate = document.getElementById("hostAuthGate");
+    const hostAuthForm = document.getElementById("hostAuthForm");
+    const hostAuthPassword = document.getElementById("hostAuthPassword");
+    const hostAuthSubmit = document.getElementById("hostAuthSubmit");
+    const hostAuthError = document.getElementById("hostAuthError");
     const wsBase = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
     let selectedDisplayName = "";
     let lastUrl = null;
@@ -122,6 +119,9 @@
     let quotaOAuthPollTimer = null;
     let actionToken = "";
     let actionHeaderName = "X-PhoneMonitor-Action-Token";
+    let hostAuthEnabled = false;
+    let hostAuthenticated = false;
+    let hostAuthRequired = false;
     const DEVICE_TOKEN_KEY = "phoneMonitorDeviceToken";
     const DEVICE_ID_KEY = "phoneMonitorDeviceId";
     const DEVICE_COOKIE = "PhoneMonitor-Device-Token";
@@ -186,8 +186,6 @@
     let deviceHeaderName = "X-PhoneMonitor-Device-Token";
     let deviceTrusted = false;
     let deviceLocalRequest = false;
-    let androidApkAvailable = false;
-    let androidApkQrUrl = "/qr/apk.svg";
     let pairingQrActive = false;
     let quotaSnapshotData = null;
     let quotaActiveTab = localStorage.getItem("phoneMonitorQuotaTab") || "agy";
@@ -334,7 +332,7 @@
     }
 
     function prefersWebRtcDisplay() {
-      return isIos() || new URLSearchParams(location.search).get("webrtc") === "1";
+      return isMobileClient() || new URLSearchParams(location.search).get("webrtc") === "1";
     }
 
     function isStandaloneApp() {
@@ -589,8 +587,63 @@
       element.textContent = value || "--";
     }
 
+    function updateHostAuthGate(message = "") {
+      if (!hostAuthGate) return;
+      const visible = hostAuthRequired && !hostAuthenticated;
+      hostAuthGate.hidden = !visible;
+      if (hostAuthError && message) hostAuthError.textContent = message;
+      if (visible) {
+        document.body.classList.add("host-auth-required");
+        setTimeout(() => hostAuthPassword?.focus(), 0);
+      } else {
+        document.body.classList.remove("host-auth-required");
+      }
+    }
+
+    async function loadHostAuthStatus() {
+      const response = await fetch("/api/auth/status", { cache: "no-store" });
+      const result = await response.json();
+      hostAuthEnabled = Boolean(result.enabled ?? result.Enabled);
+      hostAuthenticated = Boolean(result.authenticated ?? result.Authenticated);
+      hostAuthRequired = Boolean(result.required ?? result.Required);
+      updateHostAuthGate(
+        Boolean(result.httpsRequired ?? result.HttpsRequired)
+          ? "遠端登入必須改用 HTTPS。"
+          : ""
+      );
+      return result;
+    }
+
+    async function loginToHost(password) {
+      hostAuthSubmit.disabled = true;
+      hostAuthSubmit.textContent = "登入中…";
+      hostAuthError.textContent = "";
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.error || result.message || `登入失敗 HTTP ${response.status}`);
+        }
+
+        actionToken = "";
+        await loadHostAuthStatus();
+        location.reload();
+      } catch (error) {
+        hostAuthError.textContent = error.message || "登入失敗。";
+        updateHostAuthGate();
+      } finally {
+        hostAuthSubmit.disabled = false;
+        hostAuthSubmit.textContent = "登入";
+      }
+    }
+
     function canUseProtectedConnection() {
-      return deviceTrusted || deviceLocalRequest;
+      return deviceTrusted || deviceLocalRequest || hostAuthenticated;
     }
 
     function setTrustState(message, good) {
@@ -614,23 +667,17 @@
       } else if (normalized === "scan") {
         qrCaption.textContent = "iPhone：相機掃碼 → Safari。須已信任本機 HTTPS 憑證。";
       } else if (normalized === "pair") {
-        qrCaption.textContent = "iPhone 先裝憑證，再按「開始配對手機」。";
+        qrCaption.textContent = "手機先開啟 VibeDeck 網頁，再按「開始配對手機」。";
       } else {
-        qrCaption.textContent = "iPhone：憑證 → HTTPS 配對。Android：可下 APK。";
+        qrCaption.textContent = "手機瀏覽器：需要時先安裝 HTTPS 憑證，再進行配對。";
       }
     }
 
     function showInstallQr() {
       pairingQrActive = false;
-      if (androidApkAvailable) {
-        qrCode.src = `${androidApkQrUrl}?t=${Date.now()}`;
-        updatePairingGuide("install");
-        return true;
-      }
-
       qrCode.src = `/qr.svg?t=${Date.now()}`;
       updatePairingGuide("pair");
-      return false;
+      return true;
     }
 
     function appendDeviceToken(params) {
@@ -713,7 +760,7 @@
     }
 
     async function requestApprovalPairing() {
-      if (deviceTrusted || deviceLocalRequest || approvalPollTimer) return;
+      if (deviceTrusted || deviceLocalRequest || hostAuthenticated || approvalPollTimer) return;
       const storageKey = `phoneMonitorPendingApproval:${location.host}`;
       let pending = null;
       try { pending = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch { }
@@ -981,20 +1028,23 @@
         pairPhone.hidden = !deviceLocalRequest;
         pairPhone.textContent = "開始配對手機";
         launchDeckWindow.hidden = !deviceLocalRequest;
-        nativeAppLink.hidden = deviceLocalRequest;
         renderTrustedDevices(result);
 
         if (deviceLocalRequest) {
           setTrustState("信任狀態：本機控制。", true);
-          if (!pairingQrActive) {
-            updatePairingGuide(androidApkAvailable ? "install" : "pair");
-          }
+          if (!pairingQrActive) updatePairingGuide("pair");
           loadPendingApprovals();
           if (!pendingApprovalTimer) pendingApprovalTimer = setInterval(loadPendingApprovals, 2000);
+        } else if (hostAuthenticated) {
+          setTrustState("遠端 Host 登入成功。", true);
+          updatePairingGuide("paired");
         } else if (deviceTrusted) {
           const name = currentDevice?.Name || currentDevice?.name || "已配對手機";
           setTrustState(`信任狀態：${name} 已配對。`, true);
           updatePairingGuide("paired");
+        } else if (hostAuthRequired && !hostAuthenticated) {
+          setTrustState("請先登入 Host。", false);
+          updatePairingGuide("install");
         } else {
           setTrustState("已找到 Host，正在提出配對申請…", false);
           requestApprovalPairing().catch(error => setTrustState(error.message || "自動配對申請失敗。", false));
@@ -1018,22 +1068,14 @@
 
     function showPairingQr(mode) {
       if (!lastPairingPayload) return;
-      const useNative = mode === "android-app";
-      const svg = useNative
-        ? (lastPairingPayload.nativeQrSvg || lastPairingPayload.qrSvg)
-        : (lastPairingPayload.qrSvg || lastPairingPayload.nativeQrSvg);
+      const svg = lastPairingPayload.qrSvg;
       if (!svg) return;
       pairingQrActive = true;
       qrCode.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-      qrCode.alt = useNative ? "Android App 配對 QR" : "Safari / 瀏覽器配對 QR";
+      qrCode.alt = "手機瀏覽器配對 QR";
       updatePairingGuide("scan");
-      qrCaption.textContent = useNative
-        ? "Android App 配對 QR（選用 VibeDeck 開啟）。"
-        : "iPhone HTTPS 配對 QR（相機 → Safari）。須已信任憑證。";
-      setTrustState(
-        useNative ? "QR：Android App" : "QR：iPhone / 網頁（HTTPS）",
-        true
-      );
+      qrCaption.textContent = "手機瀏覽器配對 QR（相機掃描後開啟 VibeDeck）。";
+      setTrustState("QR：手機瀏覽器", true);
     }
 
     async function startPhonePairing() {
@@ -1043,14 +1085,10 @@
         body: JSON.stringify({ name: "" })
       });
       const qrSvg = result.QrSvg || result.qrSvg;
-      const nativeQrSvg = result.NativeQrSvg || result.nativeQrSvg;
       const pairingUrl = result.PairingUrl || result.pairingUrl;
-      const nativePairingUrl = result.NativePairingUrl || result.nativePairingUrl;
       const expiresAt = result.ExpiresAt || result.expiresAt;
-      lastPairingPayload = { qrSvg, nativeQrSvg, pairingUrl, nativePairingUrl, expiresAt };
+      lastPairingPayload = { qrSvg, pairingUrl, expiresAt };
 
-      // Default: web HTTP QR — works for iPhone Safari and Android Chrome.
-      // Android native App can switch to deep-link QR below.
       showPairingQr("web");
 
       if (pairingUrl) {
@@ -1069,26 +1107,6 @@
           event.preventDefault();
           showPairingQr("web");
           // Also copy helper: leave href for long-press open.
-        };
-      }
-      if (nativePairingUrl) {
-        if (copyNativePairingLink) {
-          copyNativePairingLink.hidden = false;
-          copyNativePairingLink.onclick = async () => {
-            try {
-              await navigator.clipboard.writeText(nativePairingUrl);
-              setTrustState("Android 配對連結已複製。可用 adb shell am start 開啟。", true);
-            } catch {
-              window.prompt("請複製這個 Android 配對連結", nativePairingUrl);
-            }
-          };
-        }
-        nativeQrLink.href = "#android-app-pairing-qr";
-        nativeQrLink.textContent = "顯示 Android App 配對 QR";
-        nativeQrLink.hidden = false;
-        nativeQrLink.onclick = event => {
-          event.preventDefault();
-          showPairingQr("android-app");
         };
       }
       const expiryText = expiresAt
@@ -1144,6 +1162,9 @@
       const response = await fetch(url, { cache: "no-store", ...init, headers });
       const text = await response.text();
       const data = text ? JSON.parse(text) : {};
+      if (response.status === 401) {
+        await loadHostAuthStatus().catch(() => {});
+      }
       if (response.status === 403 && retryOnTokenRefresh && method !== "GET" && method !== "HEAD") {
         actionToken = "";
         return fetchJsonOrThrow(url, init, false);
@@ -1158,8 +1179,8 @@
     }
 
     function isTrustRequiredError(error) {
-      return error?.status === 403 &&
-        /not paired|trust|token/i.test(error.message || "");
+      return (error?.status === 401 || error?.status === 403) &&
+        /not paired|trust|token|login/i.test(error.message || "");
     }
 
     async function refreshSideboard() {
@@ -2098,12 +2119,6 @@
       appState.classList.toggle("warn", !good);
     }
 
-    function setApkState(text, good) {
-      apkState.textContent = text;
-      apkState.classList.toggle("good", good);
-      apkState.classList.toggle("warn", !good);
-    }
-
     function setStreamCapabilityState(text, good) {
       streamCapabilityState.textContent = text;
       streamCapabilityState.classList.toggle("good", good);
@@ -2127,7 +2142,7 @@
           webrtcSupported
             ? (metricText ? `串流：WebRTC H.264 · ${metricText}` : "串流：iPhone WebRTC H.264 可用，JPEG fallback 已保留。")
             : h264Supported
-              ? (metricText ? `串流：${metricText}` : "串流：JPEG 可用，原生 H.264 可用。")
+              ? (metricText ? `串流：${metricText}` : "串流：JPEG 可用，瀏覽器 H.264 可用。")
             : "串流：JPEG 可用；H.264 Host 編碼器尚未接上。",
           webrtcSupported || h264Supported);
       } catch {
@@ -2864,44 +2879,31 @@
     async function loadConnectInfo() {
       const response = await fetch("/api/connect", { cache: "no-store" });
       const info = await response.json();
-      const nativeUrl = info.NativeAppUrl || info.nativeAppUrl || info.AndroidAppUrl || info.androidAppUrl || info.IosAppUrl || info.iosAppUrl;
-      const nativeCertUrl = info.NativeAppCertificateUrl || info.nativeAppCertificateUrl || info.AndroidAppCertificateUrl || info.androidAppCertificateUrl || "";
-      const androidRelease = info.AndroidRelease || info.androidRelease || {};
-      const apkAvailable = Boolean(androidRelease.Available ?? androidRelease.available);
-      const apkInstallPageUrl = androidRelease.InstallPageUrl || androidRelease.installPageUrl || "";
-      const apkDownloadUrl = androidRelease.DownloadUrl || androidRelease.downloadUrl || "";
-      const apkQrUrl = androidRelease.QrUrl || androidRelease.qrUrl || "/qr/apk.svg";
-      const apkShaUrl = androidRelease.Sha256Url || androidRelease.sha256Url || "/download/vibedeck-android.apk.sha256";
-      const apkVersionName = androidRelease.VersionName || androidRelease.versionName || "";
-      const apkVersionCode = androidRelease.VersionCode ?? androidRelease.versionCode ?? "";
-      const apkSizeBytes = Number(androidRelease.SizeBytes ?? androidRelease.sizeBytes ?? 0);
       const httpsAvailable = Boolean(info.HttpsAvailable ?? info.httpsAvailable);
       const rootCertificateUrl = info.RootCertificateUrl || info.rootCertificateUrl || "";
       const httpsSetupHint = info.HttpsSetupHint || info.httpsSetupHint || "";
-      androidApkAvailable = apkAvailable;
-      androidApkQrUrl = apkQrUrl;
       if (!pairingQrActive) {
         showInstallQr();
       }
       const httpsUrl = info.HttpsUrl || info.httpsUrl || "";
       const httpUrl = info.HttpUrl || info.httpUrl || "";
-      // PC console: HTTPS is the canonical phone URL; HTTP is bootstrap only (cert / Android).
+      // HTTPS is the canonical phone URL; HTTP remains a local bootstrap fallback.
       prettyLink.href = httpsAvailable ? httpsUrl : (info.LocalNameHttpUrl || httpUrl);
       prettyLink.textContent = httpsAvailable
-        ? `iPhone 請用：${httpsUrl}`
+        ? `手機請用：${httpsUrl}`
         : `本機：${info.LocalNameHttpUrl || httpUrl}`;
       httpsLink.href = httpsAvailable ? httpsUrl : "#";
       httpsLink.textContent = httpsAvailable
-        ? `HTTPS（iPhone 專用）：${httpsUrl}`
+        ? `HTTPS（推薦）：${httpsUrl}`
         : `HTTPS 未就緒：${httpsSetupHint || "PC 執行 scripts\\setup-https.ps1"}`;
       httpsCertLink.hidden = !httpsAvailable || !rootCertificateUrl;
       httpsCertLink.href = rootCertificateUrl || "#";
-      httpsCertLink.textContent = "iPhone 步驟1：安裝 HTTPS 憑證";
+      httpsCertLink.textContent = "安裝 HTTPS 憑證";
       httpLink.href = httpUrl || "#";
-      httpLink.textContent = `HTTP（僅 Android / 下憑證）：${httpUrl}`;
+      httpLink.textContent = `HTTP（本機備援）：${httpUrl}`;
       const connectTitleHint = document.getElementById("connectTitleHint");
       if (connectTitleHint) {
-        connectTitleHint.textContent = "打開 VibeDeck App，它會自動找到這台 PC。第一次只需在下方允許一次。";
+        connectTitleHint.textContent = "用手機瀏覽器開啟 HTTPS 網址；第一次只需在下方允許一次。";
       }
       const gateCert = document.getElementById("iosGateCertLink");
       if (gateCert && rootCertificateUrl) {
@@ -2919,26 +2921,6 @@
           if (target) location.replace(target);
         };
       }
-      androidApkLink.hidden = !apkAvailable || !apkDownloadUrl;
-      androidApkLink.href = apkInstallPageUrl || apkDownloadUrl || "#";
-      androidApkLink.textContent = apkVersionName
-        ? `下載 Android APK v${apkVersionName}`
-        : "下載 Android APK";
-      androidApkQrLink.hidden = !apkAvailable;
-      androidApkQrLink.href = apkQrUrl;
-      androidApkQrLink.textContent = "Android APK QR";
-      androidApkShaLink.hidden = !apkAvailable;
-      androidApkShaLink.href = apkShaUrl;
-      androidApkShaLink.textContent = "Android APK SHA256";
-      setApkState(
-        apkAvailable
-          ? `Android APK：${apkVersionName ? `v${apkVersionName}` : "可下載"}${apkVersionCode ? ` (${apkVersionCode})` : ""}${apkSizeBytes ? `，${formatFileSize(apkSizeBytes)}` : ""}。`
-          : "Android APK：尚未建立，PC 執行 scripts\\build-android-release.ps1。",
-        apkAvailable);
-      nativeAppLink.href = nativeUrl || "#";
-      nativeAppLink.textContent = nativeUrl ? "開啟手機 App" : "手機 App 連結無法使用";
-      nativeCertLink.href = nativeCertUrl || "#";
-      nativeCertLink.textContent = nativeCertUrl ? "Android HTTPS 信任" : "Android HTTPS 信任無法使用";
       updateWakeCapability();
     }
 
@@ -3290,6 +3272,10 @@
     pairPhone.addEventListener("click", () => {
       startPhonePairing().catch(error => setTrustState(error.message || "配對失敗。", false));
     });
+    hostAuthForm?.addEventListener("submit", event => {
+      event.preventDefault();
+      loginToHost(hostAuthPassword?.value || "");
+    });
     launchDeckWindow.addEventListener("click", () => {
       launchDeckOnVirtualDisplay();
     });
@@ -3442,6 +3428,18 @@
         return;
       }
 
+      try {
+        await loadHostAuthStatus();
+      } catch {
+        hostAuthEnabled = false;
+        hostAuthenticated = false;
+        hostAuthRequired = false;
+      }
+      if (hostAuthRequired && !hostAuthenticated) {
+        setStatus("等待遠端登入", false);
+        return;
+      }
+
       applyClientChrome();
       rotation.value = localStorage.getItem("phoneMonitorRotation") || "auto";
       orientation.value = localStorage.getItem("phoneMonitorOrientation") || "auto";
@@ -3511,7 +3509,7 @@
       updateWakeCapability();
       startKeepAwakeWatch();
       // BOOX browsers may be served over LAN HTTP and still need the silent
-      // video fallback. Native Android shells use their own OS WakeLock.
+      // video fallback.
       if (keepAwakeDesired && (isEinkClient() || (location.protocol === "https:" && (isIos() || isMobileClient() || deviceTrusted)))) {
         ensureKeepAwake();
         setTimeout(() => ensureKeepAwake(), 800);

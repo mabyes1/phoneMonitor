@@ -210,7 +210,7 @@ namespace PhoneMonitor.Host.Security
             }
         }
 
-        public DeviceTrustStatus GetStatus(string deviceToken, string remoteAddress, string userAgent, bool isLocalRequest, bool includeDevices)
+        public DeviceTrustStatus GetStatus(string deviceToken, string remoteAddress, string userAgent, bool isLocalRequest, bool hostAuthenticated)
         {
             lock (sync)
             {
@@ -222,12 +222,12 @@ namespace PhoneMonitor.Host.Security
 
                 return new DeviceTrustStatus
                 {
-                    Trusted = isLocalRequest || device != null,
+                    Trusted = isLocalRequest || hostAuthenticated || device != null,
                     LocalRequest = isLocalRequest,
                     DeviceHeader = HeaderName,
-                    PairedDeviceCount = includeDevices ? devices.Count : device == null ? 0 : 1,
+                    PairedDeviceCount = isLocalRequest || hostAuthenticated ? devices.Count : device == null ? 0 : 1,
                     CurrentDevice = device == null ? null : DeviceSummary.From(device),
-                    Devices = includeDevices
+                    Devices = isLocalRequest || hostAuthenticated
                         ? devices.Select(DeviceSummary.From).ToList()
                         : new List<DeviceSummary>()
                 };

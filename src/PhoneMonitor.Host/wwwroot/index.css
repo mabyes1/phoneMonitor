@@ -23,6 +23,78 @@
       --grad-hot: linear-gradient(90deg, #ff6b6b 0%, #ffd27a 100%);
 }
 
+.host-auth-gate {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(9, 14, 21, .92);
+  backdrop-filter: blur(14px);
+}
+
+.host-auth-gate[hidden] {
+  display: none;
+}
+
+.host-auth-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 28px;
+  border: 1px solid rgba(143, 209, 255, .24);
+  border-radius: 16px;
+  background: #111820;
+  color: #f5f7fb;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .42);
+}
+
+.host-auth-card h1,
+.host-auth-card p {
+  margin: 0;
+}
+
+.host-auth-card p,
+.host-auth-card small {
+  color: #aebdca;
+  line-height: 1.5;
+}
+
+.host-auth-kicker {
+  color: #8fd1ff;
+  font: 700 12px/1.2 "Share Tech Mono", monospace;
+  letter-spacing: .12em;
+}
+
+.host-auth-card label {
+  margin-top: 8px;
+  color: #d9e5ef;
+  font-size: 13px;
+}
+
+.host-auth-card input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid rgba(143, 209, 255, .28);
+  border-radius: 8px;
+  background: #0b1118;
+  color: #fff;
+  font: inherit;
+}
+
+.host-auth-card button {
+  border: 0;
+  cursor: pointer;
+}
+
+.host-auth-error {
+  min-height: 1.5em;
+  color: #ff9e9e !important;
+}
+
 /* BOOX Go Color / color E Ink mode. Enabled by the Android shell or ?eink=1. */
 body.eink-client {
   --viewer-width: 100dvw;
@@ -2568,16 +2640,6 @@ body.eink-client .quota-page-button {
       padding: 6px 8px calc(10px + env(safe-area-inset-bottom));
     }
 
-    /* iPhone Safari / 主畫面 Web：專心副螢幕，不推原生 App / Android APK. */
-    body.ios-client #androidApkLink,
-    body.ios-client #androidApkQrLink,
-    body.ios-client #androidApkShaLink,
-    body.ios-client #apkState,
-    body.ios-client #nativeAppLink,
-    body.ios-client #nativeQrLink {
-      display: none !important;
-    }
-
     body.ios-client.phone-client .utility-controls #fullscreen,
     body.ios-client.phone-client .utility-controls #keepAwake {
       display: inline-flex !important;
@@ -2991,9 +3053,6 @@ body.pc-console .connect-panel {
 body.pc-console .connect-qr,
 body.pc-console .pairing-guide,
 body.pc-console .connect-status,
-body.pc-console .legacy-pairing-action,
-body.pc-console #copyNativePairingLink,
-body.pc-console #nativeAppLink,
 body.pc-console #httpsCertLink {
   display: none !important;
 }

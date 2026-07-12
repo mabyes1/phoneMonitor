@@ -37,10 +37,9 @@ VibeDeck should eventually support two layers:
    - May borrow interaction ideas from Cockpit Tools, but must not depend on Cockpit runtime state or caches.
 
 4. Phone App Layer
-   - Installable phone app entry for the current web UI.
-   - PWA first so the phone experience can iterate with the Host.
-   - Android native shell around the same Host UI (optional install).
-   - **iPhone is web/PWA only** (Safari H.264 works; no native iOS app).
+   - Installable PWA entry for the current web UI.
+   - One browser path across iPhone, Android, and BOOX.
+   - **No native phone binaries**; the Host-served web UI is the product client.
 
 The product should win by being more useful on a phone-sized screen, not by trying to out-feature mature virtual monitor products feature-by-feature.
 
@@ -94,7 +93,7 @@ The zero-install path is:
 - The web page uses the Screen Wake Lock API.
 - If Wake Lock is unavailable or blocked, the page tells the user what to change manually.
 
-The first app layer is the PWA for every phone. Android may also use the native shell under `apps/android` for keep-screen-on, deep links, and MediaCodec H.264. **iOS native app work is cancelled**; iPhone uses Safari / Home Screen only.
+The PWA is the only supported phone app layer for every phone. It provides the home-screen entry, cached shell, shortcuts, WebRTC H.264, and JPEG fallback.
 
 ## Current Test Phone
 
@@ -109,18 +108,6 @@ Near-term iPhone strategy:
 - Keep iPhone-friendly virtual display presets and immersive CSS viewer (Safari Fullscreen API is unreliable).
 - Do not reintroduce an Xcode / TestFlight / App Store client unless product goals change.
 
-## Future Native Stream Path
-
-If Android Native Display Mode needs lower latency later:
-
-1. Windows Indirect Display Driver.
-2. Desktop Duplication or GPU-friendly capture.
-3. Hardware H.264 encoding on PC, preferably NVENC/AMF/QSV.
-4. Low-latency transport (current Annex-B WebSocket / WebRTC as stepping stones).
-5. Android native client using hardware decode.
-
-iPhone stays on the web stack. Do not mix experimental native iOS work into the product tree.
-
 ## Near-Term Next Steps
 
 1. Keep the current web UI focused on the PhoneMonitor virtual display.
@@ -128,7 +115,7 @@ iPhone stays on the web stack. Do not mix experimental native iOS work into the 
 3. Define a simple panel API from Host to phone.
 4. Finish the dedicated AI quota page and provider/account flows.
 5. Keep JPEG as browser fallback while WebRTC H.264 is the low-latency web path (especially iPhone).
-6. Build/test the Android wrapper only; polish Safari/PWA for iPhone.
+6. Polish the browser/PWA path across mobile and e-ink devices.
 
 ## Sideboard Design Decision
 

@@ -13,13 +13,6 @@ namespace PhoneMonitor.Host.Connect
     {
         private const int HttpPort = 5000;
         private const int HttpsPort = 5443;
-        private readonly AndroidReleaseProvider androidReleaseProvider;
-
-        public ConnectInfoProvider(AndroidReleaseProvider androidReleaseProvider)
-        {
-            this.androidReleaseProvider = androidReleaseProvider;
-        }
-
         public ConnectInfo Get(HttpRequest request)
         {
             var addresses = GetLanAddresses().ToList();
@@ -33,12 +26,6 @@ namespace PhoneMonitor.Host.Connect
             var hostCertificateUrl = new Uri(new Uri(httpUrl), "cert/phone-monitor-host.cer").ToString();
             var httpsAvailable = LocalHttpsCertificate.IsConfigured;
             var preferredUrl = httpsAvailable ? httpsUrl : httpUrl;
-            var androidHostUrl = new Uri(new Uri(httpUrl), "index.html").ToString();
-            var nativeDisplayUrl = BuildNativeAppUrl(androidHostUrl, "display");
-            var nativeSideboardUrl = BuildNativeAppUrl(androidHostUrl, "sideboard");
-            var nativeQuotaUrl = BuildNativeAppUrl(androidHostUrl, "quota");
-            var nativeCertificateUrl = BuildNativeAppUrl(androidHostUrl, "cert");
-
             return new ConnectInfo
             {
                 HostName = Dns.GetHostName(),
@@ -58,31 +45,10 @@ namespace PhoneMonitor.Host.Connect
                 HttpsSetupHint = httpsAvailable
                     ? "Install and trust the PhoneMonitor root certificate on the phone, then use the HTTPS URL."
                     : "Run scripts\\setup-https.ps1 on the PC to enable HTTPS on port 5443.",
-                NativeAppUrl = nativeDisplayUrl,
-                NativeAppDisplayUrl = nativeDisplayUrl,
-                NativeAppSideboardUrl = nativeSideboardUrl,
-                NativeAppQuotaUrl = nativeQuotaUrl,
-                NativeAppCertificateUrl = nativeCertificateUrl,
-                AndroidAppUrl = nativeDisplayUrl,
-                AndroidAppDisplayUrl = nativeDisplayUrl,
-                AndroidAppSideboardUrl = nativeSideboardUrl,
-                AndroidAppQuotaUrl = nativeQuotaUrl,
-                AndroidAppCertificateUrl = nativeCertificateUrl,
-                AndroidRelease = androidReleaseProvider.Get(httpUrl),
-                IosAppUrl = nativeDisplayUrl,
-                IosAppDisplayUrl = nativeDisplayUrl,
-                IosAppSideboardUrl = nativeSideboardUrl,
-                IosAppQuotaUrl = nativeQuotaUrl,
-                IosAppCertificateUrl = nativeCertificateUrl,
                 IsHttpsRequest = request.IsHttps,
                 WakeLockNeedsHttps = !request.IsHttps,
                 Addresses = addresses
             };
-        }
-
-        public static string BuildNativeAppUrl(string hostUrl, string mode)
-        {
-            return $"phonemonitor://open?host={Uri.EscapeDataString(hostUrl)}&mode={Uri.EscapeDataString(mode)}";
         }
 
         private static IEnumerable<string> GetLanAddresses()

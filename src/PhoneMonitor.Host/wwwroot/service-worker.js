@@ -1,4 +1,4 @@
-const CACHE_NAME = "vibedeck-app-v33";
+const CACHE_NAME = "vibedeck-app-v34";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -20,15 +20,12 @@ const APP_SHELL = [
 ];
 const NETWORK_ONLY_PREFIXES = [
   "/api/",
-  "/download/",
-  "/install/",
   "/stream/",
   "/ws/"
 ];
 const NETWORK_ONLY_PATHS = new Set([
   "/health",
   "/qr.svg",
-  "/qr/native.svg",
   "/cert/phone-monitor-root.cer",
   "/cert/phone-monitor-host.cer",
   // Always fetch the live phone UI so layout fixes ship immediately.

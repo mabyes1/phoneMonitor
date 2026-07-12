@@ -56,15 +56,11 @@ http://<pc-lan-ip>:5000/
 
 Use the `安裝 HTTPS 憑證` link to download the root certificate onto the phone. Then install and trust that certificate in the phone OS.
 
-Android path:
+Android / Chrome path:
 
-- Preferred native path: open the Android app from `開啟手機 App`, then tap `憑證`. The app downloads the root certificate to Android Downloads and opens security settings.
-- In Android settings, install `phone-monitor-root.cer` as a CA certificate.
-- Browser-only path: install the downloaded `.cer` as a CA certificate from Android settings.
-- Chrome/PWA can then open the HTTPS URL for Wake Lock testing.
-- The native Android shell also trusts user-installed CAs, but it can keep the screen awake over HTTP because it uses Android window flags.
-- ADB is not part of the product path. It is only useful for developer-side install/test automation.
-- Android does not allow normal apps to silently install CA certificates; the final CA install confirmation must stay in system settings.
+- Install the downloaded `.cer` as a CA certificate from Android settings when HTTPS and Wake Lock are needed.
+- Chrome/PWA can then open the HTTPS URL and use WebRTC H.264 with JPEG fallback.
+- Android does not allow normal web pages to silently install CA certificates; the final CA install confirmation stays in system settings.
 
 iPhone path:
 
@@ -82,4 +78,4 @@ The Host reports both URLs through `/api/connect`. When local HTTPS is ready, `/
 
 ## Current Limits
 
-This is local development HTTPS, not a public CA certificate. It is good enough for a trusted personal LAN and Wake Lock testing, but a packaged product still needs a guided certificate trust flow or a native app path that avoids manual certificate setup.
+This is local development HTTPS, not a public CA certificate. It is good enough for a trusted personal LAN and Wake Lock testing. For remote access, use Tailscale or a reverse proxy with a publicly trusted certificate.

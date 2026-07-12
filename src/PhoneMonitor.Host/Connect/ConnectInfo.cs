@@ -19,22 +19,6 @@ namespace PhoneMonitor.Host.Connect
         public string RootCertificateUrl { get; set; }
         public string HostCertificateUrl { get; set; }
         public string HttpsSetupHint { get; set; }
-        public string NativeAppUrl { get; set; }
-        public string NativeAppDisplayUrl { get; set; }
-        public string NativeAppSideboardUrl { get; set; }
-        public string NativeAppQuotaUrl { get; set; }
-        public string NativeAppCertificateUrl { get; set; }
-        public string AndroidAppUrl { get; set; }
-        public string AndroidAppDisplayUrl { get; set; }
-        public string AndroidAppSideboardUrl { get; set; }
-        public string AndroidAppQuotaUrl { get; set; }
-        public string AndroidAppCertificateUrl { get; set; }
-        public AndroidReleaseInfo AndroidRelease { get; set; }
-        public string IosAppUrl { get; set; }
-        public string IosAppDisplayUrl { get; set; }
-        public string IosAppSideboardUrl { get; set; }
-        public string IosAppQuotaUrl { get; set; }
-        public string IosAppCertificateUrl { get; set; }
         public bool IsHttpsRequest { get; set; }
         public bool WakeLockNeedsHttps { get; set; }
         public IReadOnlyList<string> Addresses { get; set; }

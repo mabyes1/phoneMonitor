@@ -19,9 +19,21 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=14">
+  <link rel="stylesheet" href="/index.css?v=15">
 </head>
 <body>
+  <div id="hostAuthGate" class="host-auth-gate" role="dialog" aria-modal="true" aria-labelledby="hostAuthTitle" hidden>
+    <form id="hostAuthForm" class="host-auth-card">
+      <span class="host-auth-kicker">REMOTE HOST ACCESS</span>
+      <h1 id="hostAuthTitle">登入 VibeDeck Host</h1>
+      <p>這個 Host 正在另一個網路。請輸入 Host 設定的遠端密碼。</p>
+      <label for="hostAuthPassword">密碼</label>
+      <input id="hostAuthPassword" name="password" type="password" autocomplete="current-password" required autofocus>
+      <button id="hostAuthSubmit" class="gate-primary" type="submit">登入</button>
+      <p id="hostAuthError" class="host-auth-error" role="alert"></p>
+      <small>遠端登入只接受 HTTPS。若還沒設定，請在 Host 啟動前設定 PHONEMONITOR_REMOTE_PASSWORD。</small>
+    </form>
+  </div>
   <div id="iosHttpsGate" role="dialog" aria-modal="true" aria-labelledby="iosHttpsGateTitle">
     <h1 id="iosHttpsGateTitle">iPhone 只用 HTTPS</h1>
     <p>長亮、主畫面 App、穩定連線都需要 HTTPS。這台 iPhone 不要再用 HTTP 開 VibeDeck。</p>
@@ -35,7 +47,7 @@
       <button id="iosGateOpenHttps" class="gate-primary" type="button">2. 開啟 HTTPS</button>
       <a id="iosGateHttpsUrl" class="gate-secondary" href="#">複製用的 HTTPS 網址</a>
     </div>
-    <p class="gate-note">Android 仍可用 HTTP。iPhone 固定走這一條，不再切來切去。</p>
+    <p class="gate-note">Android 瀏覽器可用 HTTP 測試；iPhone 固定走 HTTPS，不再切來切去。</p>
     <p class="gate-note">若主畫面還是舊圖示／舊名稱：長按刪除舊圖示，改從 HTTPS 頁重新「加入主畫面」。</p>
   </div>
   <header>
@@ -108,7 +120,7 @@
     <div class="connect-panel">
       <div class="connect-qr">
         <img id="qrCode" alt="手機連線 QR Code">
-        <span id="qrCaption">掃碼下載 Android APK。按下配對後會切換成配對 QR。</span>
+        <span id="qrCaption">用手機相機掃描網址，或按下配對後掃描一次性配對 QR。</span>
       </div>
       <div class="connect-copy">
         <p id="iosHomeTip" class="ios-home-tip">
@@ -116,35 +128,31 @@
         </p>
         <div class="connect-title">
           <strong>裝置連線</strong>
-          <span id="connectTitleHint">打開 VibeDeck App，它會自動找到這台 PC。第一次只需在下方允許一次。</span>
+          <span id="connectTitleHint">用手機瀏覽器開啟 HTTPS 網址；第一次只需在下方允許一次。</span>
         </div>
         <div class="pairing-guide" aria-label="手機配對流程">
           <div id="pairingStepInstall" class="pairing-step active">
             <b>1</b>
-            <strong>iPhone 裝憑證</strong>
-            <span>先下載並信任本機 HTTPS 憑證。</span>
+            <strong>準備 HTTPS</strong>
+            <span>iPhone 或需要長亮時，先下載並信任本機 HTTPS 憑證。</span>
           </div>
           <div id="pairingStepPair" class="pairing-step">
             <b>2</b>
             <strong>開始配對</strong>
-            <span>PC 按配對，產生 HTTPS 配對 QR。</span>
+            <span>PC 按配對，產生一次性配對 QR。</span>
           </div>
           <div id="pairingStepOpen" class="pairing-step">
             <b>3</b>
             <strong>手機掃碼</strong>
-            <span>相機掃碼 → Safari 開啟 → 確認已配對。</span>
+            <span>相機掃碼 → 瀏覽器開啟 → 確認已配對。</span>
           </div>
         </div>
         <div class="connect-actions">
-          <button id="pairPhone" class="primary-action legacy-pairing-action" type="button" hidden>舊式 QR 配對</button>
-          <button id="copyNativePairingLink" type="button" hidden>複製 Android 配對連結</button>
+          <button id="pairPhone" class="primary-action" type="button" hidden>開始配對手機</button>
           <button id="launchDeckWindow" type="button" hidden>開啟 Deck 視窗</button>
-          <a id="androidApkLink" href="#" class="primary-action" hidden>下載 Android APK</a>
-          <a id="nativeAppLink" href="#">開啟手機 App</a>
           <a id="httpsCertLink" href="#" hidden>安裝 HTTPS 憑證</a>
         </div>
         <div class="connect-status">
-          <span id="apkState" class="apk-state"></span>
           <span id="trustState" class="trust-state"></span>
           <span id="streamCapabilityState" class="stream-capability-state"></span>
           <span id="wakeState" class="wake-state"></span>
@@ -157,10 +165,6 @@
             <a id="prettyLink" href="#"></a>
             <a id="httpsLink" href="#"></a>
             <a id="httpLink" href="#"></a>
-            <a id="androidApkQrLink" href="/qr/apk.svg" target="_blank" rel="noreferrer" hidden>Android APK QR</a>
-            <a id="androidApkShaLink" href="/download/vibedeck-android.apk.sha256" target="_blank" rel="noreferrer" hidden>Android APK SHA256</a>
-            <a id="nativeCertLink" href="#">Android HTTPS 信任</a>
-            <a id="nativeQrLink" href="/qr/native.svg?mode=display" target="_blank" rel="noreferrer">手機 App QR</a>
           </div>
         </details>
         <div id="trustedDevicesPanel" class="trusted-devices" hidden>
@@ -291,6 +295,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script src="/index.js?v=21" defer></script>
+  <script src="/index.js?v=22" defer></script>
 </body>
 </html>

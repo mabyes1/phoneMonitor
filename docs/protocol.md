@@ -2,7 +2,7 @@
 
 ## Approval pairing (default)
 
-Android native, BOOX, and browser/PWA clients (including iPhone Safari) use the approval flow on private LAN; QR pairing remains a fallback. There is no native iOS app.
+Browser/PWA clients on iPhone, Android, and BOOX use the approval flow on private LAN; QR pairing remains a fallback.
 
 - `POST /api/devices/pairing/request` — private-LAN client creates a 10-minute request and receives a private poll secret plus six-digit verification code.
 - `POST /api/devices/pairing/pending` — PC-local console lists requests (action token required).
@@ -53,9 +53,9 @@ POST /api/stream/webrtc/offer
 
 The browser sends its gathered SDP offer together with `deviceName`, `fps`,
 and `quality`. The Host answers with SDP and sends Annex-B H.264 access units
-as RTP/SRTP. This lets Safari use its hardware H.264 decoder without an
-installed native app. The route requires a paired device token (or a loopback
-request) and an FFmpeg executable on the Host.
+as RTP/SRTP. This lets modern phone browsers use their hardware H.264 decoder
+without an installed native app. The route requires a paired device token (or
+a loopback request) and an FFmpeg executable on the Host.
 
 The stream should target the `PhoneMonitor` virtual display. Product UI should not ask normal users to choose arbitrary windows or debug sources.
 
@@ -112,32 +112,7 @@ GET /cert/phone-monitor-host.cer
 
 The Host owns local certificate maintenance. On startup it creates missing certificate files and refreshes the Host certificate when the LAN IP list changes.
 
-The native app QR endpoint points to the shared native deep link:
-
-```text
-GET /qr/native.svg?mode=display
-GET /qr/native.svg?mode=sideboard
-GET /qr/native.svg?mode=quota
-```
-
-The connect response includes native Android deep links (`phonemonitor://`). `IosApp*` fields remain as compatibility aliases of the same URLs but are unused: **iPhone is web/PWA only**.
-
-```json
-{
-  "NativeAppUrl": "phonemonitor://open?host=http%3A%2F%2F192.168.1.20%3A5000%2Findex.html&mode=display",
-  "NativeAppDisplayUrl": "phonemonitor://open?host=...&mode=display",
-  "NativeAppSideboardUrl": "phonemonitor://open?host=...&mode=sideboard",
-  "NativeAppQuotaUrl": "phonemonitor://open?host=...&mode=quota",
-  "NativeAppCertificateUrl": "phonemonitor://open?host=...&mode=cert",
-  "AndroidAppUrl": "phonemonitor://open?host=http%3A%2F%2F192.168.1.20%3A5000%2Findex.html&mode=display",
-  "AndroidAppCertificateUrl": "phonemonitor://open?host=...&mode=cert"
-}
-```
-
-The Android app stores the decoded `host` URL and opens the requested mode.
-On Android, `mode=cert` starts the no-ADB local HTTPS trust flow.
-
-## Installable App Shell
+## Installable Web App Shell
 
 The Host also serves the phone app shell:
 
@@ -161,8 +136,4 @@ Manifest shortcuts open the same app with mode query parameters:
 
 The JavaScript client treats these as initial mode requests and then continues using the normal Host API and WebSocket endpoints.
 
-The Android native shell uses the same query parameters when native controls open a mode. iPhone uses `?mode=` on the Host web URL only.
-
-## Future Native Stream Path
-
-Android-only native display upgrades are documented in [product-vision.md](product-vision.md). iPhone stays on Safari WebRTC H.264 / JPEG.
+All supported phone clients use the same `?mode=` query parameters on the Host web URL.

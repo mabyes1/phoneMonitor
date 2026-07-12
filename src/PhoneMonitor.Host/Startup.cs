@@ -48,7 +48,6 @@ namespace PhoneMonitor.Host
             services.AddSingleton<DeckWindowLauncher>();
             services.AddSingleton<DisplayModeController>();
             services.AddSingleton<VirtualDisplayController>();
-            services.AddSingleton<AndroidReleaseProvider>();
             services.AddSingleton<ConnectInfoProvider>();
             services.AddSingleton<GlanceBoardProxy>();
             services.AddSingleton<AiQuotaService>();
@@ -56,6 +55,7 @@ namespace PhoneMonitor.Host
             services.AddHostedService<DashboardChangeMonitor>();
             services.AddSingleton<ActionTokenService>();
             services.AddSingleton<DeviceTrustService>();
+            services.AddSingleton<HostAccessAuthService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -86,19 +86,77 @@ namespace PhoneMonitor.Host
                     }));
                 });
 
+                endpoints.MapGet("/api/auth/status", async context =>
+                {
+                    var auth = context.RequestServices.GetRequiredService<HostAccessAuthService>();
+                    var local = IsLocalRequest(context);
+                    context.Response.ContentType = "application/json";
+                    context.Response.Headers["Cache-Control"] = "no-store";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(new
+                    {
+                        enabled = auth.Enabled,
+                        authenticated = local || auth.IsAuthenticated(context),
+                        required = auth.Enabled && !local,
+                        httpsRequired = auth.Enabled && !local && !context.Request.IsHttps
+                    }));
+                });
+
+                endpoints.MapPost("/api/auth/login", async context =>
+                {
+                    var auth = context.RequestServices.GetRequiredService<HostAccessAuthService>();
+                    var local = IsLocalRequest(context);
+                    var request = await JsonSerializer.DeserializeAsync<HostLoginRequest>(context.Request.Body, SocketJsonOptions)
+                        ?? new HostLoginRequest();
+
+                    if (auth.Enabled && !local && !context.Request.IsHttps)
+                    {
+                        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = "遠端登入必須使用 HTTPS。" }));
+                        return;
+                    }
+
+                    var result = auth.Login(request.Password, GetRemoteAddress(context));
+                    if (result.Success)
+                    {
+                        context.Response.Cookies.Append(
+                            HostAccessAuthService.CookieName,
+                            result.SessionToken,
+                            new CookieOptions
+                            {
+                                HttpOnly = true,
+                                Secure = context.Request.IsHttps,
+                                SameSite = SameSiteMode.Lax,
+                                Path = "/",
+                                MaxAge = result.SessionLifetime,
+                                IsEssential = true
+                            });
+                    }
+
+                    context.Response.StatusCode = result.Success
+                        ? StatusCodes.Status200OK
+                        : StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(new
+                    {
+                        success = result.Success,
+                        message = result.Message
+                    }));
+                });
+
+                endpoints.MapPost("/api/auth/logout", async context =>
+                {
+                    context.RequestServices.GetRequiredService<HostAccessAuthService>().Logout(context);
+                    context.Response.Cookies.Delete(HostAccessAuthService.CookieName, new CookieOptions { Path = "/", Secure = context.Request.IsHttps });
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(new { success = true }));
+                });
+
                 endpoints.MapGet("/api/connect", async context =>
                 {
                     var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(provider.Get(context.Request)));
-                });
-
-                endpoints.MapGet("/api/android/release", async context =>
-                {
-                    var connectInfo = context.RequestServices.GetRequiredService<ConnectInfoProvider>().Get(context.Request);
-                    context.Response.ContentType = "application/json";
-                    context.Response.Headers["Cache-Control"] = "no-store";
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(connectInfo.AndroidRelease));
                 });
 
                 endpoints.MapGet("/api/stream/capabilities", async context =>
@@ -109,6 +167,15 @@ namespace PhoneMonitor.Host
 
                 endpoints.MapGet("/api/session", async context =>
                 {
+                    if (!IsLocalRequest(context) &&
+                        !context.RequestServices.GetRequiredService<HostAccessAuthService>().IsAuthenticated(context))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = "Remote login required." }));
+                        return;
+                    }
+
                     var token = context.RequestServices.GetRequiredService<ActionTokenService>();
                     context.Response.ContentType = "application/json";
                     context.Response.Headers["Cache-Control"] = "no-store";
@@ -124,6 +191,7 @@ namespace PhoneMonitor.Host
                 {
                     var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
                     var isLocal = IsLocalRequest(context);
+                    var hostAuthenticated = context.RequestServices.GetRequiredService<HostAccessAuthService>().IsAuthenticated(context);
                     context.Response.ContentType = "application/json";
                     context.Response.Headers["Cache-Control"] = "no-store";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(devices.GetStatus(
@@ -131,7 +199,7 @@ namespace PhoneMonitor.Host
                         GetRemoteAddress(context),
                         context.Request.Headers["User-Agent"].FirstOrDefault(),
                         isLocal,
-                        isLocal)));
+                        hostAuthenticated)));
                 });
 
                 endpoints.MapPost("/api/devices/pairing/start", async context =>
@@ -150,17 +218,14 @@ namespace PhoneMonitor.Host
                     // HTTP only if HTTPS is not configured on this PC.
                     var pairingBase = connectInfo.HttpsAvailable ? connectInfo.HttpsUrl : connectInfo.HttpUrl;
                     var pairingUrl = BuildPairingUrl(pairingBase, pairing);
-                    var nativePairingUrl = ConnectInfoProvider.BuildNativeAppUrl(pairingUrl, "display");
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(new
                     {
                         pairingId = pairing.PairingId,
                         expiresAt = pairing.ExpiresAt,
                         pairingUrl,
-                        nativePairingUrl,
                         httpsRequired = connectInfo.HttpsAvailable,
-                        qrSvg = BuildQrSvg(pairingUrl),
-                        nativeQrSvg = BuildQrSvg(nativePairingUrl)
+                        qrSvg = BuildQrSvg(pairingUrl)
                     }));
                 });
 
@@ -234,54 +299,6 @@ namespace PhoneMonitor.Host
                     var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
                     var connectInfo = provider.Get(context.Request);
                     await WriteQrSvgAsync(context, connectInfo.PreferredUrl);
-                });
-
-                endpoints.MapGet("/qr/native.svg", async context =>
-                {
-                    var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
-                    var connectInfo = provider.Get(context.Request);
-                    var mode = context.Request.Query["mode"].ToString();
-                    var url = mode switch
-                    {
-                        "sideboard" => connectInfo.NativeAppSideboardUrl,
-                        "quota" => connectInfo.NativeAppQuotaUrl,
-                        _ => connectInfo.NativeAppDisplayUrl
-                    };
-                    await WriteQrSvgAsync(context, url);
-                });
-
-                endpoints.MapGet("/qr/apk.svg", async context =>
-                {
-                    var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
-                    var release = provider.Get(context.Request).AndroidRelease;
-                    if (release == null || !release.Available)
-                    {
-                        context.Response.StatusCode = StatusCodes.Status404NotFound;
-                        context.Response.ContentType = "text/plain";
-                        await context.Response.WriteAsync("VibeDeck Android APK has not been built.");
-                        return;
-                    }
-
-                    await WriteQrSvgAsync(context, release.InstallPageUrl ?? release.DownloadUrl);
-                });
-
-                endpoints.MapGet("/install/android", async context =>
-                {
-                    var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
-                    var release = provider.Get(context.Request).AndroidRelease;
-                    await WriteAndroidInstallPageAsync(context, release);
-                });
-
-                endpoints.MapMethods("/download/vibedeck-android.apk", new[] { "GET", "HEAD" }, async context =>
-                {
-                    var releases = context.RequestServices.GetRequiredService<AndroidReleaseProvider>();
-                    await WriteAndroidApkAsync(context, releases);
-                });
-
-                endpoints.MapMethods("/download/vibedeck-android.apk.sha256", new[] { "GET", "HEAD" }, async context =>
-                {
-                    var releases = context.RequestServices.GetRequiredService<AndroidReleaseProvider>();
-                    await WriteAndroidSha256Async(context, releases);
                 });
 
                 endpoints.MapGet("/cert/phone-monitor-root.cer", async context =>
@@ -567,37 +584,6 @@ namespace PhoneMonitor.Host
                     await StreamDisplayAsync(socket, frameSource, deviceName, fps, quality, context.RequestAborted);
                 });
 
-                endpoints.Map("/ws/h264-annexb", async context =>
-                {
-                    var streamer = context.RequestServices.GetRequiredService<H264AnnexBStreamer>();
-                    if (!streamer.IsAvailable)
-                    {
-                        context.Response.StatusCode = StatusCodes.Status501NotImplemented;
-                        context.Response.ContentType = "application/json";
-                        await WriteStreamCapabilitiesAsync(context);
-                        return;
-                    }
-
-                    if (!context.WebSockets.IsWebSocketRequest)
-                    {
-                        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                        return;
-                    }
-
-                    if (!await RequireTrustedDeviceAsync(context))
-                    {
-                        return;
-                    }
-
-                    var deviceName = context.Request.Query["deviceName"].ToString();
-                    var fps = ParseInt(context.Request.Query["fps"], 30, 1, 60);
-                    var quality = ParseInt(context.Request.Query["quality"], 55, 25, 85);
-                    var tracker = context.RequestServices.GetRequiredService<DisplayViewerTracker>();
-                    using var viewerLease = TrackRemoteViewerIfNeeded(context, tracker);
-                    using var socket = await context.WebSockets.AcceptWebSocketAsync();
-                    await streamer.StreamAsync(socket, deviceName, fps, quality, context.RequestAborted);
-                });
-
                 endpoints.MapPost("/api/devices/pairing/request", async context =>
                 {
                     if (!await RequirePrivateLanRequestAsync(context)) return;
@@ -686,19 +672,31 @@ namespace PhoneMonitor.Host
 
                 endpoints.MapGet("/api/dashboard/events", async context =>
                 {
+                    if (!await RequireTrustedDeviceAsync(context))
+                    {
+                        return;
+                    }
+
                     var hub = context.RequestServices.GetRequiredService<DashboardEventHub>();
                     context.Response.ContentType = "text/event-stream";
                     context.Response.Headers["Cache-Control"] = "no-cache, no-transform";
                     context.Response.Headers["X-Accel-Buffering"] = "no";
                     using var subscription = hub.Subscribe();
-                    await context.Response.WriteAsync("retry: 3000\nevent: sync\ndata: initial\n\n", context.RequestAborted);
-                    await context.Response.Body.FlushAsync(context.RequestAborted);
-
-                    while (!context.RequestAborted.IsCancellationRequested)
+                    try
                     {
-                        var topic = await subscription.Reader.ReadAsync(context.RequestAborted);
-                        await context.Response.WriteAsync($"event: {topic}\ndata: {DateTimeOffset.UtcNow:O}\n\n", context.RequestAborted);
+                        await context.Response.WriteAsync("retry: 3000\nevent: sync\ndata: initial\n\n", context.RequestAborted);
                         await context.Response.Body.FlushAsync(context.RequestAborted);
+
+                        while (!context.RequestAborted.IsCancellationRequested)
+                        {
+                            var topic = await subscription.Reader.ReadAsync(context.RequestAborted);
+                            await context.Response.WriteAsync($"event: {topic}\ndata: {DateTimeOffset.UtcNow:O}\n\n", context.RequestAborted);
+                            await context.Response.Body.FlushAsync(context.RequestAborted);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Clean disconnect
                     }
                 });
 
@@ -871,10 +869,10 @@ namespace PhoneMonitor.Host
                 h264 = new
                 {
                     supported = h264.IsAvailable,
-                    transport = "websocket-annexb",
-                    path = "/ws/h264-annexb",
+                    transport = "webrtc-h264",
+                    path = "/api/stream/webrtc/offer",
                     encoder = h264.IsAvailable ? h264.EncoderDescription : null,
-                    clientDecoder = "Android MediaCodec (Annex-B). iPhone uses WebRTC H.264 in Safari/PWA, not this socket.",
+                    clientDecoder = "Browser WebRTC H.264",
                     missing = h264.IsAvailable ? null : "ffmpeg.exe was not found.",
                     next = h264.IsAvailable
                         ? "WebRTC uses constant cadence, wall-clock RTP timestamps, and a low-latency hardware encoder when available."
@@ -945,109 +943,6 @@ namespace PhoneMonitor.Host
             await context.Response.SendFileAsync(path);
         }
 
-        private static async Task WriteAndroidApkAsync(HttpContext context, AndroidReleaseProvider releases)
-        {
-            if (!releases.TryGetApk(out var path))
-            {
-                context.Response.StatusCode = StatusCodes.Status404NotFound;
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(JsonSerializer.Serialize(new
-                {
-                    error = "VibeDeck Android APK has not been built. Run scripts\\build-android-release.ps1 first."
-                }));
-                return;
-            }
-
-            context.Response.ContentType = "application/vnd.android.package-archive";
-            context.Response.Headers["Cache-Control"] = "no-store";
-            context.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{AndroidReleaseProvider.ApkFileName}\"";
-            context.Response.ContentLength = new FileInfo(path).Length;
-            if (HttpMethods.IsHead(context.Request.Method))
-            {
-                return;
-            }
-
-            await context.Response.SendFileAsync(path);
-        }
-
-        private static async Task WriteAndroidInstallPageAsync(HttpContext context, AndroidReleaseInfo release)
-        {
-            context.Response.ContentType = "text/html; charset=utf-8";
-            context.Response.Headers["Cache-Control"] = "no-store";
-
-            var available = release != null && release.Available;
-            var version = WebUtility.HtmlEncode(release?.VersionName ?? "");
-            var downloadUrl = WebUtility.HtmlEncode(release?.DownloadUrl ?? "/download/vibedeck-android.apk");
-            var shaUrl = WebUtility.HtmlEncode(release?.Sha256Url ?? "/download/vibedeck-android.apk.sha256");
-            var size = release?.SizeBytes.HasValue == true
-                ? $"{Math.Round(release.SizeBytes.Value / 1024.0 / 1024.0, 1):0.0} MB"
-                : "";
-            var title = available ? "下載 VibeDeck Android" : "VibeDeck APK 尚未建立";
-            var body = available
-                ? $@"<a class=""primary"" href=""{downloadUrl}"">下載 APK{(string.IsNullOrWhiteSpace(version) ? "" : " v" + version)}</a>
-                    <p class=""hint"">如果瀏覽器提示未知來源，請允許目前瀏覽器安裝 APK。若下載沒有開始，長按按鈕並選擇在 Chrome 開啟。</p>
-                    <dl>
-                      <div><dt>大小</dt><dd>{WebUtility.HtmlEncode(size)}</dd></div>
-                      <div><dt>SHA256</dt><dd><a href=""{shaUrl}"">查看校驗碼</a></dd></div>
-                    </dl>"
-                : @"<p class=""hint"">請先回到 PC 執行 <code>scripts\build-android-release.ps1</code>。</p>";
-
-            await context.Response.WriteAsync($@"<!doctype html>
-<html lang=""zh-Hant"">
-<head>
-  <meta charset=""utf-8"">
-  <meta name=""viewport"" content=""width=device-width, initial-scale=1, viewport-fit=cover"">
-  <title>{title}</title>
-  <style>
-    :root {{ color-scheme: dark; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #111820; color: #f5f7fb; }}
-    body {{ margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 22px; box-sizing: border-box; }}
-    main {{ width: min(440px, 100%); display: grid; gap: 16px; }}
-    h1 {{ margin: 0; font-size: 26px; line-height: 1.15; }}
-    p {{ margin: 0; color: #b9c4d0; line-height: 1.5; }}
-    .primary {{ display: flex; align-items: center; justify-content: center; min-height: 54px; border-radius: 8px; background: #f5f7fb; color: #111820; font-weight: 750; text-decoration: none; }}
-    .hint {{ padding: 12px; border: 1px solid rgba(143,209,255,.18); border-radius: 8px; background: rgba(143,209,255,.08); }}
-    dl {{ display: grid; gap: 8px; margin: 0; }}
-    dl div {{ display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 8px; color: #b9c4d0; }}
-    dt {{ color: #7e91a6; }}
-    dd {{ margin: 0; overflow-wrap: anywhere; }}
-    a {{ color: #8fd1ff; }}
-    code {{ color: #f5f7fb; }}
-  </style>
-</head>
-<body>
-  <main>
-    <h1>{title}</h1>
-    <p>這是目前 PC Host 提供的 VibeDeck Android 安裝包。安裝後回到 PC 按「開始配對手機」，再用手機相機掃配對 QR。</p>
-    {body}
-  </main>
-</body>
-</html>");
-        }
-
-        private static async Task WriteAndroidSha256Async(HttpContext context, AndroidReleaseProvider releases)
-        {
-            if (!releases.TryGetSha256Text(out var text))
-            {
-                context.Response.StatusCode = StatusCodes.Status404NotFound;
-                context.Response.ContentType = "application/json";
-                await context.Response.WriteAsync(JsonSerializer.Serialize(new
-                {
-                    error = "VibeDeck Android APK checksum has not been built. Run scripts\\build-android-release.ps1 first."
-                }));
-                return;
-            }
-
-            context.Response.ContentType = "text/plain";
-            context.Response.Headers["Cache-Control"] = "no-store";
-            context.Response.ContentLength = Encoding.UTF8.GetByteCount(text);
-            if (HttpMethods.IsHead(context.Request.Method))
-            {
-                return;
-            }
-
-            await context.Response.WriteAsync(text);
-        }
-
         private static int ParseInt(string value, int defaultValue, int min, int max)
         {
             if (!int.TryParse(value, out var parsed))
@@ -1115,12 +1010,20 @@ namespace PhoneMonitor.Host
             var bytes = address.GetAddressBytes();
             return bytes[0] == 10 ||
                 (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) ||
-                (bytes[0] == 192 && bytes[1] == 168);
+                (bytes[0] == 192 && bytes[1] == 168) ||
+                // Tailscale IPv4 uses the RFC 6598 shared address range.
+                (bytes[0] == 100 && bytes[1] >= 64 && bytes[1] <= 127);
         }
 
         private static async Task<bool> RequireTrustedDeviceAsync(HttpContext context)
         {
             if (IsLocalRequest(context))
+            {
+                return true;
+            }
+
+            var hostAuth = context.RequestServices.GetRequiredService<HostAccessAuthService>();
+            if (hostAuth.IsAuthenticated(context))
             {
                 return true;
             }
@@ -1134,11 +1037,13 @@ namespace PhoneMonitor.Host
                 return true;
             }
 
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.StatusCode = hostAuth.Enabled
+                ? StatusCodes.Status401Unauthorized
+                : StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsync(JsonSerializer.Serialize(new
             {
-                error = "Phone is not paired with this Host."
+                error = hostAuth.Enabled ? "Remote login required." : "Phone is not paired with this Host."
             }));
             return false;
         }
