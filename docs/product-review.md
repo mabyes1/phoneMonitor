@@ -74,7 +74,7 @@ Mitigation:
 
 - `wwwroot` content is copied to the build output with `PreserveNewest`.
 - Host startup resolves the content root from the current working directory first, then the executable directory.
-- Direct `bin/Debug/netcoreapp3.1/PhoneMonitor.Host.exe --urls http://0.0.0.0:5000` runs can now serve the phone-facing web UI even when started from the repo root.
+- Direct `bin/Debug/net6.0/PhoneMonitor.Host.exe --urls http://0.0.0.0:5000` runs can now serve the phone-facing web UI even when started from the repo root.
 
 ### P1: Token lifecycle UX needs explicit states
 
