@@ -1,229 +1,130 @@
 # VibeDeck
 
-<p align="center">
-  <img src="docs/screenshots/app-icon.png" width="96" alt="VibeDeck icon" />
-</p>
+把 Windows PC 變成手機可以使用的副螢幕與桌邊資訊板。
 
-<p align="center">
-  <a href="#english">English</a> ·
-  <a href="#中文">中文</a> ·
-  <a href="LICENSE">MIT</a>
-</p>
+手機端只有一條正式路徑：用 Safari、Chrome 或 PWA 開啟 Host 網頁。不需要安裝手機 App，也不需要先安裝虛擬顯示驅動才能試用資訊板。
 
----
+## 新手：第一次使用
 
-<a id="english"></a>
+### 你需要
 
-## English
+- Windows PC
+- .NET SDK（目前專案目標為 .NET Core 3.1）
+- 手機與 PC 在同一個 Wi‑Fi，或兩邊都登入同一個 Tailscale Tailnet
+- 虛擬顯示驅動只在你要使用「顯示器」模式時需要；資訊板與額度不需要
 
-### Introduction
+### 1. 啟動 PC Host
 
-You already have a Windows machine under the desk and a phone that mostly charges. **VibeDeck** turns that phone into something useful: a **real second display** Windows can extend onto, plus a **desk-side board** for the things you actually glance at while you work—CPU and GPU load, weather, work pulse, and **AI quotas** (Codex and AGY).
+在 Repo 根目錄雙擊：
 
-Most phone-as-monitor tools stop at pixels. That is fine if you only need another rectangle. If you code, build, or babysit long jobs, you often want a **glance surface**, not another full remote-desktop app. VibeDeck streams a genuine Windows virtual display over your LAN, then layers a phone-native UI on top—including layouts that stay readable on **BOOX and other e-ink** devices.
+```text
+start.bat
+```
 
-On phones, the product *is* the web path: Safari, Chrome, or Add to Home Screen, with **smooth WebRTC H.264** when FFmpeg is available on the Host (JPEG when it is not). There are no native phone binaries to install.
-
-VibeDeck is **self-hosted and open source (MIT)**. The Host runs on your PC; phones join over the local network with QR pairing and optional HTTPS. Quotas stay close to the machine where the tools already run—Codex from local session data, AGY through OAuth you configure on the Host—not a cloud that pretends to know every AI product. Setup still means Windows, a driver path if you want the virtual display, and a bit of LAN care. If that sounds like home, this repo is for you.
-
-### Screenshots
-
-| Display stream | Device connect |
-|:---:|:---:|
-| ![Display](docs/screenshots/01-display-stream.png) | ![Connect](docs/screenshots/02-device-connect.png) |
-
-| Sideboard | Command layout |
-|:---:|:---:|
-| ![Sideboard](docs/screenshots/03-sideboard.jpg) | ![Command](docs/screenshots/04-sideboard-command.jpg) |
-
-| E-ink / BOOX |
-|:---:|
-| ![BOOX](docs/screenshots/05-boox-eink.jpg) |
-
-### Platform support
-
-| Platform | Client | Notes |
-|----------|--------|--------|
-| **Windows PC** | Host + optional IDD driver | Required |
-| **iPhone** | Safari / Add to Home Screen **only** | WebRTC H.264 + JPEG fallback. **No native iOS app** |
-| **Android** | Chrome / PWA | WebRTC H.264 + JPEG fallback |
-| **BOOX / e-ink** | Browser / PWA | Same Host protocol |
-
-### Features
-
-- LAN pairing with QR + PC approval, device tokens, revoke list
-- Optional remote-network password login for the Host (HTTPS required for remote access)
-- Local HTTPS (`:5443`) with auto-generated root cert for Wake Lock / PWA
-- JPEG WebSocket fallback; WebRTC H.264 when FFmpeg is available
-- Sideboard telemetry owned by the Host (no external dashboard required)
-- AI quota page with AGY OAuth (credentials **not** in the repo)
-
-### Quick start
+或在 PowerShell 執行：
 
 ```powershell
-# From repo root
 scripts\dev-run.ps1
 ```
 
-Or:
+不要關閉這個視窗；它就是正在執行的 VibeDeck Host。
 
-```powershell
-dotnet build PhoneMonitor.sln
-src\PhoneMonitor.Host\bin\Debug\netcoreapp3.1\PhoneMonitor.Host.exe --urls http://0.0.0.0:5000
+### 2. 先在 PC 確認頁面
+
+用 PC 瀏覽器開啟：
+
+```text
+http://127.0.0.1:5000
 ```
 
-| URL | Use |
-|-----|-----|
-| `http://127.0.0.1:5000` | PC local |
-| `http://<PC-LAN-IP>:5000` | Phone HTTP bootstrap |
-| `https://<PC-LAN-IP>:5443` | Phone HTTPS (after trusting cert) |
+看到 VibeDeck 頁面，就代表 Host 已經啟動。
 
-### iPhone setup (canonical path)
+### 3. 用手機開啟
 
-1. Open Host **HTTP** → install `phone-monitor-root.cer`
-2. iOS Settings → General → About → Certificate Trust Settings → enable full trust
-3. Open Host **HTTPS** → pair once on the PC
-4. Share → **Add to Home Screen**
-5. Use **Display** (WebRTC H.264) and turn **Keep awake** on when needed
+手機與 PC 在同一個 Wi‑Fi 時，使用啟動視窗列出的 PC 網址，例如：
 
-### Virtual display driver (optional)
-
-```powershell
-scripts\check-driver-toolchain.ps1
-scripts\install-driver-toolchain.ps1
-scripts\fetch-idd-sample.ps1
-scripts\build-driver.ps1
-scripts\install-driver-dev.ps1
+```text
+http://192.168.1.20:5000
 ```
 
-Windows then exposes **PhoneMonitor Display** in Settings.
+也可以直接用 PC 頁面上的 QR Code。手機只需要瀏覽器，不需要 APK。
 
-### First-time AI quotas (new users)
+### 4. 完成一次配對
 
-Quotas are read **on the PC running the Host**, not by the phone alone. Open **額度 / Quotas** in the UI for the same steps.
+手機第一次開啟後，PC 頁面會出現等待中的手機與六位數驗證碼：
 
-**Codex**
+1. 確認名稱與驗證碼是自己的手機。
+2. 在 PC 按「允許」。
+3. 手機自動取得裝置權限。
 
-1. Install and sign in to Codex on the **same Windows PC** as the Host (`%USERPROFILE%\.codex`).
-2. Use Codex once so session logs contain a `rate_limits` event.
-3. Open VibeDeck → **額度 → Codex** → **↻**.
-4. There is **no** Codex OAuth or “import token” button — VibeDeck only scans local sessions.
+如果沒有出現等待項目，從 PC 按「開始配對手機」，再用手機相機掃新的配對 QR。配對 QR 只有短時間有效。
 
-**AGY**
+### 5. 先試資訊板
 
-1. Put Google OAuth client credentials on the Host PC:
-   - Env: `AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`, or
-   - File: `%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`  
-   Template: [`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
-2. Open **額度 → AGY** → **+** (PC browser completes Google sign-in).
-3. Press **↻** to refresh Claude/Gemini remaining quota from Antigravity APIs.
-4. Tokens live under `%LOCALAPPDATA%\PhoneMonitor\quotas\agy\` (not in the repo).
+手機點「資訊板」即可確認基本連線。這個模式不需要虛擬顯示驅動。
 
-### Docs
+「顯示器」模式需要 Windows 看得到 **PhoneMonitor Display**。驅動安裝放在下面的進階設定，不影響先試用資訊板。
 
-| Doc | Topic |
-|-----|--------|
-| [docs/protocol.md](docs/protocol.md) | Pairing & streams |
-| [docs/https-onboarding.md](docs/https-onboarding.md) | Cert / HTTPS |
-| [docs/mobile-app.md](docs/mobile-app.md) | PWA and browser phone path |
-| [docs/product-vision.md](docs/product-vision.md) | Product direction |
-| [docs/remote-desktop-streaming.md](docs/remote-desktop-streaming.md) | H.264 / WebRTC notes |
-| [docs/remote-access.md](docs/remote-access.md) | Remote-network login and transport setup |
-| [CHANGELOG.md](CHANGELOG.md) | Product updates and simplification notes |
-| [docs/ai-quota-sources.md](docs/ai-quota-sources.md) | Quota providers |
+## 連線方式
 
-### License
+### 同一個 Wi‑Fi
 
-[MIT](LICENSE)
+使用：
 
----
-
-<a id="中文"></a>
-
-## 中文
-
-### 簡介
-
-桌下是 Windows，桌上有支多半在充電的手機——**VibeDeck** 讓這支手機重新有用：它不只是鏡像畫面，而是 Windows 能真正延伸過去的 **副螢幕**，同時是桌邊那塊 **資訊板**：系統負載、天氣、工作脈搏，以及 **AI 額度**（Codex、AGY）。
-
-多數「手機當副螢幕」做到像素傳輸就停了。只想多一塊矩形，那些工具夠用。但寫程式、跑長任務、盯進度的人，更常需要的是 **一眼掃過的指揮面**，而不是再開一套完整遠端桌面。VibeDeck 在區網裡串流真實的虛擬顯示器，再疊上為手機尺寸設計的介面——**BOOX 等電子紙**也能讀。
-
-iPhone 與 Android 的產品路徑都是網頁：Safari、Chrome 或加入主畫面；Host 有 FFmpeg 時 **WebRTC H.264 很順**，否則走 JPEG。沒有原生手機 App，也不需要另外安裝 APK。
-
-VibeDeck **自架、開源（MIT）**。Host 跑在你的 PC 上，手機用 QR 配對進區網，可選本機 HTTPS。額度貼近你本來就在用的工具：Codex 讀本機 session，AGY 走你在 Host 上設定的 OAuth——不是假裝包山包海的雲端帳號中心。你需要接受 Windows 主機、虛擬顯示驅動路徑，以及一點區網設定。若這就是你的工作桌，歡迎直接開用。
-
-### 截圖
-
-| 顯示器串流 | 裝置連線 |
-|:---:|:---:|
-| ![Display](docs/screenshots/01-display-stream.png) | ![Connect](docs/screenshots/02-device-connect.png) |
-
-| 資訊板 | 指揮版面 |
-|:---:|:---:|
-| ![Sideboard](docs/screenshots/03-sideboard.jpg) | ![Command](docs/screenshots/04-sideboard-command.jpg) |
-
-| 電子紙 / BOOX |
-|:---:|
-| ![BOOX](docs/screenshots/05-boox-eink.jpg) |
-
-### 平台支援
-
-| 平台 | 用戶端 | 說明 |
-|------|--------|------|
-| **Windows PC** | Host + 可選虛擬顯示驅動 | 必要 |
-| **iPhone** | **僅** Safari / 加入主畫面 | WebRTC H.264 + JPEG。**沒有 iOS 原生 App** |
-| **Android** | Chrome / PWA | WebRTC H.264 + JPEG 備援 |
-| **BOOX / 電子紙** | 瀏覽器 / PWA | 同一套 Host 協定 |
-
-### 功能重點
-
-- 區網配對：QR + PC 核准、裝置 token、可撤銷
-- 可選的跨網路 Host 密碼登入（遠端固定要求 HTTPS）
-- 本機 HTTPS（`:5443`）自動憑證，支援長亮 / PWA
-- JPEG WebSocket 備援；有 FFmpeg 時走 WebRTC H.264
-- 資訊板遙測由 Host 自己收集
-- AI 額度頁；AGY OAuth **憑證不進 repo**
-
-### 快速啟動
-
-```powershell
-# 在 repo 根目錄
-scripts\dev-run.ps1
+```text
+http://<PC 的區網 IP>:5000
 ```
 
-或：
+Android Chrome 可以先用 HTTP 測試。iPhone 若要使用 WebRTC、長亮與加入主畫面，請改用 HTTPS。
+
+### 不同網路：推薦 Tailscale
+
+在 PC 與手機都安裝 Tailscale，登入同一個帳號／Tailnet。PC 執行：
 
 ```powershell
-dotnet build PhoneMonitor.sln
-src\PhoneMonitor.Host\bin\Debug\netcoreapp3.1\PhoneMonitor.Host.exe --urls http://0.0.0.0:5000
+tailscale ip -4
 ```
 
-| 網址 | 用途 |
-|------|------|
-| `http://127.0.0.1:5000` | 本機 PC |
-| `http://<電腦區網IP>:5000` | 手機 HTTP 起步 |
-| `https://<電腦區網IP>:5443` | 手機 HTTPS（憑證信任後） |
+假設得到 `100.71.158.38`，手機開：
 
-### 跨網路連線與密碼登入
+```text
+http://100.71.158.38:5000
+```
 
-在 Host 啟動前設定遠端密碼：
+不需要 Port Forwarding，也不需要 Subnet Router。Tailscale 只負責安全網路通道，VibeDeck 的第一次配對仍然要在 PC 按「允許」。
+
+若你要把 Host 暴露到 Tailscale 以外的 Internet，再設定額外的遠端密碼與 HTTPS：
 
 ```powershell
 $env:PHONEMONITOR_REMOTE_PASSWORD = "請換成長且唯一的密碼"
 scripts\dev-run.ps1
 ```
 
-手機從其他網路開啟 Host 的 HTTPS 網址後會先顯示登入畫面。跨網路傳輸建議使用 Tailscale／ZeroTier；若使用路由器轉發或反向代理，請只轉發 HTTPS `5443`，不要把 `5000` 暴露到 Internet。完整設定請看 [`docs/remote-access.md`](docs/remote-access.md)。
+完整說明：[docs/remote-access.md](docs/remote-access.md)
 
-### iPhone 標準路徑（推薦）
+## HTTPS 與 iPhone
 
-1. 用 **HTTP** 開 Host → 安裝 `phone-monitor-root.cer`
-2. 設定 → 一般 → 關於本機 → 憑證信任設定 → 開啟完整信任
-3. 改開 **HTTPS** → 在 PC 上完成一次配對
-4. 分享 → **加入主畫面**
-5. 用 **顯示器**（WebRTC H.264），需要時開 **長亮**
+Host 啟動時會自動建立本機 HTTPS 憑證，網址是：
 
-### 虛擬顯示驅動（可選）
+```text
+https://<PC 的 IP>:5443
+```
+
+第一次使用 iPhone：
+
+1. 先用 HTTP 開啟 Host。
+2. 點「安裝 HTTPS 憑證」下載 `phone-monitor-root.cer`。
+3. 在 iPhone 設定中安裝並完整信任根憑證。
+4. 改開 HTTPS 網址。
+5. 分享 → 加入主畫面。
+
+Android 也可以安裝憑證來使用 HTTPS；若只是測試資訊板，通常可先用 HTTP。
+
+詳細說明：[docs/https-onboarding.md](docs/https-onboarding.md)
+
+## 虛擬顯示器驅動（選用）
+
+只有「顯示器」模式需要這個步驟。它會讓 Windows 出現 **PhoneMonitor Display**，手機才能接收真正的延伸桌面。
 
 ```powershell
 scripts\check-driver-toolchain.ps1
@@ -233,35 +134,64 @@ scripts\build-driver.ps1
 scripts\install-driver-dev.ps1
 ```
 
-安裝後 Windows 設定會出現 **PhoneMonitor Display**。
+這是 Windows 驅動開發流程，可能需要系統管理員權限、測試簽章與重新開機。只是想看資訊板時可以先跳過。
 
-### 首次 AI 額度（新使用者）
+## 額度功能（選用）
 
-額度是在 **跑 Host 的那台 PC** 讀本機資料，手機只顯示結果。UI **額度** 頁也有同樣說明。
+額度資料在跑 Host 的 PC 上讀取，手機只負責顯示。
 
-**Codex**
+### Codex
 
-1. 在與 Host **同一台 Windows** 安裝並登入 Codex（`%USERPROFILE%\.codex`）。
-2. 先正常用一次 Codex，讓 session 出現 `rate_limits`。
-3. VibeDeck → **額度 → Codex** → **↻**。
-4. **沒有** Codex OAuth／貼 token 匯入——只掃本機 session。
+1. 在同一台 PC 登入 Codex。
+2. 使用一次 Codex，讓本機 session 產生 `rate_limits`。
+3. 開啟 VibeDeck →「額度」→「Codex」→ 重新整理。
 
-**AGY**
+VibeDeck 不會要求你貼 Codex token，也沒有 Codex OAuth 匯入按鈕。
 
-1. 在 Host 本機放 Google OAuth：
-   - 環境變數 `AGY_GOOGLE_CLIENT_ID` / `AGY_GOOGLE_CLIENT_SECRET`，或
-   - `%LOCALAPPDATA%\PhoneMonitor\secrets\agy-google-oauth.json`  
-   範本：[`docs/agy-google-oauth.example.json`](docs/agy-google-oauth.example.json)
-2. **額度 → AGY** → **+**（PC 瀏覽器完成 Google 登入）。
-3. 再按 **↻** 拉 Antigravity 的 Claude／Gemini 剩餘額度。
-4. Token 存在 `%LOCALAPPDATA%\PhoneMonitor\quotas\agy\`（不進 repo）。
+### AGY
 
-### 授權
+請先在 Host PC 設定 Google OAuth，方式見：[docs/agy-google-oauth.example.json](docs/agy-google-oauth.example.json)。
+
+## 常見問題
+
+| 問題 | 處理方式 |
+|---|---|
+| PC 頁面打不開 | 確認 `start.bat` 視窗仍在執行，並開 `http://127.0.0.1:5000`。 |
+| 手機連不到 | 確認手機與 PC 在同一 Wi‑Fi，或兩邊 Tailscale 都顯示在線；也可手動輸入 PC IP。 |
+| 手機一直等待配對 | 回 PC 看六位數驗證碼並按「允許」；不要重複使用過期 QR。 |
+| iPhone 顯示憑證錯誤 | 重新下載根憑證，並在 iPhone「憑證信任設定」開啟完整信任。 |
+| 顯示器畫面是空的 | 先確認 Windows 已安裝並啟用 PhoneMonitor Display 驅動；資訊板不需要驅動。 |
+| WebRTC 沒有成功 | 使用 HTTPS；若瀏覽器或 FFmpeg 不支援，VibeDeck 會自動回退 JPEG。 |
+| 額度沒有資料 | 額度讀的是 Host PC 本機資料，先在同一台 PC 登入並使用 Codex／設定 AGY。 |
+
+## 專案內容
+
+- `src/PhoneMonitor.Host`：PC Host 與手機 Web/PWA
+- `driver/`：選用的 Windows 虛擬顯示驅動
+- `scripts/`：啟動、HTTPS、驅動與開發工具腳本
+- `docs/`：進階協定、串流、HTTPS、遠端存取與產品文件
+- `apps/android/`：舊版 Android 原生殼的 legacy 原始碼，不是目前支援的產品路徑
+
+## 進階文件
+
+- [CHANGELOG.md](CHANGELOG.md)
+- [docs/remote-access.md](docs/remote-access.md)
+- [docs/https-onboarding.md](docs/https-onboarding.md)
+- [docs/mobile-app.md](docs/mobile-app.md)
+- [docs/protocol.md](docs/protocol.md)
+- [docs/remote-desktop-streaming.md](docs/remote-desktop-streaming.md)
+- [docs/windows-virtual-display.md](docs/windows-virtual-display.md)
+
+## English quick start
+
+1. On Windows, run `start.bat` from the repository root.
+2. Open `http://127.0.0.1:5000` on the PC.
+3. Open the PC's LAN or Tailscale URL in Safari/Chrome on the phone.
+4. Approve the six-digit pairing request on the PC.
+5. Use Sideboard first; install the optional virtual display driver only for Display mode.
+
+The phone client is browser/PWA-only. WebRTC H.264 is preferred, with JPEG fallback.
+
+## License
 
 [MIT](LICENSE)
-
----
-
-<p align="center">
-  Built for desk-side phones · 給桌邊那支閒置手機
-</p>
