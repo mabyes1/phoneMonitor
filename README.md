@@ -129,6 +129,7 @@ Quotas are read **on the PC running the Host**, not by the phone alone. Open **é
 | [docs/product-vision.md](docs/product-vision.md) | Product direction |
 | [docs/remote-desktop-streaming.md](docs/remote-desktop-streaming.md) | H.264 / WebRTC notes |
 | [docs/remote-access.md](docs/remote-access.md) | Remote-network login and transport setup |
+| [CHANGELOG.md](CHANGELOG.md) | Product updates and simplification notes |
 | [docs/ai-quota-sources.md](docs/ai-quota-sources.md) | Quota providers |
 
 ### License
