@@ -2145,13 +2145,12 @@ import {
     function resolveRotation() {
       if (rotation.value !== "auto") return rotation.value;
 
-      const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-      const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      const viewportPortrait = viewportHeight > viewportWidth;
-      const activeMedia = getActiveStreamElement();
-      const streamPortrait = getMediaHeight(activeMedia) > getMediaWidth(activeMedia);
-
-      return viewportPortrait !== streamPortrait ? "90" : "0";
+      // Auto keeps the desktop upright and lets it letterbox. It used to rotate a
+      // landscape desktop 90° whenever the phone was held portrait, which showed
+      // the screen lying sideways. Holding the phone landscape already fills the
+      // view at 0°; anyone who wants a forced turn can pick 90/270 manually or use
+      // 版面方向 → 固定橫向.
+      return "0";
     }
 
     async function requestWakeLock() {
