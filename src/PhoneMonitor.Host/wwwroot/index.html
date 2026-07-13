@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=47">
+  <link rel="stylesheet" href="/index.css?v=48">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -100,21 +100,9 @@
         <button id="quotaMode" class="mode-button" type="button">額度</button>
       </div>
       <div class="utility-controls">
-        <select id="rotation" aria-label="旋轉">
-          <option value="auto">自動旋轉</option>
-          <option value="0">0deg</option>
-          <option value="90">90deg</option>
-          <option value="180">180deg</option>
-          <option value="270">270deg</option>
-        </select>
-        <select id="orientation" aria-label="版面方向">
-          <option value="auto">跟隨裝置</option>
-          <option value="portrait">固定直向</option>
-          <option value="landscape">固定橫向</option>
-        </select>
         <button id="keepAwake" type="button">長亮 ON</button>
-        <button id="refresh" type="button">重新整理</button>
         <button id="fullscreen" type="button">全螢幕</button>
+        <button id="refresh" type="button">重新整理</button>
         <span class="status" role="status" aria-live="polite"><span id="dot" class="dot"></span><span id="status">連線中</span></span>
       </div>
     </div>
@@ -127,31 +115,54 @@
       src="/silent-loop.mp4"
       style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px"
       aria-hidden="true"></video>
-    <details class="panel">
-      <summary>串流</summary>
-      <div class="controls">
-        <select id="streamPreset">
-          <option value="battery">省電 30fps / Q48</option>
-          <option value="balanced" selected>平衡 45fps / Q56</option>
-          <option value="smooth">順暢 60fps / Q60</option>
-          <option value="sharp">清晰 60fps / Q68</option>
-          <option value="custom">自訂</option>
-        </select>
-        <input id="streamFps" type="number" min="1" max="60" step="1" value="45" aria-label="FPS">
-        <input id="streamQuality" type="number" min="25" max="85" step="1" value="56" aria-label="Stream quality">
-        <button id="applyStream" type="button">套用串流</button>
-      </div>
-    </details>
-    <details class="panel">
-      <summary>解析度</summary>
-      <div class="controls">
-        <select id="modePreset"></select>
-        <input id="modeWidth" type="number" min="320" max="3840" step="1" value="1024" aria-label="Width">
-        <input id="modeHeight" type="number" min="240" max="2560" step="1" value="576" aria-label="Height">
-        <input id="modeRefresh" type="number" min="30" max="120" step="1" value="60" aria-label="Refresh rate">
-        <button id="applyMode" type="button">套用解析度</button>
-      </div>
-    </details>
+    <div class="setup-panels">
+      <details class="panel">
+        <summary>顯示</summary>
+        <div class="controls">
+          <label class="field">旋轉
+            <select id="rotation" aria-label="旋轉">
+              <option value="auto">自動旋轉</option>
+              <option value="0">0deg</option>
+              <option value="90">90deg</option>
+              <option value="180">180deg</option>
+              <option value="270">270deg</option>
+            </select>
+          </label>
+          <label class="field">版面方向
+            <select id="orientation" aria-label="版面方向">
+              <option value="auto">跟隨裝置</option>
+              <option value="portrait">固定直向</option>
+              <option value="landscape">固定橫向</option>
+            </select>
+          </label>
+        </div>
+      </details>
+      <details class="panel">
+        <summary>串流</summary>
+        <div class="controls">
+          <select id="streamPreset">
+            <option value="battery">省電 30fps / Q48</option>
+            <option value="balanced" selected>平衡 45fps / Q56</option>
+            <option value="smooth">順暢 60fps / Q60</option>
+            <option value="sharp">清晰 60fps / Q68</option>
+            <option value="custom">自訂</option>
+          </select>
+          <input id="streamFps" type="number" min="1" max="60" step="1" value="45" aria-label="FPS">
+          <input id="streamQuality" type="number" min="25" max="85" step="1" value="56" aria-label="Stream quality">
+          <button id="applyStream" type="button">套用串流</button>
+        </div>
+      </details>
+      <details class="panel">
+        <summary>解析度</summary>
+        <div class="controls">
+          <select id="modePreset"></select>
+          <input id="modeWidth" type="number" min="320" max="3840" step="1" value="1024" aria-label="Width">
+          <input id="modeHeight" type="number" min="240" max="2560" step="1" value="576" aria-label="Height">
+          <input id="modeRefresh" type="number" min="30" max="120" step="1" value="60" aria-label="Refresh rate">
+          <button id="applyMode" type="button">套用解析度</button>
+        </div>
+      </details>
+    </div>
     <div class="connect-panel">
       <div class="connect-qr">
         <img id="qrCode" alt="手機連線 QR Code">
@@ -438,6 +449,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=47"></script>
+  <script type="module" src="/index.js?v=48"></script>
 </body>
 </html>

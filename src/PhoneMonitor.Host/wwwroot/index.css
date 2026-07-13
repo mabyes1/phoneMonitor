@@ -811,6 +811,67 @@ body.eink-client .quota-page-button {
       margin-bottom: 8px;
     }
 
+    /* Setup-time controls (display / stream / resolution) collapse into a compact
+       row so the everyday top bar stays slim and the actual view can breathe. */
+    .setup-panels {
+      order: 4;
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      border-top: 1px solid rgba(255, 255, 255, .07);
+      padding-top: 10px;
+    }
+
+    .setup-panels .panel {
+      order: 0;
+      grid-column: auto;
+      border-top: 0;
+      padding-top: 0;
+      flex: 0 1 auto;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 8px;
+      background: rgba(9, 14, 20, .36);
+    }
+
+    .setup-panels .panel:not([open]) {
+      padding: 0;
+    }
+
+    .setup-panels .panel summary {
+      margin: 0;
+      padding: 7px 12px;
+      list-style: none;
+      font-size: 13px;
+      color: var(--muted);
+      user-select: none;
+    }
+
+    .setup-panels .panel summary::-webkit-details-marker { display: none; }
+    .setup-panels .panel summary::before { content: "⚙ "; opacity: .6; }
+
+    .setup-panels .panel[open] {
+      flex-basis: 100%;
+      background: rgba(8, 13, 19, .5);
+    }
+
+    .setup-panels .panel[open] summary {
+      color: #dce7f4;
+      border-bottom: 1px solid rgba(255, 255, 255, .07);
+      margin-bottom: 8px;
+    }
+
+    .setup-panels .panel .controls {
+      padding: 0 12px 12px;
+    }
+
+    .field {
+      display: inline-grid;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--quiet);
+    }
+
     .connect-panel {
       order: 3;
       grid-column: 1 / -1;
