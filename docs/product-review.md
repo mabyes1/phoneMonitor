@@ -56,13 +56,18 @@ Recommended next step:
 
 `wwwroot/index.html` contains display streaming, sideboard, quota UI, touch input, and settings logic in one file. This makes product review and regression prevention difficult.
 
-Status: not fixed in this pass.
+Status: addressed in the 2026-07-13 refactor pass.
 
 Recommended next step:
 
-- Split quota, display streaming, input, and sideboard modules.
-- Keep CSS grouped by mode.
-- Add a small smoke test around each module.
+- `wwwroot/modules/formatters.js` owns pure display/sideboard formatting.
+- `wwwroot/modules/sideboard.js` owns telemetry/work-pulse rendering and refresh errors.
+- `wwwroot/modules/display-input.js` owns pointer mapping, touch drag, long-press right-click, and input event wiring.
+- `wwwroot/modules/quota-formatters.js` owns quota window/account display formatting.
+- `Startup.Streaming.cs` owns JPEG display capture and input WebSocket loops.
+- `wwwroot/modules/stream-tuning.js` centralizes optional WebRTC receiver latency hints.
+
+The remaining quota orchestration and WebRTC signalling stay in the entrypoint until they can be extracted with focused browser smoke coverage; this keeps the current pairing and fallback behavior reversible.
 
 ### P1: Built Host executable can miss phone UI assets
 

@@ -1,3 +1,25 @@
+import {
+  averagePercent,
+  describeWeatherCode,
+  formatFileSize,
+  formatGb,
+  formatMbps,
+  formatPercent,
+  formatSeconds,
+  formatTemperature,
+  formatWeatherLocation,
+} from "./modules/formatters.js";
+import { createDisplayInputController } from "./modules/display-input.js";
+import { createSideboardController } from "./modules/sideboard.js";
+import { tuneVideoReceiver } from "./modules/stream-tuning.js";
+import {
+  extractQuotaEmail,
+  extractQuotaTier,
+  normalizeTierLabel,
+  renderQuotaWindow,
+  summarizeQuotaWindow,
+} from "./modules/quota-formatters.js";
+
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
     const dot = document.getElementById("dot");
@@ -198,7 +220,6 @@
     let serviceWorkerRegistration = null;
     const touchLongPressMs = 460;
     const touchDragThresholdPx = 12;
-    let touchInputState = null;
 
     function isMobileClient() {
       return isIos() || /Android|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
@@ -503,88 +524,13 @@
       localStorage.setItem("phoneMonitorSideSkin", nextSkin);
     }
 
-    function formatPercent(value) {
-      return Number.isFinite(value) ? `${Math.round(value)}%` : "--";
-    }
-
-    function formatGb(value) {
-      return Number.isFinite(value) ? `${value.toFixed(value >= 10 ? 0 : 1)}GB` : "--";
-    }
-
-    function formatFileSize(bytes) {
-      if (!Number.isFinite(bytes) || bytes <= 0) return "";
-      const units = ["B", "KB", "MB", "GB"];
-      let value = bytes;
-      let unitIndex = 0;
-      while (value >= 1024 && unitIndex < units.length - 1) {
-        value /= 1024;
-        unitIndex += 1;
-      }
-
-      return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)}${units[unitIndex]}`;
-    }
-
-    function formatMbps(value) {
-      return Number.isFinite(value) ? `${value.toFixed(value >= 10 ? 0 : 1)}` : "--";
-    }
-
-    function formatTemperature(value) {
-      return Number.isFinite(value) ? `${Math.round(value)}°C` : "N/A";
-    }
-
-    function describeWeatherCode(code, fallback) {
-      const value = Number(code);
-      if (!Number.isFinite(value)) return fallback || "";
-      if (value === 0) return "晴朗";
-      if (value === 1) return "大致晴朗";
-      if (value === 2) return "局部多雲";
-      if (value === 3) return "多雲";
-      if (value === 45 || value === 48) return "有霧";
-      if ([51, 53, 55].includes(value)) return "毛毛雨";
-      if ([56, 57].includes(value)) return "凍毛毛雨";
-      if ([61, 63, 65].includes(value)) return "下雨";
-      if ([66, 67].includes(value)) return "凍雨";
-      if ([71, 73, 75, 77].includes(value)) return "下雪";
-      if ([80, 81, 82].includes(value)) return "陣雨";
-      if ([85, 86].includes(value)) return "陣雪";
-      if (value === 95) return "雷雨";
-      if (value === 96 || value === 99) return "雷雨冰雹";
-      return fallback || "";
-    }
-
-    function formatWeatherLocation(location) {
-      const text = String(location || "").trim();
-      if (!text || /^weather$/i.test(text)) return "天氣";
-      if (/^current location$/i.test(text)) return "目前位置";
-      return text
-        .replace(/\bTaiwan\b/i, "台灣")
-        .replace(/\bDistrict\b/i, "區")
-        .replace(/,\s*/g, "，");
-    }
-
-    function formatSeconds(value) {
-      if (!Number.isFinite(value)) return "--";
-      const hours = Math.floor(value / 3600);
-      const minutes = Math.floor((value % 3600) / 60);
-      if (hours >= 24) {
-        return `${Math.floor(hours / 24)}d ${hours % 24}h`;
-      }
-      return `${hours}h ${minutes}m`;
-    }
-
     function setBar(element, value) {
       const percent = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
       element.style.width = `${percent}%`;
     }
 
-    function averagePercent(values) {
-      const valid = values.filter(Number.isFinite);
-      if (!valid.length) return Number.NaN;
-      return valid.reduce((sum, value) => sum + value, 0) / valid.length;
-    }
-
     function setText(element, value) {
-      element.textContent = value || "--";
+      element.textContent = value == null || value === "" ? "--" : String(value);
     }
 
     function updateHostAuthGate(message = "") {
@@ -1183,133 +1129,56 @@
         /not paired|trust|token|login/i.test(error.message || "");
     }
 
-    async function refreshSideboard() {
-      if (activeMode !== "sideboard") return;
-
-      try {
-        const [stats, workPulse] = await Promise.all([
-          fetchJsonOrThrow("/api/sideboard/stats"),
-          fetchJsonOrThrow("/api/sideboard/work-pulse").catch(() => null)
-        ]);
-
-        sideError.textContent = "";
-        renderSideboardStats(stats);
-        renderWorkPulse(workPulse);
-      } catch (error) {
-        if (isTrustRequiredError(error)) {
-          sideHeadline.textContent = "資訊板已鎖定";
-          sideSummary.textContent = "請先配對手機。";
-          sideError.textContent = "需要信任裝置。";
-          sideWorkList.replaceChildren();
-          return;
-        }
-
-        sideHeadline.textContent = "資訊板無法使用";
-        sideSummary.textContent = "VibeDeck 無法讀取本機電腦資訊。";
-        sideError.textContent = error.message || "資料收集器無法使用。";
-        sideWorkList.replaceChildren();
-      }
-    }
-
-    function renderSideboardStats(stats) {
-      const cpu = stats.cpu || {};
-      const memory = stats.memory || {};
-      const gpu = stats.gpu || {};
-      const network = stats.network || {};
-      const disk = stats.disk || {};
-      const weather = stats.weather || {};
-      const system = stats.system || {};
-      const load = averagePercent([
-        cpu.usagePercent,
-        memory.usagePercent,
-        gpu.usagePercent,
-        disk.usagePercent
-      ]);
-
-      sideHeadline.textContent = system.hostname || "VibeDeck 資訊板";
-      sideSummary.textContent = `${new Date(stats.generatedAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-      sideLoad.textContent = formatPercent(load);
-      sideHost.textContent = `主機 ${system.localIp || "--"}`;
-      sideUptime.textContent = `已運行 ${formatSeconds(system.uptimeSeconds)}`;
-      sideHealth.textContent = stats.error ? `收集器：${stats.error}` : "收集器正常";
-
-      setText(sideCpu, formatPercent(cpu.usagePercent));
-      setText(sideCpuSub, `溫度 ${formatTemperature(cpu.temperatureC)}`);
-      setBar(sideCpuBar, cpu.usagePercent);
-
-      setText(sideRam, formatPercent(memory.usagePercent));
-      setText(sideRamSub, `${formatGb(memory.usedGb)} / ${formatGb(memory.totalGb)}`);
-      setBar(sideRamBar, memory.usagePercent);
-
-      setText(sideGpu, formatPercent(gpu.usagePercent));
-      setText(sideGpuSub, [gpu.name, formatTemperature(gpu.temperatureC)].filter(Boolean).join(" · "));
-      setBar(sideGpuBar, gpu.usagePercent);
-
-      setText(sideVram, formatPercent(gpu.memoryUsagePercent));
-      setText(sideVramSub, `${Math.round(gpu.memoryUsedMb || 0)} / ${Math.round(gpu.memoryTotalMb || 0)} MB`);
-      setBar(sideVramBar, gpu.memoryUsagePercent);
-
-      setText(sideNet, `${formatMbps(network.downMbps)}↓`);
-      setText(sideNetSub, `${formatMbps(network.upMbps)} Mbps 上傳`);
-      setBar(sideNetBar, Math.min(100, Math.max(network.downMbps || 0, network.upMbps || 0) * 5));
-
-      setText(sideDisk, formatPercent(disk.usagePercent));
-      setText(sideDiskSub, `${disk.drive || "磁碟"} · ${formatGb(disk.usedGb)} / ${formatGb(disk.totalGb)}`);
-      setBar(sideDiskBar, disk.usagePercent);
-
-      const weatherTemp = Number.isFinite(weather.temperatureC) ? formatTemperature(weather.temperatureC) : "";
-      const weatherFeels = Number.isFinite(weather.apparentTemperatureC) ? formatTemperature(weather.apparentTemperatureC) : "--";
-      const weatherDescription = describeWeatherCode(weather.weatherCode ?? weather.WeatherCode, weather.description || weather.Description);
-      const weatherParts = [
-        formatWeatherLocation(weather.location || weather.Location),
-        weatherDescription,
-        weatherTemp
-      ].filter(Boolean);
-      setText(sideWeather, weatherParts.length > 1 ? weatherParts.join(" · ") : "天氣資料暫不可用");
-      setText(sideWeatherSub, `體感 ${weatherFeels}`);
-      setText(sideDiskIo, `磁碟 IO 讀 ${formatMbps(disk.readMBps)} / 寫 ${formatMbps(disk.writeMBps)} MB/s`);
-      renderProcesses(stats.processes || []);
-    }
-
-    function renderProcesses(processes) {
-      sideProcessList.replaceChildren();
-      for (const process of processes.slice(0, 4)) {
-        const li = document.createElement("li");
-        const name = document.createElement("span");
-        const value = document.createElement("b");
-        name.textContent = process.name || process.Name || "process";
-        value.textContent = process.memoryMb || process.MemoryMb
-          ? `${Math.round(process.memoryMb || process.MemoryMb)}MB`
-          : "";
-        li.append(name, value);
-        sideProcessList.append(li);
-      }
-
-      if (!sideProcessList.children.length) {
-        const li = document.createElement("li");
-        li.textContent = "沒有程序資料";
-        sideProcessList.append(li);
-      }
-    }
-
-    function renderWorkPulse(workPulse) {
-      sideWorkList.replaceChildren();
-      const focus = workPulse?.focus || [];
-      const recent = workPulse?.recent || [];
-      const items = focus.length ? focus.map(item => item.text) : recent.map(item => item.text);
-
-      for (const text of items.slice(0, 4)) {
-        const li = document.createElement("li");
-        li.textContent = text;
-        sideWorkList.append(li);
-      }
-
-      if (!sideWorkList.children.length) {
-        const li = document.createElement("li");
-        li.textContent = workPulse?.summary?.headline || "目前沒有工作脈搏。";
-        sideWorkList.append(li);
-      }
-    }
+    const sideboardController = createSideboardController({
+      elements: {
+        sideHeadline,
+        sideSummary,
+        sideError,
+        sideLoad,
+        sideHost,
+        sideUptime,
+        sideHealth,
+        sideCpu,
+        sideCpuSub,
+        sideCpuBar,
+        sideRam,
+        sideRamSub,
+        sideRamBar,
+        sideGpu,
+        sideGpuSub,
+        sideGpuBar,
+        sideVram,
+        sideVramSub,
+        sideVramBar,
+        sideNet,
+        sideNetSub,
+        sideNetBar,
+        sideDisk,
+        sideDiskSub,
+        sideDiskBar,
+        sideDiskIo,
+        sideWeather,
+        sideWeatherSub,
+        sideProcessList,
+        sideWorkList,
+      },
+      fetchJsonOrThrow,
+      isTrustRequiredError,
+      getActiveMode: () => activeMode,
+      setText,
+      setBar,
+      formatters: {
+        averagePercent,
+        describeWeatherCode,
+        formatGb,
+        formatMbps,
+        formatPercent,
+        formatSeconds,
+        formatTemperature,
+        formatWeatherLocation,
+      },
+    });
+    const refreshSideboard = () => sideboardController.refresh();
 
     async function refreshQuotas(options = {}) {
       if (activeMode !== "quota") return;
@@ -2042,66 +1911,6 @@
       return card;
     }
 
-    function renderQuotaWindow(label, windowData) {
-      const used = windowData.UsedPercent ?? windowData.usedPercent;
-      const providedRemaining = windowData.RemainingPercent ?? windowData.remainingPercent;
-      const remaining = Number.isFinite(providedRemaining)
-        ? Math.max(0, Math.min(100, providedRemaining))
-        : Number.isFinite(used)
-          ? Math.max(0, Math.min(100, 100 - used))
-          : Number.NaN;
-      const reset = windowData.ResetsAt || windowData.resetsAt;
-      const resetText = reset ? `重置 ${new Date(reset).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "重置 --";
-      const value = Number.isFinite(remaining) ? `${Math.round(remaining)}%` : "--";
-      const bar = Number.isFinite(remaining) ? remaining : 0;
-      return `
-        <div class="quota-window">
-          <span>${label}</span>
-          <b>${value}</b>
-          <div class="quota-bar"><i style="width:${bar}%"></i></div>
-          <small>${resetText}</small>
-        </div>
-      `;
-    }
-
-    function summarizeQuotaWindow(windowData) {
-      const used = windowData.UsedPercent ?? windowData.usedPercent;
-      const providedRemaining = windowData.RemainingPercent ?? windowData.remainingPercent;
-      const remaining = Number.isFinite(providedRemaining)
-        ? providedRemaining
-        : Number.isFinite(used)
-          ? 100 - used
-          : Number.NaN;
-      return Number.isFinite(remaining) ? `${Math.round(remaining)}%` : "--";
-    }
-
-    function extractQuotaEmail(providers) {
-      for (const provider of providers) {
-        const detail = provider.Detail || provider.detail || "";
-        const match = detail.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
-        if (match) return match[0];
-      }
-      return null;
-    }
-
-    function extractQuotaTier(providers) {
-      for (const provider of providers) {
-        const detail = provider.Detail || provider.detail || "";
-        const parts = detail.split("·").map(part => part.trim()).filter(Boolean);
-        const tier = parts.find(part => !part.includes("@"));
-        if (tier) return tier;
-      }
-      return null;
-    }
-
-    function normalizeTierLabel(tier) {
-      const value = String(tier || "").toUpperCase();
-      if (value.includes("PRO")) return "PRO";
-      if (value.includes("ULTRA")) return "ULTRA";
-      if (value.includes("FREE")) return "FREE";
-      return value || "PRO";
-    }
-
     function setStatus(text, online) {
       statusText.textContent = text;
       dot.classList.toggle("online", online);
@@ -2702,10 +2511,7 @@
         rtcScreen.srcObject = stream;
         rtcScreen.play().catch(() => {});
         const receiver = event.receiver;
-        try {
-          if ("jitterBufferTarget" in receiver) receiver.jitterBufferTarget = 0;
-          if ("playoutDelayHint" in receiver) receiver.playoutDelayHint = 0;
-        } catch { }
+        tuneVideoReceiver(receiver);
         startRtcStats(peer, generation);
       };
       peer.onconnectionstatechange = () => {
@@ -2994,258 +2800,21 @@
       inputSocket.onclose = () => setTimeout(connectInput, 1000);
     }
 
-    function clamp01(value) {
-      return Math.max(0, Math.min(1, value));
-    }
+    const displayInputController = createDisplayInputController({
+      targets: [screen, rtcScreen],
+      getInputSocket: () => inputSocket,
+      getDeviceName: () => selectedDisplayName,
+      getActiveStreamElement,
+      getMediaWidth,
+      getMediaHeight,
+      resolveRotation,
+      isMobileClient,
+      enterLandscapeViewer,
+      touchLongPressMs,
+      touchDragThresholdPx,
+    });
 
-    function getScreenContentBox() {
-      const media = getActiveStreamElement();
-      const rect = media.getBoundingClientRect();
-      const naturalWidth = getMediaWidth(media) || rect.width;
-      const naturalHeight = getMediaHeight(media) || rect.height;
-      const fit = getComputedStyle(media).objectFit || "contain";
-
-      if (fit === "cover" && naturalWidth && naturalHeight && rect.width && rect.height) {
-        const scale = Math.max(rect.width / naturalWidth, rect.height / naturalHeight);
-        const width = naturalWidth * scale;
-        const height = naturalHeight * scale;
-        return {
-          left: rect.left + ((rect.width - width) / 2),
-          top: rect.top + ((rect.height - height) / 2),
-          width,
-          height
-        };
-      }
-
-      if (fit !== "contain" || !naturalWidth || !naturalHeight || !rect.width || !rect.height) {
-        return {
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height
-        };
-      }
-
-      const elementAspect = rect.width / rect.height;
-      const contentAspect = naturalWidth / naturalHeight;
-
-      if (contentAspect > elementAspect) {
-        const height = rect.width / contentAspect;
-        return {
-          left: rect.left,
-          top: rect.top + ((rect.height - height) / 2),
-          width: rect.width,
-          height
-        };
-      }
-
-      const width = rect.height * contentAspect;
-      return {
-        left: rect.left + ((rect.width - width) / 2),
-        top: rect.top,
-        width,
-        height: rect.height
-      };
-    }
-
-    function mapPointerToDisplay(event) {
-      const box = getScreenContentBox();
-      if (!box.width || !box.height) return null;
-
-      const rawX = (event.clientX - box.left) / box.width;
-      const rawY = (event.clientY - box.top) / box.height;
-      if (rawX < 0 || rawX > 1 || rawY < 0 || rawY > 1) return null;
-
-      const resolvedRotation = resolveRotation();
-      let x = rawX;
-      let y = rawY;
-
-      if (resolvedRotation === "90") {
-        x = rawY;
-        y = 1 - rawX;
-      } else if (resolvedRotation === "180") {
-        x = 1 - rawX;
-        y = 1 - rawY;
-      } else if (resolvedRotation === "270") {
-        x = 1 - rawY;
-        y = rawX;
-      }
-
-      return {
-        x: clamp01(x),
-        y: clamp01(y)
-      };
-    }
-
-    function buildPointerPayload(event) {
-      const point = mapPointerToDisplay(event);
-      if (!point) return null;
-      return {
-        deviceName: selectedDisplayName,
-        x: point.x,
-        y: point.y,
-        buttons: event.buttons || 0
-      };
-    }
-
-    function sendPointerMessage(type, payload, buttonsOverride) {
-      if (!inputSocket || inputSocket.readyState !== WebSocket.OPEN) return;
-      inputSocket.send(JSON.stringify({
-        type,
-        deviceName: payload.deviceName,
-        x: payload.x,
-        y: payload.y,
-        buttons: buttonsOverride ?? payload.buttons ?? 0
-      }));
-    }
-
-    function sendPointer(type, event, buttonsOverride) {
-      const payload = buildPointerPayload(event);
-      if (!payload) return false;
-      event.preventDefault();
-      sendPointerMessage(type, payload, buttonsOverride);
-      return true;
-    }
-
-    function clearTouchInputState() {
-      if (touchInputState?.timer) {
-        clearTimeout(touchInputState.timer);
-      }
-      touchInputState = null;
-    }
-
-    function isTouchPointer(event) {
-      return event.pointerType === "touch";
-    }
-
-    function beginTouchInput(event) {
-      const payload = buildPointerPayload(event);
-      if (!payload) return;
-
-      clearTouchInputState();
-      touchInputState = {
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-        lastPayload: payload,
-        dragStarted: false,
-        longPressTriggered: false,
-        timer: setTimeout(() => {
-          if (!touchInputState || touchInputState.pointerId !== event.pointerId || touchInputState.dragStarted) {
-            return;
-          }
-
-          touchInputState.longPressTriggered = true;
-          sendPointerMessage("rightclick", touchInputState.lastPayload, 2);
-        }, touchLongPressMs)
-      };
-      event.preventDefault();
-    }
-
-    function updateTouchInput(event) {
-      if (!touchInputState || touchInputState.pointerId !== event.pointerId) return;
-      const payload = buildPointerPayload(event);
-      if (!payload) return;
-
-      touchInputState.lastPayload = payload;
-      const moved = Math.hypot(event.clientX - touchInputState.startX, event.clientY - touchInputState.startY) >= touchDragThresholdPx;
-
-      if (touchInputState.longPressTriggered) {
-        event.preventDefault();
-        return;
-      }
-
-      if (!moved && !touchInputState.dragStarted) {
-        return;
-      }
-
-      if (touchInputState.timer) {
-        clearTimeout(touchInputState.timer);
-        touchInputState.timer = null;
-      }
-
-      if (!touchInputState.dragStarted) {
-        touchInputState.dragStarted = true;
-        sendPointerMessage("pointerdown", payload, 1);
-      }
-
-      sendPointerMessage("pointermove", payload, 1);
-      event.preventDefault();
-    }
-
-    function endTouchInput(event, cancelled) {
-      if (!touchInputState || touchInputState.pointerId !== event.pointerId) return;
-
-      const payload = buildPointerPayload(event) || touchInputState.lastPayload;
-      if (touchInputState.timer) {
-        clearTimeout(touchInputState.timer);
-        touchInputState.timer = null;
-      }
-
-      if (touchInputState.longPressTriggered) {
-        clearTouchInputState();
-        event.preventDefault();
-        return;
-      }
-
-      if (touchInputState.dragStarted) {
-        if (payload) {
-          sendPointerMessage(cancelled ? "pointercancel" : "pointerup", payload, 0);
-        }
-        clearTouchInputState();
-        event.preventDefault();
-        return;
-      }
-
-      if (payload) {
-        sendPointerMessage("pointerdown", payload, 1);
-        sendPointerMessage("pointerup", payload, 0);
-      }
-      clearTouchInputState();
-      event.preventDefault();
-    }
-
-    function wireDisplayPointerTarget(target) {
-      target.addEventListener("dragstart", event => event.preventDefault());
-      target.addEventListener("contextmenu", event => event.preventDefault());
-      target.addEventListener("pointerdown", event => {
-        target.setPointerCapture(event.pointerId);
-        if (isTouchPointer(event)) {
-          beginTouchInput(event);
-          return;
-        }
-        sendPointer("pointerdown", event);
-      });
-      target.addEventListener("pointermove", event => {
-        if (isTouchPointer(event)) {
-          updateTouchInput(event);
-          return;
-        }
-        sendPointer("pointermove", event);
-      });
-      target.addEventListener("pointerup", event => {
-        if (isTouchPointer(event)) {
-          endTouchInput(event, false);
-          return;
-        }
-        sendPointer("pointerup", event);
-      });
-      target.addEventListener("pointercancel", event => {
-        if (isTouchPointer(event)) {
-          endTouchInput(event, true);
-          return;
-        }
-        sendPointer("pointercancel", event);
-      });
-      target.addEventListener("dblclick", event => {
-        // Mobile clients use the toggle handler below; avoid firing two
-        // handlers that would enter and immediately exit fullscreen.
-        if (!isMobileClient()) enterLandscapeViewer(event);
-      });
-    }
-
-    wireDisplayPointerTarget(screen);
-    wireDisplayPointerTarget(rtcScreen);
+    displayInputController.wireAll();
     quotaGrid.addEventListener("pointerdown", event => {
       quotaSwipeStartX = event.clientX;
     });
@@ -3374,7 +2943,7 @@
     screen.addEventListener("dblclick", event => {
       if (!isIos() && !isMobileClient()) return;
       event.preventDefault();
-      if (touchInputState && (touchInputState.dragging || touchInputState.longPressed)) return;
+      if (displayInputController.isTouchGestureActive()) return;
       toggleDisplayViewerFromScreen();
     });
     rtcScreen.addEventListener("dblclick", event => {

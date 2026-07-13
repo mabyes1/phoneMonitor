@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=15">
+  <link rel="stylesheet" href="/index.css?v=16">
 </head>
 <body>
   <div id="hostAuthGate" class="host-auth-gate" role="dialog" aria-modal="true" aria-labelledby="hostAuthTitle" hidden>
@@ -80,7 +80,7 @@
         <button id="keepAwake" type="button">長亮 ON</button>
         <button id="refresh" type="button">重新整理</button>
         <button id="fullscreen" type="button">全螢幕</button>
-        <span class="status"><span id="dot" class="dot"></span><span id="status">連線中</span></span>
+        <span class="status" role="status" aria-live="polite"><span id="dot" class="dot"></span><span id="status">連線中</span></span>
       </div>
     </div>
     <video id="keepAwakeVideo"
@@ -295,6 +295,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script src="/index.js?v=22" defer></script>
+  <script type="module" src="/index.js?v=23"></script>
 </body>
 </html>

@@ -1,0 +1,208 @@
+export function createDisplayInputController({
+  targets,
+  getInputSocket,
+  getDeviceName,
+  getActiveStreamElement,
+  getMediaWidth,
+  getMediaHeight,
+  resolveRotation,
+  isMobileClient,
+  enterLandscapeViewer,
+  touchLongPressMs = 460,
+  touchDragThresholdPx = 12,
+}) {
+  let touchInputState = null;
+
+  function clamp01(value) {
+    return Math.max(0, Math.min(1, value));
+  }
+
+  function getScreenContentBox() {
+    const media = getActiveStreamElement();
+    const rect = media.getBoundingClientRect();
+    const naturalWidth = getMediaWidth(media) || rect.width;
+    const naturalHeight = getMediaHeight(media) || rect.height;
+    const fit = getComputedStyle(media).objectFit || "contain";
+
+    if (fit === "cover" && naturalWidth && naturalHeight && rect.width && rect.height) {
+      const scale = Math.max(rect.width / naturalWidth, rect.height / naturalHeight);
+      const width = naturalWidth * scale;
+      const height = naturalHeight * scale;
+      return {
+        left: rect.left + ((rect.width - width) / 2),
+        top: rect.top + ((rect.height - height) / 2),
+        width,
+        height,
+      };
+    }
+
+    if (fit !== "contain" || !naturalWidth || !naturalHeight || !rect.width || !rect.height) {
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+    }
+
+    const elementAspect = rect.width / rect.height;
+    const contentAspect = naturalWidth / naturalHeight;
+    if (contentAspect > elementAspect) {
+      const height = rect.width / contentAspect;
+      return { left: rect.left, top: rect.top + ((rect.height - height) / 2), width: rect.width, height };
+    }
+
+    const width = rect.height * contentAspect;
+    return { left: rect.left + ((rect.width - width) / 2), top: rect.top, width, height: rect.height };
+  }
+
+  function mapPointerToDisplay(event) {
+    const box = getScreenContentBox();
+    if (!box.width || !box.height) return null;
+
+    const rawX = (event.clientX - box.left) / box.width;
+    const rawY = (event.clientY - box.top) / box.height;
+    if (rawX < 0 || rawX > 1 || rawY < 0 || rawY > 1) return null;
+
+    let x = rawX;
+    let y = rawY;
+    const rotation = resolveRotation();
+    if (rotation === "90") {
+      x = rawY;
+      y = 1 - rawX;
+    } else if (rotation === "180") {
+      x = 1 - rawX;
+      y = 1 - rawY;
+    } else if (rotation === "270") {
+      x = 1 - rawY;
+      y = rawX;
+    }
+
+    return { x: clamp01(x), y: clamp01(y) };
+  }
+
+  function buildPayload(event) {
+    const point = mapPointerToDisplay(event);
+    return point ? { deviceName: getDeviceName(), ...point, buttons: event.buttons || 0 } : null;
+  }
+
+  function sendMessage(type, payload, buttonsOverride) {
+    const socket = getInputSocket();
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    socket.send(JSON.stringify({
+      type,
+      deviceName: payload.deviceName,
+      x: payload.x,
+      y: payload.y,
+      buttons: buttonsOverride ?? payload.buttons ?? 0,
+    }));
+  }
+
+  function sendPointer(type, event, buttonsOverride) {
+    const payload = buildPayload(event);
+    if (!payload) return false;
+    event.preventDefault();
+    sendMessage(type, payload, buttonsOverride);
+    return true;
+  }
+
+  function clearTouchState() {
+    if (touchInputState?.timer) clearTimeout(touchInputState.timer);
+    touchInputState = null;
+  }
+
+  function beginTouch(event) {
+    const payload = buildPayload(event);
+    if (!payload) return;
+    clearTouchState();
+    touchInputState = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      lastPayload: payload,
+      dragStarted: false,
+      longPressTriggered: false,
+      timer: setTimeout(() => {
+        if (!touchInputState || touchInputState.pointerId !== event.pointerId || touchInputState.dragStarted) return;
+        touchInputState.longPressTriggered = true;
+        sendMessage("rightclick", touchInputState.lastPayload, 2);
+      }, touchLongPressMs),
+    };
+    event.preventDefault();
+  }
+
+  function updateTouch(event) {
+    if (!touchInputState || touchInputState.pointerId !== event.pointerId) return;
+    const payload = buildPayload(event);
+    if (!payload) return;
+    touchInputState.lastPayload = payload;
+    const moved = Math.hypot(event.clientX - touchInputState.startX, event.clientY - touchInputState.startY) >= touchDragThresholdPx;
+    if (touchInputState.longPressTriggered) {
+      event.preventDefault();
+      return;
+    }
+    if (!moved && !touchInputState.dragStarted) return;
+    if (touchInputState.timer) {
+      clearTimeout(touchInputState.timer);
+      touchInputState.timer = null;
+    }
+    if (!touchInputState.dragStarted) {
+      touchInputState.dragStarted = true;
+      sendMessage("pointerdown", payload, 1);
+    }
+    sendMessage("pointermove", payload, 1);
+    event.preventDefault();
+  }
+
+  function endTouch(event, cancelled) {
+    if (!touchInputState || touchInputState.pointerId !== event.pointerId) return;
+    const payload = buildPayload(event) || touchInputState.lastPayload;
+    if (touchInputState.timer) clearTimeout(touchInputState.timer);
+    if (touchInputState.longPressTriggered) {
+      clearTouchState();
+      event.preventDefault();
+      return;
+    }
+    if (touchInputState.dragStarted) {
+      if (payload) sendMessage(cancelled ? "pointercancel" : "pointerup", payload, 0);
+      clearTouchState();
+      event.preventDefault();
+      return;
+    }
+    if (payload) {
+      sendMessage("pointerdown", payload, 1);
+      sendMessage("pointerup", payload, 0);
+    }
+    clearTouchState();
+    event.preventDefault();
+  }
+
+  function wire(target) {
+    target.addEventListener("dragstart", event => event.preventDefault());
+    target.addEventListener("contextmenu", event => event.preventDefault());
+    target.addEventListener("pointerdown", event => {
+      target.setPointerCapture(event.pointerId);
+      if (event.pointerType === "touch") return beginTouch(event);
+      sendPointer("pointerdown", event);
+    });
+    target.addEventListener("pointermove", event => {
+      if (event.pointerType === "touch") return updateTouch(event);
+      sendPointer("pointermove", event);
+    });
+    target.addEventListener("pointerup", event => {
+      if (event.pointerType === "touch") return endTouch(event, false);
+      sendPointer("pointerup", event);
+    });
+    target.addEventListener("pointercancel", event => {
+      if (event.pointerType === "touch") return endTouch(event, true);
+      sendPointer("pointercancel", event);
+    });
+    target.addEventListener("dblclick", event => {
+      if (!isMobileClient()) enterLandscapeViewer(event);
+    });
+  }
+
+  return {
+    wire,
+    wireAll() { targets.filter(Boolean).forEach(wire); },
+    clearTouchState,
+    isTouchGestureActive() {
+      return Boolean(touchInputState && (touchInputState.dragStarted || touchInputState.longPressTriggered));
+    },
+  };
+}
