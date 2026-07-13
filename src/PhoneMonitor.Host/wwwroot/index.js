@@ -10,7 +10,9 @@ import {
   formatWeatherLocation,
 } from "./modules/formatters.js";
 import { createDisplayInputController } from "./modules/display-input.js";
+import { createQuotaController } from "./modules/quota-controller.js";
 import { createSideboardController } from "./modules/sideboard.js";
+import { createStreamController } from "./modules/stream-controller.js";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js";
 import {
   extractQuotaEmail,
@@ -112,19 +114,7 @@ import {
     let selectedDisplayName = "";
     let lastUrl = null;
     let inputSocket = null;
-    let videoSocket = null;
-    // JPEG frames must be decoded one at a time on Safari.  Feeding every
-    // WebSocket message straight into <img> builds a large WebKit decode and
-    // object-URL queue, which turns a live view into seconds of latency.
-    let pendingJpegFrame = null;
-    let jpegFrameDecoding = false;
-    let activeJpegObjectUrl = null;
-    let jpegFallbackReason = "";
-    let rtcPeer = null;
-    let rtcActive = false;
-    let rtcConnectGeneration = 0;
-    let rtcDisconnectTimer = null;
-    let rtcStatsTimer = null;
+    let streamController = null;
     let wakeLock = null;
     let keepAwakeDesired = localStorage.getItem("phoneMonitorKeepAwake") !== "0";
     let keepAwakeVideoPlaying = false;
@@ -138,7 +128,6 @@ import {
       sideboard: { last: 0, timer: null, dirty: false },
       quota: { last: 0, timer: null, dirty: false }
     };
-    let quotaOAuthPollTimer = null;
     let actionToken = "";
     let actionHeaderName = "X-PhoneMonitor-Action-Token";
     let hostAuthEnabled = false;
@@ -1180,30 +1169,20 @@ import {
     });
     const refreshSideboard = () => sideboardController.refresh();
 
-    async function refreshQuotas(options = {}) {
-      if (activeMode !== "quota") return;
-
-      try {
-        const endpoint = options.force ? "/api/quotas/refresh" : "/api/quotas";
-        const init = options.force ? { method: "POST" } : undefined;
-        renderQuotas(await fetchJsonOrThrow(endpoint, init));
-      } catch (error) {
-        quotaSummary.textContent = isTrustRequiredError(error)
-          ? "請先配對手機，才能查看 AI 額度。"
-          : error.message || "額度來源無法使用。";
-        quotaUpdated.textContent = "--";
-        if (quotaHelp) {
-          quotaHelp.replaceChildren();
-          quotaHelp.append(renderQuotaHelpBlock(
-            "無法讀取額度",
-            isTrustRequiredError(error)
-              ? ["手機需先與 PC 完成配對，才能查看本機 AI 額度。"]
-              : [error.message || "額度 API 失敗。", "請確認 Host 在跑，並在 PC 本機操作額度來源。"]
-          ));
-        }
-        quotaGrid.replaceChildren();
-      }
-    }
+    const quotaController = createQuotaController({
+      elements: { quotaSummary, quotaUpdated, quotaHelp, quotaGrid },
+      getActiveMode: () => activeMode,
+      fetchJsonOrThrow,
+      isTrustRequiredError,
+      renderSnapshot: renderQuotas,
+      renderErrorHelp: (error, requiresTrust) => renderQuotaHelpBlock(
+        "無法讀取額度",
+        requiresTrust
+          ? ["手機需先與 PC 完成配對，才能查看本機 AI 額度。"]
+          : [error.message || "額度 API 失敗。", "請確認 Host 在跑，並在 PC 本機操作額度來源。"]
+      ),
+    });
+    const refreshQuotas = options => quotaController.refresh(options);
 
     function renderQuotas(snapshot) {
       quotaSnapshotData = snapshot || {};
@@ -1587,7 +1566,7 @@ import {
           if (!opened && authUrl && isLocalHost()) {
             window.open(authUrl, "_blank", "noopener");
           }
-          startQuotaOAuthPolling();
+          quotaController.startOAuthPolling();
           return {
             message: opened
               ? "AGY 登入頁已在 PC 開啟。"
@@ -1642,24 +1621,6 @@ import {
       return location.hostname === "127.0.0.1" ||
         location.hostname === "localhost" ||
         location.hostname === "::1";
-    }
-
-    function startQuotaOAuthPolling() {
-      if (quotaOAuthPollTimer) {
-        clearInterval(quotaOAuthPollTimer);
-      }
-
-      let attempts = 0;
-      quotaOAuthPollTimer = setInterval(async () => {
-        attempts += 1;
-        if (activeMode !== "quota" || attempts > 40) {
-          clearInterval(quotaOAuthPollTimer);
-          quotaOAuthPollTimer = null;
-          return;
-        }
-
-        await refreshQuotas({ force: true });
-      }, 3000);
     }
 
     function getQuotaActionMessage(result, fallback) {
@@ -1997,7 +1958,7 @@ import {
       }
 
       const register = () => {
-        navigator.serviceWorker.register("/service-worker.js?v=23")
+        navigator.serviceWorker.register("/service-worker.js?v=24")
           .then(registration => {
             serviceWorkerRegistration = registration;
             registration.update().catch(() => {});
@@ -2094,7 +2055,7 @@ import {
       };
     }
 
-    function recordFrame(byteLength) {
+    function recordFrame(byteLength, fallbackReason = "") {
       if (!streamStats) return;
       streamStats.frames += 1;
       streamStats.bytes += byteLength || 0;
@@ -2106,7 +2067,7 @@ import {
       const byteDelta = streamStats.bytes - streamStats.lastBytes;
       const fps = frameDelta * 1000 / elapsed;
       const mbps = byteDelta * 8 / elapsed / 1000;
-      const protocolLabel = jpegFallbackReason ? `${jpegFallbackReason} · ` : "";
+      const protocolLabel = fallbackReason ? `${fallbackReason} · ` : "";
       setStatus(`${protocolLabel}jpeg ${fps.toFixed(0)}fps ${mbps.toFixed(1)}Mbps`, true);
       streamStats.lastFrames = streamStats.frames;
       streamStats.lastBytes = streamStats.bytes;
@@ -2114,7 +2075,7 @@ import {
     }
 
     function getActiveStreamElement() {
-      return rtcActive ? rtcScreen : screen;
+      return streamController?.getActiveStreamElement() || screen;
     }
 
     function getMediaWidth(element) {
@@ -2330,324 +2291,10 @@ import {
       driverState.textContent = `VibeDeck 顯示器：${phoneDisplay.DeviceName} (${phoneDisplay.Width}x${phoneDisplay.Height})`;
     }
 
-    function jpegStreamUrl() {
-      const params = appendDeviceToken(new URLSearchParams({
-        deviceName: selectedDisplayName,
-        fps: streamFps.value,
-        quality: streamQuality.value
-      }));
-      return `${wsBase}/ws/display?${params.toString()}`;
-    }
-
     function inputSocketUrl() {
       const params = appendDeviceToken(new URLSearchParams());
       const query = params.toString();
       return `${wsBase}/ws/input${query ? `?${query}` : ""}`;
-    }
-
-    function closeJpegStream() {
-      if (videoSocket) videoSocket.close();
-      videoSocket = null;
-      clearJpegFrameQueue();
-    }
-
-    function closeRtcStream(invalidate = true) {
-      if (invalidate) rtcConnectGeneration += 1;
-      const peer = rtcPeer;
-      rtcPeer = null;
-      rtcActive = false;
-      if (peer) {
-        try {
-          peer.close();
-        } catch {
-        }
-      }
-      if (rtcDisconnectTimer) {
-        clearTimeout(rtcDisconnectTimer);
-        rtcDisconnectTimer = null;
-      }
-      if (rtcStatsTimer) {
-        clearInterval(rtcStatsTimer);
-        rtcStatsTimer = null;
-      }
-      rtcScreen.srcObject = null;
-      rtcScreen.hidden = true;
-      screen.hidden = false;
-    }
-
-    function clearJpegFrameQueue() {
-      pendingJpegFrame = null;
-      if (activeJpegObjectUrl) {
-        URL.revokeObjectURL(activeJpegObjectUrl);
-        activeJpegObjectUrl = null;
-      }
-      jpegFrameDecoding = false;
-    }
-
-    function presentPendingJpegFrame() {
-      if (jpegFrameDecoding || !pendingJpegFrame) return;
-
-      const frame = pendingJpegFrame;
-      pendingJpegFrame = null;
-      jpegFrameDecoding = true;
-      const url = URL.createObjectURL(frame);
-      activeJpegObjectUrl = url;
-
-      if (typeof screen.decode === "function") {
-        screen.src = url;
-        screen.decode().then(
-          () => finishJpegFrameDecode(url),
-          () => finishJpegFrameDecode(url)
-        );
-        return;
-      }
-
-      // Fallback for older WebKit: the URL token prevents a late event from a
-      // previous frame from completing the currently decoding frame.
-      const complete = () => {
-        screen.removeEventListener("load", complete);
-        screen.removeEventListener("error", complete);
-        finishJpegFrameDecode(url);
-      };
-      screen.addEventListener("load", complete, { once: true });
-      screen.addEventListener("error", complete, { once: true });
-      screen.src = url;
-    }
-
-    function finishJpegFrameDecode(url) {
-      if (!jpegFrameDecoding || url !== activeJpegObjectUrl) return;
-
-      if (activeJpegObjectUrl) {
-        // Revoking after load is safe: WebKit has fully consumed the Blob.
-        URL.revokeObjectURL(activeJpegObjectUrl);
-        activeJpegObjectUrl = null;
-      }
-      jpegFrameDecoding = false;
-
-      // Keep only the newest frame while Safari is decoding.  This is the
-      // important part for responsiveness: stale frames are deliberately
-      // discarded instead of being rendered late.
-      requestAnimationFrame(presentPendingJpegFrame);
-    }
-
-    async function connectVideo() {
-      const generation = ++rtcConnectGeneration;
-      jpegFallbackReason = "";
-      closeJpegStream();
-      closeRtcStream(false);
-
-      if (!canUseProtectedConnection()) {
-        setStatus("請先配對手機", false);
-        return;
-      }
-
-      if (!selectedDisplayName) {
-        await loadPhoneDisplay();
-      }
-
-      if (generation !== rtcConnectGeneration || !selectedDisplayName) return;
-
-      // iOS Safari can hardware-decode H.264 in WebRTC, but it cannot consume
-      // the Host's raw Annex-B WebSocket directly.  Keep JPEG as a reliable
-      // fallback for unsupported browsers, insecure contexts, or failed ICE.
-      if (prefersWebRtcDisplay() && !isNativeShell() && !window.RTCPeerConnection) {
-        jpegFallbackReason = "WebRTC API 不可用";
-      } else if (prefersWebRtcDisplay() && !isNativeShell() && window.RTCPeerConnection) {
-        try {
-          const connected = await connectRtcVideo(generation);
-          if (connected && generation === rtcConnectGeneration) return;
-        } catch (error) {
-          console.warn("WebRTC negotiation failed; using JPEG fallback", error);
-          if (generation === rtcConnectGeneration) {
-            setStatus(`WebRTC 無法連線，切回 JPEG：${error.message || "未知錯誤"}`, false);
-          }
-          jpegFallbackReason = `WebRTC fallback：${error.message || "未知錯誤"}`;
-          closeRtcStream(false);
-        }
-      }
-
-      if (generation !== rtcConnectGeneration) return;
-      connectJpegVideo();
-    }
-
-    function waitForIceGatheringComplete(peer, timeoutMs = 1800) {
-      if (peer.iceGatheringState === "complete") return Promise.resolve();
-      return new Promise(resolve => {
-        let finished = false;
-        const finish = () => {
-          if (finished) return;
-          finished = true;
-          clearTimeout(timer);
-          peer.removeEventListener("icegatheringstatechange", onStateChange);
-          resolve();
-        };
-        const onStateChange = () => {
-          if (peer.iceGatheringState === "complete") finish();
-        };
-        const timer = setTimeout(finish, timeoutMs);
-        peer.addEventListener("icegatheringstatechange", onStateChange);
-      });
-    }
-
-    async function connectRtcVideo(generation) {
-      if (generation !== rtcConnectGeneration) return false;
-      if (!window.isSecureContext && !isLoopbackHost()) {
-        throw new Error("WebRTC 需要 HTTPS");
-      }
-
-      const peer = new RTCPeerConnection({ iceServers: [] });
-      rtcPeer = peer;
-      rtcActive = true;
-      screen.hidden = true;
-      rtcScreen.hidden = false;
-      rtcScreen.onloadedmetadata = () => {
-        applyRotation();
-        rtcScreen.play().catch(() => {});
-        setStatus("WebRTC H.264 已連線", true);
-      };
-      peer.ontrack = event => {
-        if (generation !== rtcConnectGeneration || rtcPeer !== peer) return;
-        const stream = event.streams?.[0] || new MediaStream([event.track]);
-        rtcScreen.srcObject = stream;
-        rtcScreen.play().catch(() => {});
-        const receiver = event.receiver;
-        tuneVideoReceiver(receiver);
-        startRtcStats(peer, generation);
-      };
-      peer.onconnectionstatechange = () => {
-        if (generation !== rtcConnectGeneration || rtcPeer !== peer) return;
-        if (peer.connectionState === "disconnected") {
-          // Safari can report a short disconnected state while the Wi-Fi path
-          // is being re-selected.  Rebuilding the peer immediately causes a
-          // visible JPEG fallback and makes the next RTC attempt less stable.
-          if (rtcDisconnectTimer) clearTimeout(rtcDisconnectTimer);
-          rtcDisconnectTimer = setTimeout(() => {
-            rtcDisconnectTimer = null;
-            if (generation !== rtcConnectGeneration || rtcPeer !== peer || peer.connectionState !== "disconnected") return;
-            closeRtcStream(false);
-            setStatus("WebRTC 中斷（ICE disconnected），切回 JPEG", false);
-            connectJpegVideo("WebRTC ICE disconnected");
-          }, 3000);
-          return;
-        }
-        if (["failed", "closed"].includes(peer.connectionState)) {
-          closeRtcStream(false);
-          setStatus(`WebRTC 中斷（${peer.connectionState}），切回 JPEG`, false);
-          connectJpegVideo(`WebRTC ${peer.connectionState}`);
-        }
-      };
-      peer.oniceconnectionstatechange = () => {
-        if (generation !== rtcConnectGeneration || rtcPeer !== peer) return;
-        if (peer.iceConnectionState === "failed") {
-          setStatus("WebRTC ICE failed，切回 JPEG", false);
-        }
-      };
-
-      peer.addTransceiver("video", { direction: "recvonly" });
-      const offer = await peer.createOffer();
-      if (generation !== rtcConnectGeneration || rtcPeer !== peer) {
-        try {
-          peer.close();
-        } catch {
-        }
-        return false;
-      }
-      await peer.setLocalDescription(offer);
-      await waitForIceGatheringComplete(peer);
-      if (generation !== rtcConnectGeneration || rtcPeer !== peer) return false;
-
-      const answer = await fetchJsonOrThrow("/api/stream/webrtc/offer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sdp: peer.localDescription?.sdp || offer.sdp,
-          deviceName: selectedDisplayName,
-          fps: Number(streamFps.value),
-          quality: Number(streamQuality.value)
-        })
-      });
-
-      // A socket close, page visibility change, or a second reconnect can
-      // finish while the signalling request is in flight.  Safari reports
-      // this race as "The object is in an invalid state" when an answer is
-      // applied to the already-closed peer.  Never touch a stale peer.
-      if (generation !== rtcConnectGeneration || rtcPeer !== peer || peer.signalingState === "closed") {
-        try {
-          peer.close();
-        } catch {
-        }
-        return false;
-      }
-
-      await peer.setRemoteDescription({
-        type: answer.Type || answer.type || "answer",
-        sdp: answer.Sdp || answer.sdp || ""
-      });
-      return true;
-    }
-
-    function startRtcStats(peer, generation) {
-      if (rtcStatsTimer) clearInterval(rtcStatsTimer);
-      let previous = null;
-      rtcStatsTimer = setInterval(async () => {
-        if (generation !== rtcConnectGeneration || rtcPeer !== peer || peer.connectionState === "closed") return;
-        try {
-          const reports = await peer.getStats();
-          let inbound = null;
-          reports.forEach(report => {
-            if (report.type === "inbound-rtp" && (report.kind === "video" || report.mediaType === "video")) inbound = report;
-          });
-          if (!inbound) return;
-          const now = Number(inbound.timestamp || performance.now());
-          if (previous) {
-            const seconds = Math.max(.001, (now - previous.time) / 1000);
-            const fps = Math.max(0, (Number(inbound.framesDecoded || 0) - previous.frames) / seconds);
-            const mbps = Math.max(0, (Number(inbound.bytesReceived || 0) - previous.bytes) * 8 / seconds / 1e6);
-            const dropped = Math.max(0, Number(inbound.framesDropped || 0) - previous.dropped);
-            const jitterMs = Math.max(0, Number(inbound.jitter || 0) * 1000);
-            const emitted = Number(inbound.jitterBufferEmittedCount || 0);
-            const bufferMs = emitted > 0 ? Number(inbound.jitterBufferDelay || 0) / emitted * 1000 : 0;
-            const decoded = Number(inbound.framesDecoded || 0);
-            const decodeMs = decoded > 0 ? Number(inbound.totalDecodeTime || 0) / decoded * 1000 : 0;
-            setStatus(`H.264 ${fps.toFixed(0)}fps ${mbps.toFixed(1)}Mbps · jitter ${jitterMs.toFixed(0)}ms · buffer ${bufferMs.toFixed(0)}ms · decode ${decodeMs.toFixed(1)}ms${dropped ? ` · drop ${dropped}` : ""}`, fps >= 20 && bufferMs < 250);
-          }
-          previous = {
-            time: now,
-            frames: Number(inbound.framesDecoded || 0),
-            bytes: Number(inbound.bytesReceived || 0),
-            dropped: Number(inbound.framesDropped || 0)
-          };
-        } catch { }
-      }, 1000);
-    }
-
-    function connectJpegVideo(fallbackReason = "") {
-      jpegFallbackReason = fallbackReason || jpegFallbackReason;
-      screen.hidden = false;
-      applyRotation();
-      const socket = new WebSocket(jpegStreamUrl());
-      videoSocket = socket;
-      socket.binaryType = "blob";
-      resetStreamStats();
-
-      socket.onopen = () => setStatus(jpegFallbackReason ? `${jpegFallbackReason} · JPEG` : "影像已連線", true);
-      socket.onclose = () => {
-        if (videoSocket !== socket) return;
-        setStatus("重新連線中", false);
-        setTimeout(connectVideo, 1000);
-      };
-      socket.onerror = () => setStatus("影像連線錯誤", false);
-      socket.onmessage = event => {
-        // A latest-frame-wins queue bounds both memory and decoder work on
-        // iPhone.  At 30fps the old one-second revoke delay retained roughly
-        // 30 full JPEGs and let WebKit render them long after they were useful.
-        pendingJpegFrame = event.data;
-        presentPendingJpegFrame();
-        recordFrame(event.data.size);
-        if (rotation.value === "auto") {
-          requestAnimationFrame(applyRotation);
-        }
-      };
     }
 
     function applyStreamPresetFields() {
@@ -2799,6 +2446,41 @@ import {
       inputSocket = new WebSocket(inputSocketUrl());
       inputSocket.onclose = () => setTimeout(connectInput, 1000);
     }
+
+    function connectVideo() {
+      return streamController?.connect();
+    }
+
+    function closeJpegStream() {
+      return streamController?.closeJpegStream();
+    }
+
+    function closeRtcStream(invalidate = true) {
+      return streamController?.closeRtcStream(invalidate);
+    }
+
+    streamController = createStreamController({
+      elements: { screen, rtcScreen },
+      getWsBase: () => wsBase,
+      appendDeviceToken,
+      getSelectedDisplayName: () => selectedDisplayName,
+      getStreamSettings: () => ({
+        fps: Number(streamFps.value),
+        quality: Number(streamQuality.value),
+        rotationIsAuto: rotation.value === "auto",
+      }),
+      canUseProtectedConnection,
+      loadPhoneDisplay,
+      prefersWebRtcDisplay,
+      isNativeShell,
+      isLoopbackHost,
+      setStatus,
+      applyRotation,
+      resetJpegStats: resetStreamStats,
+      recordJpegFrame: recordFrame,
+      fetchJsonOrThrow,
+      tuneVideoReceiver,
+    });
 
     const displayInputController = createDisplayInputController({
       targets: [screen, rtcScreen],

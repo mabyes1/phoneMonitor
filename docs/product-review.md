@@ -64,10 +64,12 @@ Recommended next step:
 - `wwwroot/modules/sideboard.js` owns telemetry/work-pulse rendering and refresh errors.
 - `wwwroot/modules/display-input.js` owns pointer mapping, touch drag, long-press right-click, and input event wiring.
 - `wwwroot/modules/quota-formatters.js` owns quota window/account display formatting.
+- `wwwroot/modules/quota-controller.js` owns quota refresh errors and OAuth polling.
 - `Startup.Streaming.cs` owns JPEG display capture and input WebSocket loops.
 - `wwwroot/modules/stream-tuning.js` centralizes optional WebRTC receiver latency hints.
+- `wwwroot/modules/stream-controller.js` owns WebRTC/JPEG connection lifecycle, latest-frame decoding, and reconnect fallback.
 
-The remaining quota orchestration and WebRTC signalling stay in the entrypoint until they can be extracted with focused browser smoke coverage; this keeps the current pairing and fallback behavior reversible.
+The quota card rendering and stream settings controls remain in the entrypoint as view wiring; the connection and refresh lifecycles now have focused module boundaries.
 
 ### P1: Built Host executable can miss phone UI assets
 
