@@ -512,6 +512,8 @@ import {
       activeMode = mode;
       const isSideboard = mode === "sideboard";
       const isQuota = mode === "quota";
+      // A leftover "paired" toast must never sit on top of the display stream.
+      if (!isSideboard && !isQuota) hidePairSuccessBanner();
       document.body.classList.toggle("mode-display", !isSideboard && !isQuota);
       document.body.classList.toggle("mode-sideboard", isSideboard);
       document.body.classList.toggle("mode-quota", isQuota);
@@ -922,6 +924,15 @@ import {
         : "<div>可點上方「顯示器 / 資訊板 / 額度」使用。</div>";
       banner.innerHTML = `<strong>已配對成功</strong><div>${message || ""}</div>${homeHint}`;
       banner.classList.add("show");
+      // The toast is confirmation, not a permanent panel. On phones it used to
+      // stay sticky at z-40 and cover the secondary-screen view forever.
+      clearTimeout(showPairSuccessBanner._timer);
+      showPairSuccessBanner._timer = setTimeout(hidePairSuccessBanner, 6000);
+    }
+
+    function hidePairSuccessBanner() {
+      const banner = document.getElementById("pairSuccessBanner");
+      if (banner) banner.classList.remove("show");
     }
 
     function setPairControlsVisible(localConsole) {
@@ -982,12 +993,14 @@ import {
         applyClientChrome();
         return result;
       } catch (error) {
-        deviceTrusted = false;
-        // API 掛了也別把本機配對按鈕藏起來，否則 PC 只能乾瞪眼
-        deviceLocalRequest = isLoopbackHost();
+        // A transient /api/devices/status failure must not drop a phone that is
+        // already paired: forcing deviceTrusted=false here flashed the pairing
+        // rescue panel back over the live secondary-screen view on iOS blips.
+        // Keep the last known trust; only a successful response changes it.
+        deviceLocalRequest = deviceLocalRequest || isLoopbackHost();
         setPairControlsVisible(deviceLocalRequest);
-        renderTrustedDevices(null);
-        setTrustState(error.message || "信任狀態無法取得。", false);
+        if (!deviceTrusted) renderTrustedDevices(null);
+        setTrustState(error.message || "信任狀態暫時無法取得，沿用上次狀態。", deviceTrusted);
         applyClientChrome();
         return null;
       }
