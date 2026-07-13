@@ -13,9 +13,11 @@ using System.Threading;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using PhoneMonitor.Host.Connect;
+using PhoneMonitor.Host.CustomSources;
 using PhoneMonitor.Host.Display;
 using PhoneMonitor.Host.Dashboard;
 using PhoneMonitor.Host.Quotas;
@@ -23,6 +25,7 @@ using PhoneMonitor.Host.Security;
 using PhoneMonitor.Host.Sideboard;
 using PhoneMonitor.Host.Streaming;
 using PhoneMonitor.Host.Windows;
+using PhoneMonitor.Host.WindowsNotifications;
 using QRCoder;
 
 namespace PhoneMonitor.Host
@@ -53,6 +56,18 @@ namespace PhoneMonitor.Host
             services.AddSingleton<AiQuotaService>();
             services.AddSingleton<DashboardEventHub>();
             services.AddHostedService<DashboardChangeMonitor>();
+            services.AddSingleton(sp =>
+            {
+                var options = new CustomSourceOptions();
+                sp.GetRequiredService<IConfiguration>().GetSection("CustomSources").Bind(options);
+                options.Normalize();
+                return options;
+            });
+            services.AddSingleton<CustomSourceStore>();
+            services.AddSingleton<CustomSourceService>();
+            services.AddHostedService<CustomSourceCleanupService>();
+            services.AddSingleton<WindowsNotificationListenerService>();
+            services.AddHostedService(sp => sp.GetRequiredService<WindowsNotificationListenerService>());
             services.AddSingleton<ActionTokenService>();
             services.AddSingleton<DeviceTrustService>();
             services.AddSingleton<HostAccessAuthService>();
@@ -71,10 +86,26 @@ namespace PhoneMonitor.Host
             {
                 KeepAliveInterval = TimeSpan.FromSeconds(15)
             });
-            app.UseStaticFiles();
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                OnPrepareResponse = staticContext =>
+                {
+                    var path = staticContext.Context.Request.Path.Value ?? string.Empty;
+                    if (path.Equals("/index.html", StringComparison.OrdinalIgnoreCase) ||
+                        path.Equals("/service-worker.js", StringComparison.OrdinalIgnoreCase))
+                    {
+                        staticContext.Context.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+                        staticContext.Context.Response.Headers["Pragma"] = "no-cache";
+                        staticContext.Context.Response.Headers["Expires"] = "0";
+                    }
+                }
+            });
 
             app.UseEndpoints(endpoints =>
             {
+                MapCustomSourceEndpoints(endpoints);
+                MapWindowsNotificationEndpoints(endpoints);
+
                 endpoints.MapGet("/health", async context =>
                 {
                     context.Response.ContentType = "application/json";
@@ -206,67 +237,6 @@ namespace PhoneMonitor.Host
                         hostAuthenticated)));
                 });
 
-                endpoints.MapPost("/api/devices/pairing/start", async context =>
-                {
-                    if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context))
-                    {
-                        return;
-                    }
-
-                    var request = await JsonSerializer.DeserializeAsync<PairingStartRequest>(context.Request.Body, SocketJsonOptions)
-                        ?? new PairingStartRequest();
-                    var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
-                    var connectInfo = context.RequestServices.GetRequiredService<ConnectInfoProvider>().Get(context.Request);
-                    var pairing = devices.StartPairing(request.Name);
-                    // One path: HTTPS when the local cert exists (iPhone needs secure context for wake lock / PWA).
-                    // HTTP only if HTTPS is not configured on this PC.
-                    var pairingBase = connectInfo.HttpsAvailable ? connectInfo.HttpsUrl : connectInfo.HttpUrl;
-                    var pairingUrl = BuildPairingUrl(pairingBase, pairing);
-                    context.Response.ContentType = "application/json";
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(new
-                    {
-                        pairingId = pairing.PairingId,
-                        expiresAt = pairing.ExpiresAt,
-                        pairingUrl,
-                        httpsRequired = connectInfo.HttpsAvailable,
-                        qrSvg = BuildQrSvg(pairingUrl)
-                    }));
-                });
-
-                endpoints.MapPost("/api/devices/pairing/complete", async context =>
-                {
-                    var request = await JsonSerializer.DeserializeAsync<PairingCompleteRequest>(context.Request.Body, SocketJsonOptions)
-                        ?? new PairingCompleteRequest();
-                    var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
-                    var result = devices.CompletePairing(
-                        request.PairingId,
-                        request.PairingSecret,
-                        context.Request.Headers["User-Agent"].FirstOrDefault(),
-                        GetRemoteAddress(context));
-                    if (result.Success && !string.IsNullOrWhiteSpace(result.DeviceToken))
-                    {
-                        // Cookie helps iPhone Home Screen Web share auth with Safari more reliably than localStorage alone.
-                        context.Response.Cookies.Append(
-                            DeviceTrustService.CookieName,
-                            result.DeviceToken,
-                            new CookieOptions
-                            {
-                                HttpOnly = false,
-                                Secure = context.Request.IsHttps,
-                                SameSite = SameSiteMode.Lax,
-                                Path = "/",
-                                MaxAge = TimeSpan.FromDays(400),
-                                IsEssential = true
-                            });
-                    }
-
-                    context.Response.StatusCode = result.Success
-                        ? StatusCodes.Status200OK
-                        : StatusCodes.Status400BadRequest;
-                    context.Response.ContentType = "application/json";
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(result));
-                });
-
                 endpoints.MapPost("/api/devices/revoke", async context =>
                 {
                     if (!await RequireProtectedActionAsync(context))
@@ -302,7 +272,8 @@ namespace PhoneMonitor.Host
                 {
                     var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
                     var connectInfo = provider.Get(context.Request);
-                    await WriteQrSvgAsync(context, connectInfo.PreferredUrl);
+                    var phonePageUrl = new Uri(new Uri(connectInfo.PreferredUrl), "index.html").ToString();
+                    await WriteQrSvgAsync(context, phonePageUrl);
                 });
 
                 endpoints.MapGet("/cert/phone-monitor-root.cer", async context =>
@@ -591,7 +562,8 @@ namespace PhoneMonitor.Host
                 endpoints.MapPost("/api/devices/pairing/request", async context =>
                 {
                     if (!await RequirePrivateLanRequestAsync(context)) return;
-                    var request = await JsonSerializer.DeserializeAsync<PairingApprovalStartRequest>(context.Request.Body, SocketJsonOptions)
+                    if (!await RequireHttpsPairingAsync(context)) return;
+                    var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalStartRequest>(context)
                         ?? new PairingApprovalStartRequest();
                     var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
                     var result = devices.RequestApproval(
@@ -625,7 +597,8 @@ namespace PhoneMonitor.Host
                 endpoints.MapPost("/api/devices/pairing/poll", async context =>
                 {
                     if (!await RequirePrivateLanRequestAsync(context)) return;
-                    var request = await JsonSerializer.DeserializeAsync<PairingApprovalPollRequest>(context.Request.Body, SocketJsonOptions)
+                    if (!await RequireHttpsPairingAsync(context)) return;
+                    var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalPollRequest>(context)
                         ?? new PairingApprovalPollRequest();
                     var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
                     var result = devices.PollApproval(request.RequestId, request.RequestSecret);
@@ -655,7 +628,7 @@ namespace PhoneMonitor.Host
                 endpoints.MapPost("/api/devices/pairing/approve", async context =>
                 {
                     if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context)) return;
-                    var request = await JsonSerializer.DeserializeAsync<PairingApprovalActionRequest>(context.Request.Body, SocketJsonOptions)
+                    var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalActionRequest>(context)
                         ?? new PairingApprovalActionRequest();
                     var result = context.RequestServices.GetRequiredService<DeviceTrustService>().ApproveRequest(request.RequestId);
                     context.Response.StatusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status404NotFound;
@@ -666,7 +639,7 @@ namespace PhoneMonitor.Host
                 endpoints.MapPost("/api/devices/pairing/deny", async context =>
                 {
                     if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context)) return;
-                    var request = await JsonSerializer.DeserializeAsync<PairingApprovalActionRequest>(context.Request.Body, SocketJsonOptions)
+                    var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalActionRequest>(context)
                         ?? new PairingApprovalActionRequest();
                     var result = context.RequestServices.GetRequiredService<DeviceTrustService>().DenyRequest(request.RequestId);
                     context.Response.StatusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status404NotFound;
@@ -693,8 +666,9 @@ namespace PhoneMonitor.Host
 
                         while (!context.RequestAborted.IsCancellationRequested)
                         {
-                            var topic = await subscription.Reader.ReadAsync(context.RequestAborted);
-                            await context.Response.WriteAsync($"event: {topic}\ndata: {DateTimeOffset.UtcNow:O}\n\n", context.RequestAborted);
+                            var notification = await subscription.Reader.ReadAsync(context.RequestAborted);
+                            var data = notification.DataJson ?? DateTimeOffset.UtcNow.ToString("O");
+                            await context.Response.WriteAsync($"event: {notification.Topic}\ndata: {data}\n\n", context.RequestAborted);
                             await context.Response.Body.FlushAsync(context.RequestAborted);
                         }
                     }
@@ -776,8 +750,12 @@ namespace PhoneMonitor.Host
                         return;
                     }
 
-                    context.Response.Redirect("/index.html");
-                    await Task.CompletedTask;
+                    // Serve the entry page directly. Safari rejects redirected navigation
+                    // responses that were previously intercepted by an installed service
+                    // worker, and the resulting stale shell can return HTML to JSON APIs.
+                    context.Response.ContentType = "text/html; charset=utf-8";
+                    context.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+                    await context.Response.SendFileAsync(Path.Combine(env.WebRootPath, "index.html"));
                 });
             });
         }
@@ -902,6 +880,59 @@ namespace PhoneMonitor.Host
             return Math.Max(min, Math.Min(max, parsed));
         }
 
+        /// <summary>
+        /// Read JSON body without crashing Kestrel on empty/malformed payloads
+        /// (e.g. PowerShell backtick mangling: {"name":`}).
+        /// </summary>
+        private static async Task<T> ReadJsonBodyOrDefaultAsync<T>(HttpContext context) where T : class, new()
+        {
+            try
+            {
+                if (context.Request.ContentLength == 0)
+                {
+                    return new T();
+                }
+
+                // Allow re-read if a previous middleware already consumed the body.
+                context.Request.EnableBuffering();
+                if (context.Request.Body.CanSeek)
+                {
+                    context.Request.Body.Position = 0;
+                }
+
+                using var reader = new StreamReader(context.Request.Body, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 1024, leaveOpen: true);
+                var text = await reader.ReadToEndAsync();
+                if (context.Request.Body.CanSeek)
+                {
+                    context.Request.Body.Position = 0;
+                }
+
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    return new T();
+                }
+
+                text = text.Trim().TrimStart('\uFEFF');
+                try
+                {
+                    return JsonSerializer.Deserialize<T>(text, SocketJsonOptions) ?? new T();
+                }
+                catch (JsonException)
+                {
+                    // Malformed body (empty, HTML, PowerShell backtick mangling, etc.) → defaults.
+                    return new T();
+                }
+            }
+            catch (JsonException)
+            {
+                return new T();
+            }
+            catch (IOException)
+            {
+                return new T();
+            }
+        }
+
         private static async Task<bool> RequireActionTokenAsync(HttpContext context)
         {
             var tokens = context.RequestServices.GetRequiredService<ActionTokenService>();
@@ -950,6 +981,22 @@ namespace PhoneMonitor.Host
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = "Pairing is only available on the local network." }));
+            return false;
+        }
+
+        private static async Task<bool> RequireHttpsPairingAsync(HttpContext context)
+        {
+            if (context.Request.IsHttps)
+            {
+                return true;
+            }
+
+            context.Response.StatusCode = StatusCodes.Status426UpgradeRequired;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(JsonSerializer.Serialize(new
+            {
+                error = "手機配對申請必須使用 HTTPS。請先在 PC 安裝並信任 HTTPS 憑證，再掃描 QR Code。"
+            }));
             return false;
         }
 
@@ -1061,18 +1108,6 @@ namespace PhoneMonitor.Host
         private static string GetRemoteAddress(HttpContext context)
         {
             return context.Connection.RemoteIpAddress?.ToString() ?? "";
-        }
-
-        private static string BuildPairingUrl(string hostUrl, PendingPairing pairing)
-        {
-            // Query string (not #fragment) so iPhone Camera → Safari keeps pairing params.
-            var page = new Uri(new Uri(hostUrl), "index.html");
-            var builder = new UriBuilder(page)
-            {
-                Fragment = string.Empty,
-                Query = $"pairingId={Uri.EscapeDataString(pairing.PairingId)}&pairingSecret={Uri.EscapeDataString(pairing.PairingSecret)}"
-            };
-            return builder.Uri.ToString();
         }
 
         private static string NormalizeDeckMode(string mode)

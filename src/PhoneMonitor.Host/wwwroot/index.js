@@ -8,19 +8,20 @@ import {
   formatSeconds,
   formatTemperature,
   formatWeatherLocation,
-} from "./modules/formatters.js";
-import { createDisplayInputController } from "./modules/display-input.js";
-import { createQuotaController } from "./modules/quota-controller.js";
-import { createSideboardController } from "./modules/sideboard.js";
-import { createStreamController } from "./modules/stream-controller.js";
-import { tuneVideoReceiver } from "./modules/stream-tuning.js";
+} from "./modules/formatters.js?v=47";
+import { createDisplayInputController } from "./modules/display-input.js?v=47";
+import { createCustomCardsController } from "./modules/custom-cards.js?v=47";
+import { createQuotaController } from "./modules/quota-controller.js?v=47";
+import { createSideboardController } from "./modules/sideboard.js?v=47";
+import { createStreamController } from "./modules/stream-controller.js?v=47";
+import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
 import {
   extractQuotaEmail,
   extractQuotaTier,
   normalizeTierLabel,
   renderQuotaWindow,
   summarizeQuotaWindow,
-} from "./modules/quota-formatters.js";
+} from "./modules/quota-formatters.js?v=47";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -50,6 +51,7 @@ import {
     const httpsCertLink = document.getElementById("httpsCertLink");
     const httpLink = document.getElementById("httpLink");
     const pairPhone = document.getElementById("pairPhone");
+    const phonePairRequest = document.getElementById("phonePairRequest");
     const launchDeckWindow = document.getElementById("launchDeckWindow");
     const pairingStepInstall = document.getElementById("pairingStepInstall");
     const pairingStepPair = document.getElementById("pairingStepPair");
@@ -69,6 +71,50 @@ import {
     const sideboardView = document.getElementById("sideboardView");
     const quotaView = document.getElementById("quotaView");
     const sideboardShell = document.getElementById("sideboardShell");
+    const systemSideboardPage = document.getElementById("systemSideboardPage");
+    const customSideboardPage = document.getElementById("customSideboardPage");
+    const sideboardPageTabs = document.getElementById("sideboardPageTabs");
+    const customCardsGrid = document.getElementById("customCardsGrid");
+    const customCardsStatus = document.getElementById("customCardsStatus");
+    const customRefreshCards = document.getElementById("customRefreshCards");
+    const customSettingsButton = document.getElementById("customSettingsButton");
+    const customCardSettingsPanel = document.getElementById("customCardSettingsPanel");
+    const customSettingsClose = document.getElementById("customSettingsClose");
+    const customCardSettingsForm = document.getElementById("customCardSettingsForm");
+    const customSettingsCard = document.getElementById("customSettingsCard");
+    const customSettingsMaxItems = document.getElementById("customSettingsMaxItems");
+    const customSettingsStreamEnabled = document.getElementById("customSettingsStreamEnabled");
+    const customSettingsStreamDelay = document.getElementById("customSettingsStreamDelay");
+    const customSettingsHint = document.getElementById("customSettingsHint");
+    const customSettingsSave = document.getElementById("customSettingsSave");
+    const customSettingsClear = document.getElementById("customSettingsClear");
+    const customManageButton = document.getElementById("customManageButton");
+    const customSourcesManager = document.getElementById("customSourcesManager");
+    const customSourceList = document.getElementById("customSourceList");
+    const customSourceForm = document.getElementById("customSourceForm");
+    const customSourceFormTitle = document.getElementById("customSourceFormTitle");
+    const customSourceKey = document.getElementById("customSourceKey");
+    const customSourceDisplayName = document.getElementById("customSourceDisplayName");
+    const customCardType = document.getElementById("customCardType");
+    const customCardTitle = document.getElementById("customCardTitle");
+    const customCardPosition = document.getElementById("customCardPosition");
+    const customStaleAfter = document.getElementById("customStaleAfter");
+    const customDefaultTtl = document.getElementById("customDefaultTtl");
+    const customMaxItems = document.getElementById("customMaxItems");
+    const customSourceFormSubmit = document.getElementById("customSourceFormSubmit");
+    const customSourceCancel = document.getElementById("customSourceCancel");
+    const customCredentialPanel = document.getElementById("customCredentialPanel");
+    const customCredentialText = document.getElementById("customCredentialText");
+    const customCredentialCopy = document.getElementById("customCredentialCopy");
+    const customCredentialClose = document.getElementById("customCredentialClose");
+    const customAddSource = document.getElementById("customAddSource");
+    const customManagerAdd = document.getElementById("customManagerAdd");
+    const customManagerClose = document.getElementById("customManagerClose");
+    const windowsNotificationControl = document.getElementById("windowsNotificationControl");
+    const windowsNotificationStatus = document.getElementById("windowsNotificationStatus");
+    const windowsNotificationMessage = document.getElementById("windowsNotificationMessage");
+    const windowsNotificationEnable = document.getElementById("windowsNotificationEnable");
+    const windowsNotificationDisable = document.getElementById("windowsNotificationDisable");
     const rtcScreen = document.getElementById("rtcScreen");
     const sideHeadline = document.getElementById("sideHeadline");
     const sideSummary = document.getElementById("sideSummary");
@@ -126,8 +172,10 @@ import {
     let dashboardEvents = null;
     const dashboardRefreshState = {
       sideboard: { last: 0, timer: null, dirty: false },
-      quota: { last: 0, timer: null, dirty: false }
+      quota: { last: 0, timer: null, dirty: false },
+      customCards: { last: 0, timer: null, dirty: false }
     };
+    let customCardsController = null;
     let actionToken = "";
     let actionHeaderName = "X-PhoneMonitor-Action-Token";
     let hostAuthEnabled = false;
@@ -206,7 +254,6 @@ import {
     let installPromptEvent = null;
     let approvalPollTimer = null;
     let pendingApprovalTimer = null;
-    let serviceWorkerRegistration = null;
     const touchLongPressMs = 460;
     const touchDragThresholdPx = 12;
 
@@ -229,6 +276,7 @@ import {
 
     function dashboardMinInterval(topic) {
       if (topic === "sideboard") return isEinkClient() ? 8000 : 1000;
+      if (topic === "customCards") return isEinkClient() ? 8000 : 250;
       return isEinkClient() ? 20000 : 5000;
     }
 
@@ -245,6 +293,7 @@ import {
         state.dirty = false;
         state.last = Date.now();
         if (topic === "sideboard") await refreshSideboard();
+        else if (topic === "customCards") await customCardsController?.refresh();
         else await refreshQuotas();
         if (state.dirty) scheduleDashboardRefresh(topic);
       }, delay);
@@ -255,9 +304,11 @@ import {
       dashboardEvents = new EventSource("/api/dashboard/events");
       dashboardEvents.addEventListener("sideboard", () => scheduleDashboardRefresh("sideboard"));
       dashboardEvents.addEventListener("quota", () => scheduleDashboardRefresh("quota"));
+      dashboardEvents.addEventListener("custom-card", () => scheduleDashboardRefresh("customCards"));
       dashboardEvents.addEventListener("sync", () => {
         scheduleDashboardRefresh("sideboard");
         scheduleDashboardRefresh("quota");
+        scheduleDashboardRefresh("customCards");
       });
       dashboardEvents.onerror = () => {
         // EventSource reconnects automatically. Low-frequency fallback timers remain active.
@@ -283,6 +334,7 @@ import {
       document.body.classList.toggle("device-trusted", Boolean(deviceTrusted) && !localConsole);
       document.body.classList.toggle("pc-console", localConsole);
       document.body.classList.toggle("standalone-app", isStandaloneApp());
+      customCardsController?.syncAccess?.();
       applyForcedLandscape();
       updateIosHomeTip();
     }
@@ -473,6 +525,7 @@ import {
 
       if (isSideboard) {
         scheduleDashboardRefresh("sideboard", true);
+        scheduleDashboardRefresh("customCards", true);
         if (document.body.classList.contains("viewer-fullscreen")) {
           exitLandscapeViewer();
         }
@@ -535,9 +588,25 @@ import {
       }
     }
 
+    function parseJsonResponse(text, label) {
+      const raw = (text || "").replace(/^\uFEFF/, "").trim();
+      if (!raw) return {};
+      try {
+        return JSON.parse(raw);
+      } catch (error) {
+        const preview = raw.slice(0, 80).replace(/\s+/g, " ");
+        const looksHtml = /^<!doctype|^<html/i.test(raw);
+        throw new Error(
+          looksHtml
+            ? `${label || "API"} 回了 HTML 而不是 JSON（多半是離線頁或連不到 Host）。請確認 PC Host 有開、iPhone 用 https://<PC-IP>:5443。`
+            : `${label || "API"} JSON 解析失敗：${preview || error.message}`
+        );
+      }
+    }
+
     async function loadHostAuthStatus() {
       const response = await fetch("/api/auth/status", { cache: "no-store" });
-      const result = await response.json();
+      const result = parseJsonResponse(await response.text(), "/api/auth/status");
       hostAuthEnabled = Boolean(result.enabled ?? result.Enabled);
       hostAuthenticated = Boolean(result.authenticated ?? result.Authenticated);
       hostAuthRequired = Boolean(result.required ?? result.Required);
@@ -560,7 +629,7 @@ import {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ password })
         });
-        const result = await response.json();
+        const result = parseJsonResponse(await response.text(), "/api/auth/login");
         if (!response.ok || !result.success) {
           throw new Error(result.error || result.message || `登入失敗 HTTP ${response.status}`);
         }
@@ -600,9 +669,9 @@ import {
       if (normalized === "paired") {
         qrCaption.textContent = "已有配對手機。iPhone 請用 HTTPS 開啟主畫面圖示。";
       } else if (normalized === "scan") {
-        qrCaption.textContent = "iPhone：相機掃碼 → Safari。須已信任本機 HTTPS 憑證。";
+        qrCaption.textContent = "手機相機掃碼 → 開啟 HTTPS Host → 按「配對申請」。";
       } else if (normalized === "pair") {
-        qrCaption.textContent = "手機先開啟 VibeDeck 網頁，再按「開始配對手機」。";
+        qrCaption.textContent = "手機先掃描 QR Code 開啟 HTTPS Host，再按「配對申請」。";
       } else {
         qrCaption.textContent = "手機瀏覽器：需要時先安裝 HTTPS 憑證，再進行配對。";
       }
@@ -610,7 +679,14 @@ import {
 
     function showInstallQr() {
       pairingQrActive = false;
-      qrCode.src = `/qr.svg?t=${Date.now()}`;
+      setPairingUiActive(false);
+      if (qrCode) {
+        if (qrCode.dataset.blobUrl) {
+          URL.revokeObjectURL(qrCode.dataset.blobUrl);
+          delete qrCode.dataset.blobUrl;
+        }
+        qrCode.src = `/qr.svg?t=${Date.now()}`;
+      }
       updatePairingGuide("pair");
       return true;
     }
@@ -694,18 +770,24 @@ import {
       return navigator.platform || "新裝置";
     }
 
-    async function requestApprovalPairing() {
+    async function requestApprovalPairing(options = {}) {
       if (deviceTrusted || deviceLocalRequest || hostAuthenticated || approvalPollTimer) return;
+      const allowCreate = options.allowCreate === true;
       const storageKey = `phoneMonitorPendingApproval:${location.host}`;
       let pending = null;
       try { pending = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch { }
 
       if (!pending?.requestId || !pending?.requestSecret) {
+        if (!allowCreate) {
+          setTrustState("請按「配對申請」，再回 PC 按允許。", false);
+          updatePairingGuide("pair");
+          return false;
+        }
         const response = await fetch("/api/devices/pairing/request", {
           method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: pairingDeviceName(), platform: pairingPlatform() })
         });
-        const result = await response.json();
+        const result = parseJsonResponse(await response.text(), "/api/devices/pairing/request");
         if (!response.ok) throw new Error(result.error || result.message || "無法提出配對申請。");
         pending = {
           requestId: result.RequestId || result.requestId,
@@ -722,7 +804,7 @@ import {
             method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ requestId: pending.requestId, requestSecret: pending.requestSecret })
           });
-          const result = await response.json();
+          const result = parseJsonResponse(await response.text(), "/api/devices/pairing/poll");
           const status = result.Status || result.status;
           if (response.ok && status === "approved") {
             persistDeviceCredentials(result.DeviceToken || result.deviceToken, result.DeviceId || result.deviceId);
@@ -741,6 +823,7 @@ import {
       };
       approvalPollTimer = setInterval(poll, 1500);
       poll();
+      return true;
     }
 
     function renderPendingApprovals(result) {
@@ -831,35 +914,6 @@ import {
       }
     }
 
-    function parsePairingCredentials(raw) {
-      const text = String(raw || "").trim();
-      if (!text) return null;
-
-      try {
-        const asUrl = text.includes("://")
-          ? new URL(text)
-          : new URL(text, location.origin);
-        const hash = asUrl.hash ? new URLSearchParams(asUrl.hash.slice(1)) : null;
-        const query = asUrl.searchParams;
-        const pairingId = hash?.get("pairingId") || query.get("pairingId");
-        const pairingSecret = hash?.get("pairingSecret") || query.get("pairingSecret");
-        if (pairingId && pairingSecret) {
-          return { pairingId, pairingSecret };
-        }
-      } catch {
-      }
-
-      // Accept raw "id secret" or query-only fragments.
-      const params = new URLSearchParams(text.replace(/^#/, "").replace(/^\?/, ""));
-      const pairingId = params.get("pairingId");
-      const pairingSecret = params.get("pairingSecret");
-      if (pairingId && pairingSecret) {
-        return { pairingId, pairingSecret };
-      }
-
-      return null;
-    }
-
     function showPairSuccessBanner(message) {
       const banner = document.getElementById("pairSuccessBanner");
       if (!banner) return;
@@ -870,86 +924,18 @@ import {
       banner.classList.add("show");
     }
 
-    async function completePairingWithCredentials(pairingId, pairingSecret) {
-      if (!pairingId || !pairingSecret) {
-        throw new Error("配對資訊不完整。");
+    function setPairControlsVisible(localConsole) {
+      if (pairPhone) {
+        pairPhone.hidden = !localConsole;
+        if (localConsole) pairPhone.removeAttribute("hidden");
+        else pairPhone.setAttribute("hidden", "");
+        pairPhone.textContent = "開始配對手機";
+        pairPhone.disabled = false;
       }
-
-      setTrustState("正在完成手機配對...", false);
-      // Do not require action-token for complete — unpaired phones only need the one-time secret.
-      const response = await fetch("/api/devices/pairing/complete", {
-        method: "POST",
-        cache: "no-store",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pairingId, pairingSecret })
-      });
-      const text = await response.text();
-      let result = {};
-      try {
-        result = text ? JSON.parse(text) : {};
-      } catch {
-        result = {};
-      }
-
-      if (!response.ok) {
-        throw new Error(result.Message || result.message || result.error || `配對失敗 HTTP ${response.status}`);
-      }
-
-      const nextToken = result.DeviceToken || result.deviceToken || "";
-      const nextId = result.DeviceId || result.deviceId || "";
-      if (!nextToken) {
-        throw new Error("配對回應沒有 device token。");
-      }
-
-      persistDeviceCredentials(nextToken, nextId);
-      return result;
-    }
-
-    async function completeDevicePairingFromHash() {
-      const hash = location.hash ? new URLSearchParams(location.hash.slice(1)) : null;
-      const query = new URLSearchParams(location.search);
-      const pairingId = hash?.get("pairingId") || query.get("pairingId");
-      const pairingSecret = hash?.get("pairingSecret") || query.get("pairingSecret");
-      if (!pairingId || !pairingSecret) return false;
-
-      const result = await completePairingWithCredentials(pairingId, pairingSecret);
-
-      // Drop one-time pairing secrets from the address bar.
-      const cleanUrl = new URL(location.href);
-      cleanUrl.searchParams.delete("pairingId");
-      cleanUrl.searchParams.delete("pairingSecret");
-      cleanUrl.hash = "";
-      history.replaceState(null, "", `${cleanUrl.pathname}${cleanUrl.search}`);
-
-      await loadDeviceTrustStatus();
-      applyClientChrome();
-      if (isEinkClient()) {
-        fullscreen.textContent = "全螢幕面板";
-      }
-      const name = result.DeviceName || result.deviceName || "這支手機";
-      setTrustState(`信任狀態：${name} 已配對。`, true);
-      showPairSuccessBanner(`裝置：${name}`);
-      return true;
-    }
-
-    async function completePairingFromPastedLink() {
-      const input = document.getElementById("pairLinkInput");
-      const parsed = parsePairingCredentials(input?.value || "");
-      if (!parsed) {
-        setTrustState("連結格式不對。請貼上包含 pairingId 與 pairingSecret 的完整網址。", false);
-        return;
-      }
-
-      try {
-        const result = await completePairingWithCredentials(parsed.pairingId, parsed.pairingSecret);
-        if (input) input.value = "";
-        await loadDeviceTrustStatus();
-        applyClientChrome();
-        const name = result.DeviceName || result.deviceName || "這支手機";
-        setTrustState(`信任狀態：${name} 已配對。`, true);
-        showPairSuccessBanner(`裝置：${name}`);
-      } catch (error) {
-        setTrustState(error.message || "配對失敗。", false);
+      if (launchDeckWindow) {
+        launchDeckWindow.hidden = !localConsole;
+        if (localConsole) launchDeckWindow.removeAttribute("hidden");
+        else launchDeckWindow.setAttribute("hidden", "");
       }
     }
 
@@ -958,11 +944,9 @@ import {
         const result = await fetchJsonOrThrow("/api/devices/status");
         deviceHeaderName = result.DeviceHeader || result.deviceHeader || deviceHeaderName;
         deviceTrusted = Boolean(result.Trusted ?? result.trusted);
-        deviceLocalRequest = Boolean(result.LocalRequest ?? result.localRequest);
+        deviceLocalRequest = Boolean(result.LocalRequest ?? result.localRequest) || isLoopbackHost();
         const currentDevice = result.CurrentDevice || result.currentDevice;
-        pairPhone.hidden = !deviceLocalRequest;
-        pairPhone.textContent = "開始配對手機";
-        launchDeckWindow.hidden = !deviceLocalRequest;
+        setPairControlsVisible(deviceLocalRequest);
         renderTrustedDevices(result);
 
         if (deviceLocalRequest) {
@@ -981,17 +965,27 @@ import {
           setTrustState("請先登入 Host。", false);
           updatePairingGuide("install");
         } else {
-          setTrustState("已找到 Host，正在提出配對申請…", false);
-          requestApprovalPairing().catch(error => setTrustState(error.message || "自動配對申請失敗。", false));
+          const storageKey = `phoneMonitorPendingApproval:${location.host}`;
+          let hasPendingRequest = false;
+          try {
+            const pending = JSON.parse(localStorage.getItem(storageKey) || "null");
+            hasPendingRequest = Boolean(pending?.requestId && pending?.requestSecret);
+          } catch { }
+          if (hasPendingRequest) {
+            requestApprovalPairing().catch(error => setTrustState(error.message || "配對申請失敗。", false));
+          } else {
+            setTrustState("請按「配對申請」，再回 PC 按允許。", false);
+            updatePairingGuide("pair");
+          }
         }
 
         applyClientChrome();
         return result;
       } catch (error) {
         deviceTrusted = false;
-        deviceLocalRequest = false;
-        pairPhone.hidden = true;
-        launchDeckWindow.hidden = true;
+        // API 掛了也別把本機配對按鈕藏起來，否則 PC 只能乾瞪眼
+        deviceLocalRequest = isLoopbackHost();
+        setPairControlsVisible(deviceLocalRequest);
         renderTrustedDevices(null);
         setTrustState(error.message || "信任狀態無法取得。", false);
         applyClientChrome();
@@ -999,56 +993,34 @@ import {
       }
     }
 
-    let lastPairingPayload = null;
-
-    function showPairingQr(mode) {
-      if (!lastPairingPayload) return;
-      const svg = lastPairingPayload.qrSvg;
-      if (!svg) return;
-      pairingQrActive = true;
-      qrCode.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-      qrCode.alt = "手機瀏覽器配對 QR";
-      updatePairingGuide("scan");
-      qrCaption.textContent = "手機瀏覽器配對 QR（相機掃描後開啟 VibeDeck）。";
-      setTrustState("QR：手機瀏覽器", true);
+    function setPairingUiActive(active) {
+      document.body.classList.toggle("pairing-active", Boolean(active));
+      // PC 本機預設藏 QR 區；配對時強制打開進階連線區顯示連結
+      const links = document.querySelector(".connect-links");
+      if (links && active) {
+        links.open = true;
+        links.hidden = false;
+        links.removeAttribute("hidden");
+      }
     }
 
     async function startPhonePairing() {
-      const result = await fetchJsonOrThrow("/api/devices/pairing/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "" })
-      });
-      const qrSvg = result.QrSvg || result.qrSvg;
-      const pairingUrl = result.PairingUrl || result.pairingUrl;
-      const expiresAt = result.ExpiresAt || result.expiresAt;
-      lastPairingPayload = { qrSvg, pairingUrl, expiresAt };
-
-      showPairingQr("web");
-
-      if (pairingUrl) {
-        httpLink.href = pairingUrl;
-        httpLink.textContent = pairingUrl;
-        httpLink.hidden = false;
-        prettyLink.href = pairingUrl;
-        prettyLink.textContent = "網頁配對連結（iPhone / Chrome）";
-        prettyLink.hidden = false;
+      if (pairPhone) {
+        pairPhone.disabled = true;
+        pairPhone.textContent = "顯示中…";
       }
-      if (pairingUrl) {
-        prettyLink.href = pairingUrl;
-        prettyLink.textContent = "網頁配對連結";
-        prettyLink.hidden = false;
-        prettyLink.onclick = event => {
-          event.preventDefault();
-          showPairingQr("web");
-          // Also copy helper: leave href for long-press open.
-        };
-      }
-      const expiryText = expiresAt
-        ? new Date(expiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : "";
-      if (expiryText) {
-        setTrustState(`配對 QR 已建立（到 ${expiryText}）。iPhone 須已裝 HTTPS 憑證。`, true);
+      setPairingUiActive(true);
+      try {
+        showInstallQr();
+        setPairingUiActive(true);
+        setTrustState("請用手機掃描 QR Code 開啟 HTTPS Host，再按「配對申請」。", true);
+        setStatus("手機 QR Code 已顯示", true);
+        updatePairingGuide("scan");
+      } finally {
+        if (pairPhone) {
+          pairPhone.disabled = false;
+          pairPhone.textContent = "顯示手機 QR Code";
+        }
       }
     }
 
@@ -1076,10 +1048,14 @@ import {
     async function ensureActionToken() {
       if (actionToken) return actionToken;
       const response = await fetch("/api/session", { cache: "no-store" });
-      const data = await response.json();
+      const data = parseJsonResponse(await response.text(), "/api/session");
+      if (!response.ok) {
+        throw new Error(data.error || data.message || `取得 session 失敗 HTTP ${response.status}`);
+      }
       actionToken = data.ActionToken || data.actionToken || "";
       actionHeaderName = data.ActionHeader || data.actionHeader || actionHeaderName;
       deviceHeaderName = data.DeviceHeader || data.deviceHeader || deviceHeaderName;
+      if (!actionToken) throw new Error("session 沒有 action token。");
       return actionToken;
     }
 
@@ -1094,9 +1070,14 @@ import {
         headers.set(actionHeaderName, token);
       }
 
-      const response = await fetch(url, { cache: "no-store", ...init, headers });
+      let response;
+      try {
+        response = await fetch(url, { cache: "no-store", ...init, headers });
+      } catch (error) {
+        throw new Error(`連線失敗：${url}（${error.message || "network error"}）`);
+      }
       const text = await response.text();
-      const data = text ? JSON.parse(text) : {};
+      const data = parseJsonResponse(text, url);
       if (response.status === 401) {
         await loadHostAuthStatus().catch(() => {});
       }
@@ -1106,7 +1087,15 @@ import {
       }
 
       if (!response.ok) {
-        const error = new Error(data.error || data.Message || data.message || `HTTP ${response.status}`);
+        const errorPayload = data.error && typeof data.error === "object" ? data.error : null;
+        const error = new Error(
+          errorPayload?.message ||
+          data.Message ||
+          data.message ||
+          (typeof data.error === "string" ? data.error : null) ||
+          `HTTP ${response.status}`
+        );
+        error.code = errorPayload?.code || "";
         error.status = response.status;
         throw error;
       }
@@ -1168,6 +1157,66 @@ import {
       },
     });
     const refreshSideboard = () => sideboardController.refresh();
+
+    try {
+      customCardsController = createCustomCardsController({
+        elements: {
+          customSideboardPage,
+          systemSideboardPage,
+          customPageTabs: sideboardPageTabs,
+          customCardsGrid,
+          customCardsStatus,
+          customRefresh: customRefreshCards,
+          customSettingsButton,
+          customCardSettingsPanel,
+          customSettingsClose,
+          customCardSettingsForm,
+          customSettingsCard,
+          customSettingsMaxItems,
+          customSettingsStreamEnabled,
+          customSettingsStreamDelay,
+          customSettingsHint,
+          customSettingsSave,
+          customSettingsClear,
+          customManageButton,
+          customSourcesManager,
+          customSourceList,
+          customSourceForm,
+          customSourceFormTitle,
+          customSourceKey,
+          customSourceDisplayName,
+          customCardType,
+          customCardTitle,
+          customCardPosition,
+          customStaleAfter,
+          customDefaultTtl,
+          customMaxItems,
+          customSourceFormSubmit,
+          customSourceCancel,
+          customCredentialPanel,
+          customCredentialText,
+          customCredentialCopy,
+          customCredentialClose,
+          customAddSource,
+          customManagerAdd,
+          customManagerClose,
+          windowsNotificationControl,
+          windowsNotificationStatus,
+          windowsNotificationMessage,
+          windowsNotificationEnable,
+          windowsNotificationDisable,
+        },
+        fetchJsonOrThrow,
+        getActiveMode: () => activeMode,
+        isLocalConsole: () => Boolean(deviceLocalRequest),
+        isTrustRequiredError,
+        isEinkClient,
+      });
+    } catch (error) {
+      // 自訂卡片模組掛了也不能拖垮 iPhone 顯示器 / 配對主流程
+      console.error("custom cards controller failed", error);
+      customCardsController = null;
+    }
 
     const quotaController = createQuotaController({
       elements: { quotaSummary, quotaUpdated, quotaHelp, quotaGrid },
@@ -1951,39 +2000,6 @@ import {
       setAppState("App：可用瀏覽器選單加入主畫面。", false);
     }
 
-    function registerPhoneAppShell() {
-      if (!("serviceWorker" in navigator)) {
-        updateInstallState();
-        return;
-      }
-
-      const register = () => {
-        navigator.serviceWorker.register("/service-worker.js?v=24")
-          .then(registration => {
-            serviceWorkerRegistration = registration;
-            registration.update().catch(() => {});
-            registration.addEventListener("updatefound", () => {
-              const worker = registration.installing;
-              if (!worker) return;
-
-              worker.addEventListener("statechange", () => {
-                if (worker.state === "installed" && navigator.serviceWorker.controller) {
-                  setAppState("App：更新已準備好，重新開啟即可套用。", true);
-                }
-              });
-            });
-            updateInstallState();
-          })
-          .catch(() => setAppState("App：離線殼註冊失敗。", false));
-      };
-
-      if (document.readyState === "complete") {
-        register();
-      } else {
-        window.addEventListener("load", register, { once: true });
-      }
-    }
-
     function getKeepAwakeVideo() {
       return document.getElementById("keepAwakeVideo");
     }
@@ -2331,7 +2347,10 @@ import {
 
     async function loadConnectInfo() {
       const response = await fetch("/api/connect", { cache: "no-store" });
-      const info = await response.json();
+      const info = parseJsonResponse(await response.text(), "/api/connect");
+      if (!response.ok) {
+        throw new Error(info.error || info.message || `連線資訊讀取失敗 HTTP ${response.status}`);
+      }
       const httpsAvailable = Boolean(info.HttpsAvailable ?? info.httpsAvailable);
       const rootCertificateUrl = info.RootCertificateUrl || info.rootCertificateUrl || "";
       const httpsSetupHint = info.HttpsSetupHint || info.httpsSetupHint || "";
@@ -2379,7 +2398,10 @@ import {
 
     async function loadModePresets() {
       const response = await fetch("/api/display/modes");
-      const presets = await response.json();
+      const presets = parseJsonResponse(await response.text(), "/api/display/modes");
+      if (!response.ok || !Array.isArray(presets)) {
+        throw new Error(presets.error || presets.message || `解析度預設讀取失敗 HTTP ${response.status}`);
+      }
       modePreset.textContent = "";
       for (const preset of presets) {
         const option = document.createElement("option");
@@ -2459,44 +2481,53 @@ import {
       return streamController?.closeRtcStream(invalidate);
     }
 
-    streamController = createStreamController({
-      elements: { screen, rtcScreen },
-      getWsBase: () => wsBase,
-      appendDeviceToken,
-      getSelectedDisplayName: () => selectedDisplayName,
-      getStreamSettings: () => ({
-        fps: Number(streamFps.value),
-        quality: Number(streamQuality.value),
-        rotationIsAuto: rotation.value === "auto",
-      }),
-      canUseProtectedConnection,
-      loadPhoneDisplay,
-      prefersWebRtcDisplay,
-      isNativeShell,
-      isLoopbackHost,
-      setStatus,
-      applyRotation,
-      resetJpegStats: resetStreamStats,
-      recordJpegFrame: recordFrame,
-      fetchJsonOrThrow,
-      tuneVideoReceiver,
-    });
+    try {
+      streamController = createStreamController({
+        elements: { screen, rtcScreen },
+        getWsBase: () => wsBase,
+        appendDeviceToken,
+        getSelectedDisplayName: () => selectedDisplayName,
+        getStreamSettings: () => ({
+          fps: Number(streamFps.value),
+          quality: Number(streamQuality.value),
+          rotationIsAuto: rotation.value === "auto",
+        }),
+        canUseProtectedConnection,
+        loadPhoneDisplay,
+        prefersWebRtcDisplay,
+        isNativeShell,
+        isLoopbackHost,
+        setStatus,
+        applyRotation,
+        resetJpegStats: resetStreamStats,
+        recordJpegFrame: recordFrame,
+        fetchJsonOrThrow,
+        tuneVideoReceiver,
+      });
+    } catch (error) {
+      console.error("stream controller failed", error);
+      streamController = null;
+    }
 
-    const displayInputController = createDisplayInputController({
-      targets: [screen, rtcScreen],
-      getInputSocket: () => inputSocket,
-      getDeviceName: () => selectedDisplayName,
-      getActiveStreamElement,
-      getMediaWidth,
-      getMediaHeight,
-      resolveRotation,
-      isMobileClient,
-      enterLandscapeViewer,
-      touchLongPressMs,
-      touchDragThresholdPx,
-    });
-
-    displayInputController.wireAll();
+    let displayInputController = null;
+    try {
+      displayInputController = createDisplayInputController({
+        targets: [screen, rtcScreen],
+        getInputSocket: () => inputSocket,
+        getDeviceName: () => selectedDisplayName,
+        getActiveStreamElement,
+        getMediaWidth,
+        getMediaHeight,
+        resolveRotation,
+        isMobileClient,
+        enterLandscapeViewer,
+        touchLongPressMs,
+        touchDragThresholdPx,
+      });
+      displayInputController.wireAll();
+    } catch (error) {
+      console.error("display input controller failed", error);
+    }
     quotaGrid.addEventListener("pointerdown", event => {
       quotaSwipeStartX = event.clientX;
     });
@@ -2520,8 +2551,26 @@ import {
     applyStream.addEventListener("click", applyStreamSettings);
     modePreset.addEventListener("change", applyPresetFields);
     applyMode.addEventListener("click", applyDisplayMode);
-    pairPhone.addEventListener("click", () => {
-      startPhonePairing().catch(error => setTrustState(error.message || "配對失敗。", false));
+    pairPhone?.addEventListener("click", () => {
+      startPhonePairing();
+    });
+    // 流程圖第 2 步也可點，避免按鈕被藏時完全沒入口
+    document.getElementById("pairingStepPair")?.addEventListener("click", () => {
+      if (pairPhone?.hidden && !isLoopbackHost() && !deviceLocalRequest) return;
+      setPairControlsVisible(true);
+      startPhonePairing();
+    });
+    phonePairRequest?.addEventListener("click", async () => {
+      phonePairRequest.disabled = true;
+      phonePairRequest.textContent = "申請中…";
+      try {
+        await requestApprovalPairing({ allowCreate: true });
+      } catch (error) {
+        setTrustState(error.message || "配對申請失敗。", false);
+      } finally {
+        phonePairRequest.disabled = false;
+        phonePairRequest.textContent = "提出配對申請";
+      }
     });
     hostAuthForm?.addEventListener("submit", event => {
       event.preventDefault();
@@ -2558,6 +2607,7 @@ import {
       await loadPhoneDisplay();
       connectVideo();
       refreshSideboard();
+      customCardsController?.refreshAll();
       refreshQuotas();
     });
     displayMode.addEventListener("click", () => setMode("display"));
@@ -2565,12 +2615,6 @@ import {
     quotaMode.addEventListener("click", () => setMode("quota"));
     for (const button of document.querySelectorAll("[data-side-skin]")) {
       button.addEventListener("click", () => setSideSkin(button.dataset.sideSkin));
-    }
-    const pairLinkSubmit = document.getElementById("pairLinkSubmit");
-    if (pairLinkSubmit) {
-      pairLinkSubmit.addEventListener("click", () => {
-        completePairingFromPastedLink();
-      });
     }
     const keepAwakeButton = document.getElementById("keepAwake");
     if (keepAwakeButton) {
@@ -2592,6 +2636,7 @@ import {
       if (document.visibilityState === "visible") {
         scheduleDashboardRefresh("sideboard", true);
         scheduleDashboardRefresh("quota", true);
+        scheduleDashboardRefresh("customCards", true);
         if (keepAwakeDesired) {
           await ensureKeepAwake();
         }
@@ -2667,6 +2712,7 @@ import {
       });
     }
     async function boot() {
+      await (window.phoneMonitorServiceWorkerCleanup || Promise.resolve());
       const deckWindow = isDeckWindow();
       document.body.classList.toggle("deck-window", deckWindow);
 
@@ -2715,7 +2761,7 @@ import {
       }
 
       describeClient();
-      registerPhoneAppShell();
+      updateInstallState();
       // Re-hydrate token from cookie/session if localStorage was empty (iOS Home Screen cases).
       const again = loadStoredDeviceCredentials();
       if (!deviceToken && again.token) {
@@ -2723,15 +2769,6 @@ import {
       }
       notifyNativeDeviceTrust();
       applyClientChrome();
-      await completeDevicePairingFromHash().catch(error => {
-        setTrustState(error.message || "配對失敗。", false);
-        showPairSuccessBanner(`配對失敗：${error.message || "未知錯誤"}。可把 PC 配對連結貼到下方重試。`);
-        const banner = document.getElementById("pairSuccessBanner");
-        if (banner) {
-          banner.style.borderColor = "rgba(255, 120, 120, .5)";
-          banner.style.background = "rgba(48, 16, 16, .94)";
-        }
-      });
       await loadDeviceTrustStatus();
       applyClientChrome();
       if (deviceTrusted && isIos() && !isStandaloneApp()) {
@@ -2747,7 +2784,10 @@ import {
       await loadModePresets().catch(error => {
         setStatus(error.message || "解析度預設讀取失敗", false);
       });
-      loadConnectInfo();
+      loadConnectInfo().catch(error => {
+        setTrustState(error.message || "連線資訊讀取失敗。", false);
+        setStatus(error.message || "連線資訊讀取失敗", false);
+      });
       loadStreamCapabilities();
       if (!isEinkClient()) {
         loadPhoneDisplay().then(loadDisplayStatus).finally(connectVideo);

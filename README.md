@@ -47,17 +47,17 @@ http://127.0.0.1:5000
 http://192.168.1.20:5000
 ```
 
-也可以直接用 PC 頁面上的 QR Code。手機只需要瀏覽器，不需要 APK。
+也可以直接用 PC 頁面上的 QR Code。配對 QR 只會開啟 Host 網址，不會直接授權手機；手機只需要瀏覽器，不需要 APK。
 
 ### 4. 完成一次配對
 
-手機第一次開啟後，PC 頁面會出現等待中的手機與六位數驗證碼：
+手機第一次開啟後，請在手機頁面按「提出配對申請」；PC 頁面會出現等待中的手機與六位數驗證碼：
 
 1. 確認名稱與驗證碼是自己的手機。
 2. 在 PC 按「允許」。
-3. 手機自動取得裝置權限。
+3. 手機等待結果；PC 允許後才會取得裝置權限。
 
-如果沒有出現等待項目，從 PC 按「開始配對手機」，再用手機相機掃新的配對 QR。配對 QR 只有短時間有效。
+如果沒有出現等待項目，確認手機開的是 `https://<PC-IP>:5443`，再回手機按一次「提出配對申請」。
 
 ### 5. 先試資訊板
 
@@ -75,7 +75,7 @@ http://192.168.1.20:5000
 http://<PC 的區網 IP>:5000
 ```
 
-Android Chrome 可以先用 HTTP 測試。iPhone 若要使用 WebRTC、長亮與加入主畫面，請改用 HTTPS。
+Android Chrome 可以先用 HTTP 查看頁面；正式配對一律使用 HTTPS。iPhone 若要使用 WebRTC、長亮與加入主畫面，也請使用 HTTPS。
 
 ### 不同網路：推薦 Tailscale
 
@@ -175,6 +175,7 @@ VibeDeck 不會要求你貼 Codex token，也沒有 Codex OAuth 匯入按鈕。
 ## 進階文件
 
 - [CHANGELOG.md](CHANGELOG.md)
+- [docs/custom-data-sources-spec.md](docs/custom-data-sources-spec.md)
 - [docs/remote-access.md](docs/remote-access.md)
 - [docs/https-onboarding.md](docs/https-onboarding.md)
 - [docs/mobile-app.md](docs/mobile-app.md)

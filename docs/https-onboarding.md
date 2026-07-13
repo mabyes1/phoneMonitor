@@ -74,7 +74,7 @@ After trust is enabled, open the secure URL:
 https://<pc-lan-ip>:5443/
 ```
 
-The Host reports both URLs through `/api/connect`. When local HTTPS is ready, `/qr.svg` and Pair Phone QR codes prefer the HTTPS URL.
+The Host reports both URLs through `/api/connect`. The PC QR opens the preferred Host URL; device pairing requests and approval polling require the phone to stay on the HTTPS URL.
 
 ## Current Limits
 

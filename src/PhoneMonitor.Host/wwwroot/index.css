@@ -2263,6 +2263,551 @@ body.eink-client .quota-page-button {
       text-transform: uppercase;
     }
 
+    .sideboard-subpage {
+      grid-column: 1 / -1;
+      min-width: 0;
+    }
+
+    #systemSideboardPage {
+      display: contents;
+    }
+
+    /* 子頁 hidden；面板開合由 JS inline display !important 負責 */
+    #systemSideboardPage[hidden],
+    #customSideboardPage[hidden],
+    .custom-cards-toolbar button[hidden],
+    .custom-manager-header button[hidden] {
+      display: none !important;
+    }
+
+    .sideboard-page-tabs {
+      grid-column: 1 / -1;
+      display: flex;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .sideboard-page-tabs button {
+      min-height: 28px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      border-color: rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color: rgba(247,242,232,.72);
+      font-size: 11px;
+    }
+
+    .sideboard-page-tabs button.active {
+      border-color: var(--side-accent);
+      background: var(--side-accent);
+      color: #071015;
+    }
+
+    .custom-sideboard-page {
+      display: grid;
+      grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+      gap: 8px;
+      min-height: 0;
+      min-width: 0;
+      overflow: auto;
+    }
+
+    .windows-notification-control {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 3px 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 8px;
+      background: rgba(255,255,255,.04);
+    }
+
+    .windows-notification-control > div:first-child {
+      display: grid;
+      gap: 3px;
+    }
+
+    .windows-notification-control strong {
+      color: var(--side-accent);
+      font-size: 13px;
+    }
+
+    .windows-notification-control span,
+    .windows-notification-control p {
+      color: rgba(247,242,232,.66);
+      font-size: 11px;
+    }
+
+    .windows-notification-control p {
+      grid-column: 1 / 2;
+      margin: 0;
+    }
+
+    .windows-notification-control .custom-cards-toolbar {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      justify-content: flex-end;
+    }
+
+    .custom-card-settings {
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--side-line);
+      border-radius: 8px;
+      background: rgba(17,25,30,.92);
+    }
+
+    .custom-settings-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .custom-settings-header > div {
+      display: grid;
+      gap: 3px;
+    }
+
+    .custom-settings-header strong {
+      color: var(--side-accent);
+      font-size: 14px;
+    }
+
+    .custom-settings-header span,
+    .custom-settings-help {
+      color: rgba(247,242,232,.62);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .custom-card-settings-form {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      align-items: end;
+      gap: 8px;
+    }
+
+    .custom-card-settings-form label {
+      display: grid;
+      gap: 4px;
+      color: rgba(247,242,232,.72);
+      font-size: 11px;
+    }
+
+    .custom-card-settings-form select,
+    .custom-card-settings-form input[type="number"] {
+      width: 100%;
+      min-height: 30px;
+      padding: 5px 7px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 5px;
+      color: #fff;
+      background: rgba(255,255,255,.07);
+    }
+
+    .custom-card-settings-form .custom-settings-check {
+      display: flex;
+      align-items: center;
+      min-height: 30px;
+      gap: 6px;
+    }
+
+    .custom-settings-check input {
+      accent-color: var(--side-accent);
+    }
+
+    .custom-card-settings-form > .custom-settings-help {
+      grid-column: 1 / -1;
+      margin: 0;
+    }
+
+    .custom-card-settings-form .custom-source-form-actions {
+      grid-column: 1 / -1;
+    }
+
+    .custom-cards-top,
+    .custom-manager-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .custom-cards-title,
+    .custom-manager-header > div {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .custom-cards-title strong,
+    .custom-manager-header strong {
+      color: var(--side-accent);
+      font-size: clamp(16px, 3vw, 24px);
+    }
+
+    .custom-cards-title span,
+    .custom-manager-header span,
+    .custom-source-meta,
+    .custom-source-health,
+    .custom-source-form label,
+    .custom-credential-panel > span {
+      color: rgba(247,242,232,.66);
+      font-size: 11px;
+    }
+
+    .custom-cards-toolbar,
+    .custom-source-actions,
+    .custom-source-form-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .custom-cards-toolbar button,
+    .custom-manager-header button,
+    .custom-source-actions button,
+    .custom-source-form-actions button {
+      min-height: 28px;
+      padding: 4px 9px;
+      border-color: rgba(255,255,255,.16);
+      background: rgba(255,255,255,.08);
+      color: rgba(247,242,232,.86);
+      font-size: 11px;
+    }
+
+    .custom-cards-toolbar button:hover,
+    .custom-manager-header button:hover,
+    .custom-source-actions button:hover,
+    .custom-source-form-actions button:hover {
+      border-color: var(--side-accent);
+    }
+
+    .custom-cards-status {
+      min-height: 1em;
+    }
+
+    .windows-notification-ok { color: var(--side-good); }
+    .windows-notification-warn { color: var(--side-warn); }
+
+    .custom-cards-status.ok,
+    .custom-source-health.health-active {
+      color: var(--side-good);
+    }
+
+    .custom-cards-status.error,
+    .custom-source-health.health-disabled,
+    .custom-source-health.health-stale {
+      color: var(--side-warn);
+    }
+
+    .custom-cards-status.muted,
+    .custom-source-health.health-waiting {
+      color: rgba(247,242,232,.58);
+    }
+
+    .custom-cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      align-content: start;
+      gap: 8px;
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+      padding: 1px;
+    }
+
+    .custom-card,
+    .custom-empty-state,
+    .custom-sources-manager,
+    .custom-credential-panel {
+      min-width: 0;
+      border: 1px solid var(--side-line);
+      background: rgba(17,25,30,.9);
+      border-radius: 8px;
+    }
+
+    .custom-card {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 8px;
+      min-height: 142px;
+      padding: 10px;
+      overflow: hidden;
+    }
+
+    .custom-card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .custom-card-title-block {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .custom-card-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #fff;
+      font-size: 15px;
+    }
+
+    .custom-card-source,
+    .custom-card-footer,
+    .custom-card-freshness {
+      color: rgba(247,242,232,.58);
+      font-size: 10px;
+    }
+
+    .custom-card-freshness {
+      flex: 0 0 auto;
+      padding: 2px 5px;
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 999px;
+    }
+
+    .custom-card-freshness.freshness-fresh {
+      color: var(--side-good);
+    }
+
+    .custom-card-freshness.freshness-stale {
+      color: var(--side-warn);
+    }
+
+    .custom-status-content,
+    .custom-metric-content {
+      display: grid;
+      align-content: center;
+      gap: 6px;
+      min-height: 0;
+    }
+
+    .custom-status-value,
+    .custom-metric-value {
+      color: var(--side-accent);
+      font-size: clamp(22px, 4vw, 34px);
+      line-height: 1.05;
+      overflow-wrap: anywhere;
+    }
+
+    .custom-metric-unit {
+      margin-left: 4px;
+      color: rgba(247,242,232,.72);
+      font-size: .5em;
+    }
+
+    .custom-status-detail,
+    .custom-card-empty {
+      color: rgba(247,242,232,.72);
+      font-size: 12px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .custom-progress {
+      height: 6px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255,255,255,.1);
+    }
+
+    .custom-progress span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--side-accent);
+    }
+
+    .custom-feed-list {
+      display: grid;
+      align-content: start;
+      gap: 6px;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      overflow: auto;
+      list-style: none;
+    }
+
+    .custom-feed-item {
+      min-width: 0;
+      padding: 6px 7px;
+      border-left: 3px solid var(--side-accent-2);
+      background: rgba(255,255,255,.045);
+    }
+
+    .custom-feed-item.severity-success { border-left-color: var(--side-good); }
+    .custom-feed-item.severity-warning { border-left-color: var(--side-warn); }
+    .custom-feed-item.severity-error { border-left-color: #ff8d8d; }
+
+    .custom-feed-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      color: rgba(247,242,232,.58);
+      font-size: 10px;
+    }
+
+    .custom-feed-text {
+      margin-top: 3px;
+      color: rgba(247,242,232,.9);
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
+
+    .custom-feed-text.is-streaming::after {
+      content: "▋";
+      display: inline-block;
+      margin-left: 2px;
+      color: var(--side-accent);
+      animation: custom-stream-caret 650ms steps(1, end) infinite;
+    }
+
+    @keyframes custom-stream-caret {
+      50% { opacity: 0; }
+    }
+
+    .custom-key-value-list {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+      align-content: start;
+      gap: 5px 8px;
+      margin: 0;
+      overflow: auto;
+    }
+
+    .custom-key-value-list dt,
+    .custom-key-value-list dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .custom-key-value-list dt { color: rgba(247,242,232,.58); }
+    .custom-key-value-list dd { color: rgba(247,242,232,.92); }
+
+    .custom-card-footer {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .custom-empty-state {
+      grid-column: 1 / -1;
+      padding: 24px 16px;
+      color: rgba(247,242,232,.7);
+      text-align: center;
+    }
+
+    .custom-sources-manager {
+      gap: 8px;
+      padding: 10px;
+      max-height: min(46vh, 430px);
+      overflow: auto;
+    }
+
+    .custom-manager-header .custom-manager-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .custom-source-list {
+      display: grid;
+      gap: 5px;
+    }
+
+    .custom-source-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+      padding: 7px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.035);
+    }
+
+    .custom-source-summary {
+      display: grid;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .custom-source-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #fff;
+      font-size: 12px;
+    }
+
+    .custom-source-actions {
+      justify-content: flex-end;
+      flex: 0 0 auto;
+    }
+
+    .custom-source-action {
+      padding: 3px 6px !important;
+      font-size: 10px !important;
+    }
+
+    .custom-source-form,
+    .custom-credential-panel {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 7px;
+      padding: 10px;
+    }
+
+    .custom-source-form > strong,
+    .custom-credential-panel > strong,
+    .custom-credential-panel > span,
+    .custom-credential-panel > textarea,
+    .custom-source-form-actions {
+      grid-column: 1 / -1;
+    }
+
+    .custom-source-form label {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .custom-source-form input,
+    .custom-source-form select,
+    .custom-credential-panel textarea {
+      width: 100%;
+      min-width: 0;
+      padding: 6px 7px;
+      background: rgba(0,0,0,.22);
+      font-size: 12px;
+    }
+
+    .custom-credential-panel textarea {
+      resize: vertical;
+      color: rgba(247,242,232,.9);
+      font-family: "Cascadia Mono", Consolas, monospace;
+      line-height: 1.35;
+    }
+
+    .custom-manager-empty {
+      margin: 0;
+      color: rgba(247,242,232,.58);
+      font-size: 11px;
+    }
+
     /* Phone client: content-first. PC console keeps full connect/pairing chrome. */
     body.phone-client header {
       grid-template-columns: 1fr;
@@ -2739,6 +3284,11 @@ body.eink-client .quota-page-button {
       display: grid;
     }
 
+    /* Keep the request action visible even while the phone client is still booting. */
+    body:not(.device-trusted):not(.pc-console) .phone-pair-rescue {
+      display: grid;
+    }
+
     .phone-pair-rescue strong {
       color: #fff4d6;
       font-size: 15px;
@@ -3050,11 +3600,40 @@ body.pc-console .connect-panel {
   grid-template-columns: 1fr;
 }
 
-body.pc-console .connect-qr,
-body.pc-console .pairing-guide,
-body.pc-console .connect-status,
-body.pc-console #httpsCertLink {
+/* PC 本機預設精簡連線面板；一旦在配對流程就必須顯示 QR / 狀態 */
+body.pc-console:not(.pairing-active) .connect-qr,
+body.pc-console:not(.pairing-active) .pairing-guide,
+body.pc-console:not(.pairing-active) .connect-status,
+body.pc-console:not(.pairing-active) #httpsCertLink {
   display: none !important;
+}
+
+body.pc-console.pairing-active .connect-panel {
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+body.pc-console.pairing-active .connect-qr {
+  display: grid !important;
+}
+
+body.pc-console.pairing-active .pairing-guide,
+body.pc-console.pairing-active .connect-status {
+  display: grid !important;
+}
+
+body.pc-console.pairing-active #httpsCertLink {
+  display: inline-flex !important;
+}
+
+body.pc-console.pairing-active .connect-links {
+  display: block !important;
+}
+
+body.pc-console.pairing-active .connect-links[open],
+body.pc-console.pairing-active .connect-links {
+  border-color: var(--green);
 }
 
 body.pc-console .connect-copy {
@@ -3239,4 +3818,183 @@ body.eink-client .quota-account-email {
   body.eink-client .side-load {
     min-height: 260px !important;
   }
+}
+
+/* Custom cards follow the same readable, single-column rules on small and
+ * monochrome clients as the built-in sideboard pages. */
+body.phone-client.viewport-portrait .sideboard-page-tabs {
+  grid-column: 1;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+body.phone-client.viewport-portrait .custom-sideboard-page {
+  grid-column: 1;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
+}
+
+body.phone-client.viewport-portrait .custom-cards-top,
+body.phone-client.viewport-portrait .custom-manager-header {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+body.phone-client.viewport-portrait .custom-cards-toolbar,
+body.phone-client.viewport-portrait .custom-source-actions,
+body.phone-client.viewport-portrait .custom-source-form-actions {
+  justify-content: stretch;
+}
+
+body.phone-client.viewport-portrait .custom-cards-toolbar button,
+body.phone-client.viewport-portrait .custom-manager-header button,
+body.phone-client.viewport-portrait .custom-source-actions button,
+body.phone-client.viewport-portrait .custom-source-form-actions button {
+  flex: 1 1 auto;
+  min-height: 40px;
+}
+
+body.phone-client.viewport-portrait .custom-cards-grid {
+  grid-template-columns: 1fr;
+  overflow: visible;
+}
+
+body.phone-client.viewport-portrait .custom-source-row {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+body.phone-client.viewport-portrait .custom-source-actions {
+  justify-content: stretch;
+}
+
+body.phone-client.viewport-portrait .custom-source-form {
+  grid-template-columns: 1fr;
+}
+
+body.phone-client.viewport-portrait .custom-source-form > strong,
+body.phone-client.viewport-portrait .custom-credential-panel > strong,
+body.phone-client.viewport-portrait .custom-credential-panel > span,
+body.phone-client.viewport-portrait .custom-credential-panel > textarea,
+body.phone-client.viewport-portrait .custom-source-form-actions {
+  grid-column: 1;
+}
+
+body.eink-client .sideboard-page-tabs {
+  gap: 10px;
+}
+
+body.eink-client .sideboard-page-tabs button,
+body.eink-client .custom-cards-toolbar button,
+body.eink-client .custom-manager-header button,
+body.eink-client .custom-source-actions button,
+body.eink-client .custom-source-form-actions button {
+  min-height: 48px;
+  padding: 8px 14px;
+  border: 3px solid #000 !important;
+  border-radius: 4px;
+  background: #fffef8 !important;
+  color: #000 !important;
+  font-size: 18px !important;
+  font-weight: 800;
+}
+
+body.eink-client .sideboard-page-tabs button.active {
+  background: #000 !important;
+  color: #fffef8 !important;
+}
+
+body.eink-client .custom-sideboard-page,
+body.eink-client .custom-cards-grid,
+body.eink-client .custom-sources-manager {
+  gap: 16px !important;
+}
+
+body.eink-client .custom-cards-title strong,
+body.eink-client .custom-manager-header strong,
+body.eink-client .custom-card-title,
+body.eink-client .custom-status-value,
+body.eink-client .custom-metric-value,
+body.eink-client .custom-card-empty,
+body.eink-client .custom-status-detail,
+body.eink-client .custom-feed-text,
+body.eink-client .custom-key-value-list dd,
+body.eink-client .custom-card-footer,
+body.eink-client .custom-card-source,
+body.eink-client .custom-feed-meta,
+body.eink-client .custom-cards-title span,
+body.eink-client .custom-manager-header span,
+body.eink-client .custom-source-meta,
+body.eink-client .custom-source-health,
+body.eink-client .custom-source-form label,
+body.eink-client .custom-credential-panel > span,
+body.eink-client .custom-key-value-list dt {
+  color: #000 !important;
+  font-size: 18px !important;
+  line-height: 1.45 !important;
+  text-shadow: none !important;
+}
+
+body.eink-client .custom-card,
+body.eink-client .custom-empty-state,
+body.eink-client .custom-sources-manager,
+body.eink-client .custom-credential-panel,
+body.eink-client .custom-source-row,
+body.eink-client .custom-feed-item {
+  background: #fffef8 !important;
+  border: 3px solid #000 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+body.eink-client .custom-card {
+  min-height: 190px;
+  padding: 16px;
+}
+
+body.eink-client .custom-card-title,
+body.eink-client .custom-status-value,
+body.eink-client .custom-metric-value,
+body.eink-client .custom-cards-title strong,
+body.eink-client .custom-manager-header strong {
+  font-size: 28px !important;
+  font-weight: 800;
+}
+
+body.eink-client .custom-card-freshness {
+  border: 2px solid #000 !important;
+  color: #000 !important;
+  font-size: 16px !important;
+}
+
+body.eink-client .custom-feed-list,
+body.eink-client .custom-key-value-list {
+  gap: 10px !important;
+  font-size: 18px !important;
+}
+
+body.eink-client .custom-feed-item {
+  border-left: 10px solid #000 !important;
+  padding: 10px !important;
+}
+
+body.eink-client .custom-progress {
+  height: 14px !important;
+  border: 2px solid #000 !important;
+  background: #e8e3d3 !important;
+}
+
+body.eink-client .custom-progress span {
+  background: #000 !important;
+}
+
+body.eink-client .custom-source-form input,
+body.eink-client .custom-source-form select,
+body.eink-client .custom-credential-panel textarea {
+  min-height: 48px;
+  border: 3px solid #000 !important;
+  border-radius: 4px;
+  background: #fffef8 !important;
+  color: #000 !important;
+  font-size: 18px !important;
 }

@@ -110,8 +110,8 @@ Current behavior:
 
 - Added local device trust storage under `%LOCALAPPDATA%\PhoneMonitor\devices`.
 - Added `X-PhoneMonitor-Device-Token`.
-- Pairing can only be started from a loopback PC request with an action token.
-- The PC creates a short-lived pairing QR; the phone completes it with a one-time secret and stores a persistent device token.
+- The PC QR only opens the Host URL; the phone submits an HTTPS approval request and the PC-local console decides with an action token.
+- The requesting phone polls with a private request secret and receives a persistent device token only after PC approval.
 - Display streams, input WebSocket, read-only sensitive GET endpoints, and state-changing POST endpoints require either loopback access or a trusted device token.
 - Added device revoke and clear-all APIs.
 - Added a PC-local Trusted Devices UI with last-seen time, last remote address, refresh, revoke, and clear-all.
@@ -124,7 +124,7 @@ Current HTTPS behavior:
 - The Host keeps HTTP on port `5000` and adds HTTPS on port `5443` when the certificate files are ready.
 - The Host stores a certificate state file and reissues the Host certificate when the current LAN IP list changes.
 - `/cert/phone-monitor-root.cer` lets the phone download the root certificate from the bootstrap HTTP page.
-- `/qr.svg` and Pair Phone QR codes prefer HTTPS when the local certificate is configured.
+- `/qr.svg` prefers the HTTPS Host URL when the local certificate is configured; pairing request and approval polling require HTTPS.
 
 Recommended next step:
 
@@ -141,12 +141,12 @@ Required checks for this pass:
 - Confirm frontend JavaScript parses.
 - Confirm AGY quota refresh still works.
 - Confirm quota action status renders and completes in the card UI.
-- Confirm pairing start requires an action token.
-- Confirm pairing QR can mint a device token.
-- Confirm pairing URL hash is completed by a fresh phone page and then cleared.
+- Confirm phone pairing request requires HTTPS and a private-LAN address.
+- Confirm only the PC-local console can approve or deny a request.
+- Confirm a phone receives a device token only after approval.
 - Confirm device revoke removes test devices.
 - Confirm PC-local clear-all removes all paired test devices.
-- Confirm PC-local Pair Phone UI generates a pairing QR.
+- Confirm PC-local QR opens the HTTPS Host URL without pairing credentials.
 - Confirm PC-local Trusted Devices UI lists and revokes a paired phone.
 - Confirm non-loopback unpaired status does not expose the device list.
 - Confirm non-loopback unpaired read-only sensitive GET endpoints return `403`.
@@ -154,4 +154,4 @@ Required checks for this pass:
 - Confirm unpaired LAN UI shows locked display/quota states without layout overflow.
 - Confirm local HTTPS serves `/health` and `/api/connect` on port `5443`.
 - Confirm root certificate download works from the HTTP bootstrap page.
-- Confirm Pair Phone QR uses an HTTPS URL when the local certificate is configured.
+- Confirm the PC QR uses an HTTPS Host URL when the local certificate is configured.

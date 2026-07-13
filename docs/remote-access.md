@@ -25,7 +25,7 @@ Open the Host URL from the remote phone. The page asks for the remote password. 
 
 For Tailscale, install and sign in on **both** the Host PC and the phone, then open the PC's `100.x.y.z` Tailscale address. Installing Tailscale only on the phone is not enough unless another Tailscale device is configured as a subnet router for the PC's LAN. VibeDeck accepts Tailscale's `100.64.0.0/10` address range for the local pairing approval flow.
 
-The existing QR pairing and device-token flow remains available for local-network devices. A password-authenticated remote session can use the same protected API and display WebSockets without local QR pairing.
+Local-network devices use the HTTPS QR → phone request → PC approval flow. A password-authenticated remote session can use the same protected API and display WebSockets without device pairing.
 
 ## Notes
 

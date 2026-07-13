@@ -7,7 +7,7 @@
 - 移除 APK 下載、原生 App 入口、原生 QR 與原生 H.264 WebSocket 等不必要流程。
 - 以瀏覽器／PWA 作為 iPhone、Android 與 BOOX 的唯一正式手機入口。
 - 行動瀏覽器預設優先使用 WebRTC H.264，無法使用時自動回退 JPEG。
-- 保留一次性 QR 配對、Tailscale 跨網路連線與可選的 Host 密碼登入。
+- 使用 HTTPS Host QR → 手機提出申請 → PC 允許／拒絕的配對流程；保留 Tailscale 跨網路連線與可選的 Host 密碼登入。
 - 簡化 HTTPS、配對與首次連線說明，讓使用者能更快完成設定並開始使用。
 - Android 原生殼保留為 legacy 原始碼，不再列入 Host UI、文件或發行流程。
 

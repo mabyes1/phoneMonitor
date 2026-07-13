@@ -19,7 +19,42 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=16">
+  <link rel="stylesheet" href="/index.css?v=47">
+  <style>
+    /* Pairing is the recovery path: keep it usable even if an old iOS asset or
+       a later boot request fails. JS only hides it after trust is confirmed. */
+    #phonePairRescue { display: grid; }
+    body.device-trusted #phonePairRescue,
+    body.pc-console #phonePairRescue { display: none; }
+  </style>
+  <script>
+    // Older builds installed an offline service worker that could serve index.html
+    // to /api/* on iOS. Remove it before this online-only Host UI boots.
+    window.phoneMonitorServiceWorkerCleanup = (async function () {
+      if (!("serviceWorker" in navigator)) return;
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map(function (registration) {
+          return registration.unregister();
+        }));
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.filter(function (key) {
+            return key.indexOf("vibedeck-") === 0;
+          }).map(function (key) {
+            return caches.delete(key);
+          }));
+        }
+        if (navigator.serviceWorker.controller && !sessionStorage.getItem("phoneMonitorSwRemovedV47")) {
+          sessionStorage.setItem("phoneMonitorSwRemovedV47", "1");
+          location.replace("/index.html?sw-removed=47");
+          await new Promise(function () {});
+        }
+      } catch (_) {
+        // The Host remains usable without Cache API / service-worker management.
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="hostAuthGate" class="host-auth-gate" role="dialog" aria-modal="true" aria-labelledby="hostAuthTitle" hidden>
@@ -138,17 +173,17 @@
           </div>
           <div id="pairingStepPair" class="pairing-step">
             <b>2</b>
-            <strong>開始配對</strong>
-            <span>PC 按配對，產生一次性配對 QR。</span>
+            <strong>掃碼開啟</strong>
+            <span>手機掃描 QR Code，開啟 HTTPS Host。</span>
           </div>
           <div id="pairingStepOpen" class="pairing-step">
             <b>3</b>
-            <strong>手機掃碼</strong>
-            <span>相機掃碼 → 瀏覽器開啟 → 確認已配對。</span>
+            <strong>提出申請</strong>
+            <span>手機按配對申請，PC 按允許或拒絕。</span>
           </div>
         </div>
         <div class="connect-actions">
-          <button id="pairPhone" class="primary-action" type="button" hidden>開始配對手機</button>
+          <button id="pairPhone" class="primary-action" type="button" hidden>顯示手機 QR Code</button>
           <button id="launchDeckWindow" type="button" hidden>開啟 Deck 視窗</button>
           <a id="httpsCertLink" href="#" hidden>安裝 HTTPS 憑證</a>
         </div>
@@ -186,13 +221,9 @@
   <main>
     <div id="pairSuccessBanner" class="pair-success-banner" role="status" aria-live="polite"></div>
     <div id="phonePairRescue" class="phone-pair-rescue">
-      <strong>等待電腦允許</strong>
-      <span>VibeDeck 已自動找到這台 Host。請回到 PC 頁面核對六位數驗證碼並按「允許」，完成後這裡會自動進入。</span>
-      <details>
-        <summary>進階：使用舊式配對連結</summary>
-        <textarea id="pairLinkInput" rows="3" placeholder="貼上包含 pairingId 與 pairingSecret 的完整連結"></textarea>
-        <button id="pairLinkSubmit" type="button">使用配對連結</button>
-      </details>
+      <strong>尚未配對這台手機</strong>
+      <span>確認目前是 HTTPS Host 後，按下申請；接著回 PC 核對六位數驗證碼並按「允許」。</span>
+      <button id="phonePairRequest" type="button">提出配對申請</button>
     </div>
     <section id="displayView" class="app-view display-view active">
       <img id="screen" class="screen-media" alt="VibeDeck 顯示器串流">
@@ -212,6 +243,12 @@
           </div>
         </div>
 
+        <div id="sideboardPageTabs" class="sideboard-page-tabs" role="tablist" aria-label="資訊板頁面">
+          <button type="button" data-sideboard-page="system" role="tab" aria-selected="true">系統</button>
+          <button type="button" data-sideboard-page="custom" role="tab" aria-selected="false">自訂卡片</button>
+        </div>
+
+        <section id="systemSideboardPage" class="sideboard-subpage">
         <section class="side-panel side-load">
           <span class="side-kicker">系統負載</span>
           <strong id="sideLoad" class="side-big">--</strong>
@@ -274,6 +311,112 @@
           <span class="feed-heading">工作脈搏</span>
           <ul id="sideWorkList" class="feed-list"></ul>
         </section>
+        </section>
+
+        <section id="customSideboardPage" class="sideboard-subpage custom-sideboard-page" hidden>
+          <div class="custom-cards-top">
+            <div class="custom-cards-title">
+              <strong>自訂資訊</strong>
+              <span id="customCardsStatus" class="custom-cards-status">先建立一張卡片，再串接外部資料。</span>
+            </div>
+            <div class="custom-cards-toolbar">
+              <button id="customRefreshCards" type="button" title="重新整理自訂卡片">↻</button>
+              <button id="customSettingsButton" type="button">設定</button>
+              <button id="customManageButton" type="button">來源管理</button>
+              <button id="customAddSource" type="button">新增卡片</button>
+            </div>
+          </div>
+          <section id="windowsNotificationControl" class="windows-notification-control" hidden>
+            <div>
+              <strong>Windows 通知串接</strong>
+              <span id="windowsNotificationStatus">尚未檢查</span>
+            </div>
+            <p id="windowsNotificationMessage">把這台 PC 的新通知轉成「Windows 通知」訊息卡片。</p>
+            <div class="custom-cards-toolbar">
+              <button id="windowsNotificationEnable" type="button">啟用 Windows 通知</button>
+              <button id="windowsNotificationDisable" type="button" hidden>停用</button>
+            </div>
+          </section>
+          <section id="customCardSettingsPanel" class="custom-card-settings" hidden>
+            <div class="custom-settings-header">
+              <div>
+                <strong>卡片設定</strong>
+                <span>控制保留筆數與通知進場動畫，設定會保存到 Host。</span>
+              </div>
+              <button id="customSettingsClose" type="button">關閉</button>
+            </div>
+            <form id="customCardSettingsForm" class="custom-card-settings-form">
+              <label>要設定的卡片<select id="customSettingsCard" required></select></label>
+              <label>顯示通知則數
+                <input id="customSettingsMaxItems" type="number" min="5" max="30" step="1" value="10">
+                <span class="custom-settings-help">只接受 5～30 則；儲存後超出的舊通知會被清掉。</span>
+              </label>
+              <label class="custom-settings-check">
+                <input id="customSettingsStreamEnabled" type="checkbox" checked>
+                <span>啟用逐字串流效果</span>
+              </label>
+              <label>逐字速度
+                <select id="customSettingsStreamDelay">
+                  <option value="14">快 · 14ms / 字</option>
+                  <option value="28" selected>平衡 · 28ms / 字</option>
+                  <option value="46">慢 · 46ms / 字</option>
+                  <option value="70">電影感 · 70ms / 字</option>
+                </select>
+              </label>
+              <p id="customSettingsHint" class="custom-settings-help">新通知會由完整資料即時推送，再在畫面上逐字出現。</p>
+              <div class="custom-source-form-actions">
+                <button id="customSettingsSave" type="submit">儲存設定</button>
+                <button id="customSettingsClear" type="button">清空目前通知</button>
+              </div>
+            </form>
+          </section>
+          <div id="customCardsGrid" class="custom-cards-grid" aria-live="polite"></div>
+
+          <section id="customSourcesManager" class="custom-sources-manager" hidden>
+            <div class="custom-manager-header">
+              <div>
+                <strong>資料來源管理</strong>
+                <span>只有 Host PC 本機可以建立或修改來源。</span>
+              </div>
+              <div class="custom-manager-actions">
+                <button id="customManagerAdd" type="button">＋新增卡片</button>
+                <button id="customManagerClose" type="button">關閉</button>
+              </div>
+            </div>
+            <form id="customSourceForm" class="custom-source-form" hidden>
+              <strong id="customSourceFormTitle">新增資料來源</strong>
+              <label>Source Key<input id="customSourceKey" required pattern="[a-z0-9][a-z0-9-]{1,46}[a-z0-9]" maxlength="48" autocomplete="off"></label>
+              <label>顯示名稱<input id="customSourceDisplayName" required maxlength="80" autocomplete="off"></label>
+              <label>卡片類型<select id="customCardType">
+                <option value="message-feed">即時訊息</option>
+                <option value="status">狀態</option>
+                <option value="metric">數值</option>
+                <option value="key-value">資料清單</option>
+              </select></label>
+              <label>卡片標題<input id="customCardTitle" maxlength="80" autocomplete="off"></label>
+              <label>排序<input id="customCardPosition" type="number" min="0" max="10000" step="1"></label>
+              <label>過期標記秒數<input id="customStaleAfter" type="number" min="0" max="604800" step="1" value="300"></label>
+              <label>預設 TTL 秒數<input id="customDefaultTtl" type="number" min="0" max="604800" step="1" value="0"></label>
+              <label>訊息保留筆數<input id="customMaxItems" type="number" min="5" max="30" step="1" value="20"></label>
+              <div class="custom-source-form-actions">
+                <button id="customSourceFormSubmit" type="submit">建立來源</button>
+                <button id="customSourceCancel" type="button">取消</button>
+              </div>
+            </form>
+
+            <div id="customCredentialPanel" class="custom-credential-panel" hidden>
+              <strong>請立即保存這組寫入資訊</strong>
+              <span>Token 只會顯示這一次；關閉後 PhoneMonitor 不會再提供舊 Token。</span>
+              <textarea id="customCredentialText" rows="8" readonly spellcheck="false"></textarea>
+              <div class="custom-source-form-actions">
+                <button id="customCredentialCopy" type="button">複製</button>
+                <button id="customCredentialClose" type="button">我已保存，關閉</button>
+              </div>
+            </div>
+
+            <div id="customSourceList" class="custom-source-list"></div>
+          </section>
+        </section>
       </div>
     </section>
     <section id="quotaView" class="app-view quota-view">
@@ -295,6 +438,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=24"></script>
+  <script type="module" src="/index.js?v=47"></script>
 </body>
 </html>

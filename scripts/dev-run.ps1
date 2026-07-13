@@ -33,6 +33,11 @@ catch {
 Write-Host "Use the PC page's QR code or open the URL manually. Approve the phone's pairing request on the PC."
 Write-Host "Press Ctrl+C in this window to stop the Host."
 
+$installedHost = Get-Process -Name "PhoneMonitor.Host" -ErrorAction SilentlyContinue
+if ($installedHost) {
+    throw "Another PhoneMonitor.Host is already running (PID $($installedHost[0].Id)). Close the old MSIX/Host window before starting this source build."
+}
+
 dotnet run `
     --no-launch-profile `
     --project (Join-Path $root "src\PhoneMonitor.Host")

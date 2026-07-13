@@ -23,7 +23,6 @@ namespace PhoneMonitor.Host.Security
 
         private readonly object sync = new object();
         private readonly string storePath;
-        private readonly Dictionary<string, PendingPairing> pendingPairings = new Dictionary<string, PendingPairing>(StringComparer.Ordinal);
         private readonly Dictionary<string, PendingApprovalPairing> pendingApprovals = new Dictionary<string, PendingApprovalPairing>(StringComparer.Ordinal);
         private List<TrustedDeviceRecord> devices;
         private bool devicesDirty;
@@ -41,63 +40,6 @@ namespace PhoneMonitor.Host.Security
             if (NormalizeDeviceNames(devices))
             {
                 SaveDevices(force: true);
-            }
-        }
-
-        public PendingPairing StartPairing(string name)
-        {
-            lock (sync)
-            {
-                RemoveExpiredPairings(DateTimeOffset.UtcNow);
-                var pairing = new PendingPairing
-                {
-                    PairingId = CreateToken(18),
-                    PairingSecret = CreateToken(32),
-                    Name = string.IsNullOrWhiteSpace(name) ? "Phone" : name.Trim(),
-                    ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(10)
-                };
-                pairing.SecretHash = HashToken(pairing.PairingSecret);
-                pendingPairings[pairing.PairingId] = pairing;
-                return pairing;
-            }
-        }
-
-        public PairingCompleteResult CompletePairing(string pairingId, string pairingSecret, string userAgent, string remoteAddress)
-        {
-            lock (sync)
-            {
-                RemoveExpiredPairings(DateTimeOffset.UtcNow);
-                if (string.IsNullOrWhiteSpace(pairingId) ||
-                    string.IsNullOrWhiteSpace(pairingSecret) ||
-                    !pendingPairings.TryGetValue(pairingId, out var pairing) ||
-                    !string.Equals(pairing.SecretHash, HashToken(pairingSecret), StringComparison.Ordinal))
-                {
-                    return PairingCompleteResult.Fail("Pairing code expired or invalid.");
-                }
-
-                pendingPairings.Remove(pairingId);
-                var token = CreateToken(40);
-                var device = new TrustedDeviceRecord
-                {
-                    DeviceId = CreateToken(16),
-                    Name = ResolveDeviceName(pairing.Name, userAgent),
-                    TokenHash = HashToken(token),
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    LastSeenAt = DateTimeOffset.UtcNow,
-                    LastRemoteAddress = remoteAddress,
-                    LastUserAgent = userAgent
-                };
-                devices.Add(device);
-                SaveDevices(force: true);
-
-                return new PairingCompleteResult
-                {
-                    Success = true,
-                    Message = "Phone paired.",
-                    DeviceId = device.DeviceId,
-                    DeviceToken = token,
-                    DeviceName = device.Name
-                };
             }
         }
 
@@ -279,8 +221,7 @@ namespace PhoneMonitor.Host.Security
             {
                 var removed = devices.Count;
                 devices.Clear();
-            pendingPairings.Clear();
-            pendingApprovals.Clear();
+                pendingApprovals.Clear();
                 SaveDevices(force: true);
                 return new DeviceTrustActionResult
                 {
@@ -349,13 +290,6 @@ namespace PhoneMonitor.Host.Security
 
         private void RemoveExpiredPairings(DateTimeOffset now)
         {
-            foreach (var expired in pendingPairings
-                .Where(item => item.Value.ExpiresAt <= now)
-                .Select(item => item.Key)
-                .ToList())
-            {
-                pendingPairings.Remove(expired);
-            }
             foreach (var expired in pendingApprovals.Where(item => item.Value.ExpiresAt <= now).Select(item => item.Key).ToList())
                 pendingApprovals.Remove(expired);
         }
@@ -436,26 +370,6 @@ namespace PhoneMonitor.Host.Security
         }
     }
 
-    public sealed class PendingPairing
-    {
-        public string PairingId { get; set; }
-        public string PairingSecret { get; set; }
-        public string SecretHash { get; set; }
-        public string Name { get; set; }
-        public DateTimeOffset ExpiresAt { get; set; }
-    }
-
-    public sealed class PairingCompleteRequest
-    {
-        public string PairingId { get; set; }
-        public string PairingSecret { get; set; }
-    }
-
-    public sealed class PairingStartRequest
-    {
-        public string Name { get; set; }
-    }
-
     public sealed class PairingApprovalStartRequest
     {
         public string Name { get; set; }
@@ -530,24 +444,6 @@ namespace PhoneMonitor.Host.Security
         public static DeviceTrustActionResult Fail(string message)
         {
             return new DeviceTrustActionResult
-            {
-                Success = false,
-                Message = message
-            };
-        }
-    }
-
-    public sealed class PairingCompleteResult
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; }
-        public string DeviceId { get; set; }
-        public string DeviceToken { get; set; }
-        public string DeviceName { get; set; }
-
-        public static PairingCompleteResult Fail(string message)
-        {
-            return new PairingCompleteResult
             {
                 Success = false,
                 Message = message

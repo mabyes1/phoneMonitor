@@ -2,14 +2,14 @@
 
 ## Approval pairing (default)
 
-Browser/PWA clients on iPhone, Android, and BOOX use the approval flow on private LAN; QR pairing remains a fallback.
+Browser/PWA clients on iPhone, Android, and BOOX use one flow: scan the PC QR to open the HTTPS Host, submit a request on the phone, then approve or deny it on the PC.
 
 - `POST /api/devices/pairing/request` — private-LAN client creates a 10-minute request and receives a private poll secret plus six-digit verification code.
 - `POST /api/devices/pairing/pending` — PC-local console lists requests (action token required).
 - `POST /api/devices/pairing/approve` or `/deny` — PC-local user decides (action token required).
 - `POST /api/devices/pairing/poll` — requesting client exchanges its private secret for a persistent device token after approval.
 
-The Host never sends an approved device token to the PC console; only the client holding the request secret can retrieve it. Requests are limited to private LAN addresses and expire automatically.
+The Host never sends an approved device token to the PC console; only the requesting phone can retrieve it. Requests are limited to private LAN addresses, require HTTPS, and expire automatically.
 
 Last updated: 2026-07-04
 

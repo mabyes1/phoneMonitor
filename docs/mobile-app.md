@@ -22,7 +22,7 @@ The PWA provides the app-like parts that matter here:
 
 1. Open the Host URL from the phone browser.
 2. Use the HTTPS URL when Wake Lock or iPhone Home Screen mode is needed.
-3. Complete the one-time device pairing from the Host page.
+3. Tap 「提出配對申請」 on the phone, then approve the six-digit request on the PC.
 4. Add the page to the home screen if an app-like entry is wanted.
 
 The former Android native shell remains in `apps/android` as legacy source only. It is no longer linked from the Host UI, documented as a supported product path, or served as an APK by the Host.
