@@ -2145,12 +2145,18 @@ import {
     function resolveRotation() {
       if (rotation.value !== "auto") return rotation.value;
 
-      // Auto keeps the desktop upright and lets it letterbox. It used to rotate a
-      // landscape desktop 90° whenever the phone was held portrait, which showed
-      // the screen lying sideways. Holding the phone landscape already fills the
-      // view at 0°; anyone who wants a forced turn can pick 90/270 manually or use
-      // 版面方向 → 固定橫向.
-      return "0";
+      // Auto rotation: only rotate when in fullscreen viewer mode so the desktop
+      // fills the screen landscape. In the non-fullscreen thumbnail preview, keep
+      // it upright — portrait streams show portrait, landscape shows landscape.
+      if (!document.body.classList.contains("viewer-fullscreen")) return "0";
+
+      const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+      const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+      const viewportPortrait = viewportHeight > viewportWidth;
+      const activeMedia = getActiveStreamElement();
+      const streamPortrait = getMediaHeight(activeMedia) > getMediaWidth(activeMedia);
+
+      return viewportPortrait !== streamPortrait ? "90" : "0";
     }
 
     async function requestWakeLock() {
@@ -2806,7 +2812,7 @@ import {
         connectInput();
       }
       if (isIos()) {
-        fullscreen.textContent = "全螢幕副螢幕";
+        fullscreen.textContent = "全螢幕";
       }
       updateKeepAwakeButton();
       updateWakeCapability();

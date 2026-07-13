@@ -2973,8 +2973,12 @@ body.eink-client .quota-page-button {
       display: none;
     }
 
-    body.phone-client.viewport-portrait .panel {
+    body.phone-client.viewport-portrait .panel:not(.setup-panels .panel) {
       display: none;
+    }
+
+    body.phone-client.viewport-portrait .setup-panels {
+      justify-content: center;
     }
 
     body.phone-client.viewport-portrait .top-controls {
