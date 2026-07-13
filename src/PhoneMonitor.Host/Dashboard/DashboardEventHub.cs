@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -13,14 +14,14 @@ namespace PhoneMonitor.Host.Dashboard
 {
     public sealed class DashboardEventHub
     {
-        private readonly ConcurrentDictionary<Guid, Channel<string>> subscribers = new ConcurrentDictionary<Guid, Channel<string>>();
+        private readonly ConcurrentDictionary<Guid, Channel<DashboardEvent>> subscribers = new ConcurrentDictionary<Guid, Channel<DashboardEvent>>();
 
         public bool HasSubscribers => !subscribers.IsEmpty;
 
         public Subscription Subscribe()
         {
             var id = Guid.NewGuid();
-            var channel = Channel.CreateBounded<string>(new BoundedChannelOptions(16)
+            var channel = Channel.CreateBounded<DashboardEvent>(new BoundedChannelOptions(16)
             {
                 FullMode = BoundedChannelFullMode.DropOldest,
                 SingleReader = true,
@@ -32,9 +33,21 @@ namespace PhoneMonitor.Host.Dashboard
 
         public void Publish(string topic)
         {
+            Publish(topic, null);
+        }
+
+        public void Publish(string topic, object data)
+        {
+            var dataJson = data == null
+                ? null
+                : JsonSerializer.Serialize(data, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+            var notification = new DashboardEvent { Topic = topic, DataJson = dataJson };
             foreach (var subscriber in subscribers.Values)
             {
-                subscriber.Writer.TryWrite(topic);
+                subscriber.Writer.TryWrite(notification);
             }
         }
 
@@ -47,9 +60,9 @@ namespace PhoneMonitor.Host.Dashboard
         {
             private readonly DashboardEventHub owner;
             private readonly Guid id;
-            public ChannelReader<string> Reader { get; }
+            public ChannelReader<DashboardEvent> Reader { get; }
 
-            internal Subscription(DashboardEventHub owner, Guid id, ChannelReader<string> reader)
+            internal Subscription(DashboardEventHub owner, Guid id, ChannelReader<DashboardEvent> reader)
             {
                 this.owner = owner;
                 this.id = id;
@@ -58,6 +71,12 @@ namespace PhoneMonitor.Host.Dashboard
 
             public void Dispose() => owner.Unsubscribe(id);
         }
+    }
+
+    public sealed class DashboardEvent
+    {
+        public string Topic { get; set; }
+        public string DataJson { get; set; }
     }
 
     public sealed class DashboardChangeMonitor : BackgroundService
