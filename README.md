@@ -40,7 +40,13 @@ Setup 會完成一條龍：
 
 安裝後不需再留著黑視窗；開機後服務會自己起來。點 **VibeDeck** 圖示就是開 Web 控制台。
 
-開發／原始碼直接跑仍可用：
+如果你拿到的是發佈 ZIP，也可解壓後直接執行 `PhoneMonitor.Host.exe`，不需要安裝 .NET SDK。
+
+如果你是從原始碼啟動，才需要 .NET 8 SDK，並使用下方的 `start.bat`。
+
+### 原始碼啟動
+
+在 Repo 根目錄雙擊：
 
 ```text
 start.bat
@@ -52,7 +58,7 @@ start.bat
 scripts\dev-run.ps1
 ```
 
-（開發模式需要 .NET 6 SDK，且要保持終端機視窗開啟。）
+（開發模式需要 .NET 8 SDK，且要保持終端機視窗開啟。）
 
 ### 2. 先在 PC 確認頁面
 
@@ -147,9 +153,17 @@ Android 也可以安裝憑證來使用 HTTPS；若只是測試資訊板，通常
 
 詳細說明：[docs/https-onboarding.md](docs/https-onboarding.md)
 
-## 虛擬顯示器驅動（選用）
+## 建立虛擬螢幕（顯示器模式）
 
-只有「顯示器」模式需要這個步驟。它會讓 Windows 出現 **PhoneMonitor Display**，手機才能接收真正的延伸桌面。
+只有「顯示器」模式需要這個步驟。當頁面顯示「這台電腦還沒有虛擬螢幕」時，在 PC 的 VibeDeck 頁面按「建立虛擬螢幕」，再接受一次 Windows 管理員確認。VibeDeck 會下載已簽章的 Virtual Display Driver、驗證版本與完整性，並等待 Windows 建立新的延伸桌面。
+
+這個動作只能從 PC 本機頁面開始；已配對手機不能遠端觸發管理員安裝。安裝時需要網路，但不需要 WDK、不會開啟測試簽章模式，通常也不必重新開機。使用的第三方元件與固定雜湊見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+VibeDeck Host 必須在 PC 的本機 Windows 桌面工作階段執行。若透過 Windows 遠端桌面（RDP）啟動，Windows 會改用 RDP 顯示驅動，Host 看不到真正的虛擬螢幕；Web 會直接提示回到本機桌面重新啟動。
+
+### 自有驅動開發（非一般使用者流程）
+
+`driver/PhoneMonitor.Idd` 仍是開發中的自有驅動；下列命令只供驅動開發與測試，不是產品安裝流程：
 
 ```powershell
 scripts\check-driver-toolchain.ps1
@@ -159,7 +173,7 @@ scripts\build-driver.ps1
 scripts\install-driver-dev.ps1
 ```
 
-這是 Windows 驅動開發流程，可能需要系統管理員權限、測試簽章與重新開機。只是想看資訊板時可以先跳過。
+這條開發流程可能需要系統管理員權限、測試簽章與重新開機。一般使用者不要執行。
 
 ## 額度功能（選用）
 
@@ -200,6 +214,7 @@ VibeDeck 不會要求你貼 Codex token，也沒有 Codex OAuth 匯入按鈕。
 ## 進階文件
 
 - [CHANGELOG.md](CHANGELOG.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 - [docs/custom-data-sources-spec.md](docs/custom-data-sources-spec.md)
 - [docs/remote-access.md](docs/remote-access.md)
 - [docs/https-onboarding.md](docs/https-onboarding.md)

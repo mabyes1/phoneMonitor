@@ -66,6 +66,9 @@ namespace PhoneMonitor.Host.Windows
             return ContainsPhoneMonitor(device.DeviceString)
                 || ContainsPhoneMonitor(device.DeviceId)
                 || ContainsPhoneMonitor(device.DeviceKey)
+                || ContainsVibeDeckDriver(device.DeviceString)
+                || ContainsVibeDeckDriver(device.DeviceId)
+                || ContainsVibeDeckDriver(device.DeviceKey)
                 || ContainsMicrosoftSampleMonitor(device.DeviceString)
                 || ContainsMicrosoftSampleMonitor(device.DeviceId);
         }
@@ -84,6 +87,18 @@ namespace PhoneMonitor.Host.Windows
 
             return value.IndexOf("DELD0E6", StringComparison.OrdinalIgnoreCase) >= 0
                 || value.IndexOf("S2719DGF", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool ContainsVibeDeckDriver(string value)
+        {
+            if (value == null)
+            {
+                return false;
+            }
+
+            return value.IndexOf("MttVDD", StringComparison.OrdinalIgnoreCase) >= 0
+                || value.IndexOf("MTT1337", StringComparison.OrdinalIgnoreCase) >= 0
+                || value.IndexOf("Virtual Display Driver", StringComparison.OrdinalIgnoreCase) >= 0;
         }
     }
 
