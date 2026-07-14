@@ -2384,6 +2384,14 @@ body.eink-client .quota-page-button {
       display: contents;
     }
 
+    /* display:contents means this element has no box of its own, so the
+       .sideboard-shell > * { z-index:1 } rule doesn't lift it above the
+       shell's dark ::after overlay. Lift its children explicitly. */
+    #systemSideboardPage > * {
+      position: relative;
+      z-index: 1;
+    }
+
     /* 子頁 hidden；面板開合由 JS inline display !important 負責 */
     #systemSideboardPage[hidden],
     #customSideboardPage[hidden],
