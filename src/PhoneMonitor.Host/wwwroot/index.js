@@ -16,12 +16,13 @@ import { createSideboardController } from "./modules/sideboard.js?v=47";
 import { createStreamController } from "./modules/stream-controller.js?v=47";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
 import {
+  escapeHtml,
   extractQuotaEmail,
   extractQuotaTier,
   normalizeTierLabel,
   renderQuotaWindow,
   summarizeQuotaWindow,
-} from "./modules/quota-formatters.js?v=47";
+} from "./modules/quota-formatters.js?v=48";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -33,6 +34,13 @@ import {
     const quotaMode = document.getElementById("quotaMode");
     const refresh = document.getElementById("refresh");
     const fullscreen = document.getElementById("fullscreen");
+    const displaySettingsToggle = document.getElementById("displaySettingsToggle");
+    const displayEmptyState = document.getElementById("displayEmptyState");
+    const displayEmptyTitle = document.getElementById("displayEmptyTitle");
+    const displayEmptyMessage = document.getElementById("displayEmptyMessage");
+    const installVirtualDisplay = document.getElementById("installVirtualDisplay");
+    const displayInstallDetail = document.getElementById("displayInstallDetail");
+    const openSideboardFromEmpty = document.getElementById("openSideboardFromEmpty");
     const exitViewer = document.getElementById("exitViewer");
     const streamPreset = document.getElementById("streamPreset");
     const streamFps = document.getElementById("streamFps");
@@ -169,6 +177,7 @@ import {
     let activeMode = "display";
     let sideboardTimer = null;
     let quotaTimer = null;
+    let displayInstallTimer = null;
     let dashboardEvents = null;
     const dashboardRefreshState = {
       sideboard: { last: 0, timer: null, dirty: false },
@@ -517,6 +526,11 @@ import {
       document.body.classList.toggle("mode-display", !isSideboard && !isQuota);
       document.body.classList.toggle("mode-sideboard", isSideboard);
       document.body.classList.toggle("mode-quota", isQuota);
+      if (isSideboard || isQuota) {
+        document.body.classList.remove("display-settings-open");
+        displaySettingsToggle?.setAttribute("aria-expanded", "false");
+        if (displaySettingsToggle) displaySettingsToggle.textContent = "顯示設定";
+      }
       displayView.classList.toggle("active", !isSideboard && !isQuota);
       sideboardView.classList.toggle("active", isSideboard);
       quotaView.classList.toggle("active", isQuota);
@@ -919,10 +933,22 @@ import {
     function showPairSuccessBanner(message) {
       const banner = document.getElementById("pairSuccessBanner");
       if (!banner) return;
-      const homeHint = isIos() && !isStandaloneApp()
-        ? "<div>接著在<strong>這個已配對頁面</strong>按 Safari 底部分享 → <strong>加入主畫面</strong>。不要另開新分頁再加。</div>"
-        : "<div>可點上方「顯示器 / 資訊板 / 額度」使用。</div>";
-      banner.innerHTML = `<strong>已配對成功</strong><div>${message || ""}</div>${homeHint}`;
+      const title = document.createElement("strong");
+      title.textContent = "已配對成功";
+      const detail = document.createElement("div");
+      detail.textContent = message || "";
+      const homeHint = document.createElement("div");
+      if (isIos() && !isStandaloneApp()) {
+        homeHint.append("接著在");
+        const pairedPage = document.createElement("strong");
+        pairedPage.textContent = "這個已配對頁面";
+        const addToHome = document.createElement("strong");
+        addToHome.textContent = "加入主畫面";
+        homeHint.append(pairedPage, "按 Safari 底部分享 → ", addToHome, "。不要另開新分頁再加。");
+      } else {
+        homeHint.textContent = "可點上方「顯示器 / 資訊板 / 額度」使用。";
+      }
+      banner.replaceChildren(title, detail, homeHint);
       banner.classList.add("show");
       // The toast is confirmation, not a permanent panel. On phones it used to
       // stay sticky at z-40 and cover the secondary-screen view forever.
@@ -940,7 +966,7 @@ import {
         pairPhone.hidden = !localConsole;
         if (localConsole) pairPhone.removeAttribute("hidden");
         else pairPhone.setAttribute("hidden", "");
-        pairPhone.textContent = "開始配對手機";
+        pairPhone.textContent = "配對新手機";
         pairPhone.disabled = false;
       }
       if (launchDeckWindow) {
@@ -1020,7 +1046,7 @@ import {
     async function startPhonePairing() {
       if (pairPhone) {
         pairPhone.disabled = true;
-        pairPhone.textContent = "顯示中…";
+        pairPhone.textContent = "正在準備…";
       }
       setPairingUiActive(true);
       try {
@@ -1032,7 +1058,7 @@ import {
       } finally {
         if (pairPhone) {
           pairPhone.disabled = false;
-          pairPhone.textContent = "顯示手機 QR Code";
+          pairPhone.textContent = "配對新手機";
         }
       }
     }
@@ -1049,9 +1075,9 @@ import {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ mode })
         });
-        setAppState(result.Message || result.message || "Deck 視窗已開啟。", true);
+        setAppState(result.Message || result.message || "資訊板已開到副螢幕。", true);
       } catch (error) {
-        setAppState(error.message || "Deck 視窗開啟失敗。", false);
+        setAppState(error.message || "無法把資訊板開到副螢幕。", false);
       } finally {
         launchDeckWindow.disabled = false;
         launchDeckWindow.textContent = originalText;
@@ -1349,7 +1375,7 @@ import {
       label.textContent = title;
       const hint = document.createElement("span");
       hint.className = "quota-help-summary-hint";
-      hint.textContent = "pipeline";
+      hint.textContent = "說明";
       summary.append(label, hint);
       block.append(summary);
       const body = document.createElement("div");
@@ -1370,7 +1396,7 @@ import {
 
       if (tabId === "codex") {
         if (state.codexUsable) {
-          return renderQuotaHelpBlock("Codex pipeline", eink
+          return renderQuotaHelpBlock("Codex 資料來源", eink
             ? [
                 "Source: local session JSONL → latest rate_limits payload.",
                 "Refresh: new Codex activity on Host PC, then ↻ / POST /api/quotas/refresh."
@@ -1398,7 +1424,7 @@ import {
       }
 
       if (state.agyCount > 0) {
-        return renderQuotaHelpBlock("AGY pipeline", eink
+        return renderQuotaHelpBlock("AGY 資料來源", eink
           ? [
               "Store: DPAPI-protected refresh tokens under LocalAppData\\PhoneMonitor\\quotas\\agy.",
               "Actions: + OAuth · ↻ token refresh + quota API · ⌫ drop local account store."
@@ -1460,8 +1486,8 @@ import {
           <span class="quota-time">oauth/start</span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">+</button>
-            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">＋ 登入</button>
+            <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
           </div>
         </div>
         <div class="quota-action-status" aria-live="polite"></div>
@@ -1477,8 +1503,8 @@ import {
           <span class="quota-time">POST /api/quotas/agy/oauth/start</span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">+</button>
-            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">＋ 登入</button>
+            <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
           </div>
         </div>
         <div class="quota-action-status" aria-live="polite"></div>
@@ -1505,7 +1531,7 @@ import {
           <span class="quota-time">session scan</span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+            <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
           </div>
         </div>
         <div class="quota-action-status" aria-live="polite"></div>
@@ -1521,7 +1547,7 @@ import {
           <span class="quota-time">POST /api/quotas/refresh</span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
+            <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
           </div>
         </div>
         <div class="quota-action-status" aria-live="polite"></div>
@@ -1790,10 +1816,10 @@ import {
           <span class="quota-time"></span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="用這個帳號開啟 AGY CLI" data-quota-action="agy-cli">▶</button>
-            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">+</button>
-            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
-            <button type="button" title="刪除 AGY 帳號" data-quota-action="agy-delete">⌫</button>
+            <button type="button" title="用這個帳號開啟 AGY CLI" data-quota-action="agy-cli">▶ 開啟</button>
+            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">＋ 登入</button>
+            <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
+            <button type="button" title="刪除 AGY 帳號" data-quota-action="agy-delete">⌫ 刪除</button>
           </div>
         </div>
         <div class="quota-action-status" aria-live="polite"></div>
@@ -1837,8 +1863,8 @@ import {
           <span class="quota-time"></span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="更新額度" data-quota-action="refresh">↻</button>
-            ${family === "codex" ? '<button type="button" title="刪除這個 Codex Profile 額度快取" data-quota-action="codex-delete">⌫</button>' : ''}
+            <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
+            ${family === "codex" ? '<button type="button" title="刪除這個 Codex Profile 額度快取" data-quota-action="codex-delete">⌫ 刪除</button>' : ''}
           </div>
         </div>
         <div class="quota-action-status" aria-live="polite"></div>
@@ -1906,7 +1932,7 @@ import {
       const secondary = provider.Secondary || provider.secondary || {};
       return `
         <section class="quota-provider">
-          <strong class="quota-provider-title">${title}</strong>
+          <strong class="quota-provider-title">${escapeHtml(title)}</strong>
           ${renderQuotaWindow("5h", primary)}
           ${renderQuotaWindow("週額度", secondary)}
         </section>
@@ -2302,11 +2328,13 @@ import {
         if (isTrustRequiredError(error)) {
           setStatus("請先配對手機", false);
           driverState.textContent = "請先配對手機，才能觀看虛擬螢幕。";
+          setDisplayAvailability(false, "尚未完成配對", "完成配對後才能觀看虛擬螢幕。資訊板可直接使用。");
           return;
         }
 
         setStatus("顯示器無法使用", false);
         driverState.textContent = error.message || "無法取得 VibeDeck 顯示器狀態。";
+        setDisplayAvailability(false, "暫時連不上顯示器", "請確認 Host 仍在執行，或先改用資訊板。");
         return;
       }
 
@@ -2315,14 +2343,108 @@ import {
       if (!phoneDisplay) {
         selectedDisplayName = "";
         setDisplayAspectRatio("16 / 9");
-        setStatus("找不到虛擬螢幕", false);
-        driverState.textContent = "找不到 VibeDeck 虛擬螢幕。";
+        setStatus("尚未建立虛擬螢幕", false);
+        driverState.textContent = "尚未建立 VibeDeck 虛擬螢幕。";
+        setDisplayAvailability(false, "這台電腦還沒有虛擬螢幕", "建立後，Windows 才能把手機當成真正的延伸桌面。");
+        await loadDisplayInstallStatus();
         return;
       }
 
       selectedDisplayName = phoneDisplay.DeviceName;
       setDisplayAspectRatio(`${phoneDisplay.Width} / ${phoneDisplay.Height}`);
       driverState.textContent = `VibeDeck 顯示器：${phoneDisplay.DeviceName} (${phoneDisplay.Width}x${phoneDisplay.Height})`;
+      setDisplayAvailability(true);
+    }
+
+    function readInstallField(status, name, fallback = null) {
+      return status?.[name] ?? status?.[name.charAt(0).toLowerCase() + name.slice(1)] ?? fallback;
+    }
+
+    function renderDisplayInstallStatus(status) {
+      const state = readInstallField(status, "State", "ready");
+      const message = readInstallField(status, "Message", "");
+      const canInstall = Boolean(readInstallField(status, "CanInstall", false));
+
+      if (displayInstallDetail) {
+        displayInstallDetail.textContent = deviceLocalRequest
+          ? message
+          : "請到這台 PC 的 VibeDeck 頁面建立虛擬螢幕；手機不能遠端觸發管理員安裝。";
+      }
+
+      if (!installVirtualDisplay) return state;
+      installVirtualDisplay.hidden = !deviceLocalRequest || state === "installed" || state === "finishing" || state === "console-required";
+      installVirtualDisplay.disabled = !canInstall || state === "installing";
+      installVirtualDisplay.textContent = state === "installing"
+        ? "正在建立…"
+        : state === "failed"
+          ? "再試一次"
+          : state === "repair-ready"
+            ? "修復虛擬螢幕"
+          : state === "restart-required"
+            ? "需要重新開機"
+            : "建立虛擬螢幕";
+
+      if (state === "installing") {
+        setDisplayAvailability(false, "正在建立虛擬螢幕", "請在 Windows 管理員確認視窗按「是」，完成前不要關閉 VibeDeck。");
+      } else if (state === "finishing" || state === "installed") {
+        setDisplayAvailability(false, "正在完成虛擬螢幕", "驅動已安裝，正在等待 Windows 顯示新的延伸桌面。");
+      } else if (state === "restart-required") {
+        setDisplayAvailability(false, "需要重新開機", "Windows 必須重新開機才能完成虛擬螢幕安裝。");
+      } else if (state === "console-required") {
+        setDisplayAvailability(false, "請在本機 Windows 桌面啟動", "遠端桌面會把實體與虛擬顯示器換成 RDP 畫面，因此 VibeDeck 無法在這個工作階段接收延伸桌面。");
+      } else if (state === "failed") {
+        setDisplayAvailability(false, "虛擬螢幕沒有建立成功", "可以再試一次；原本的螢幕與資訊板不受影響。");
+      }
+
+      return state;
+    }
+
+    async function loadDisplayInstallStatus() {
+      try {
+        const status = await fetchJsonOrThrow("/api/display/install/status");
+        return { status, state: renderDisplayInstallStatus(status) };
+      } catch (error) {
+        if (displayInstallDetail) displayInstallDetail.textContent = error.message || "無法取得安裝狀態。";
+        return { status: null, state: "error" };
+      }
+    }
+
+    function scheduleDisplayInstallPoll() {
+      clearTimeout(displayInstallTimer);
+      displayInstallTimer = setTimeout(async () => {
+        const { state } = await loadDisplayInstallStatus();
+        if (state === "installing" || state === "finishing" || state === "installed") {
+          await loadPhoneDisplay();
+          if (!selectedDisplayName) scheduleDisplayInstallPoll();
+          else connectVideo();
+        }
+      }, 1500);
+    }
+
+    async function installDisplayFromWeb() {
+      if (!deviceLocalRequest || !installVirtualDisplay) return;
+      installVirtualDisplay.disabled = true;
+      installVirtualDisplay.textContent = "等待 Windows 確認…";
+      if (displayInstallDetail) displayInstallDetail.textContent = "請在這台 PC 跳出的管理員確認視窗按「是」。";
+
+      try {
+        const status = await fetchJsonOrThrow("/api/display/install", { method: "POST" });
+        renderDisplayInstallStatus(status);
+        scheduleDisplayInstallPoll();
+      } catch (error) {
+        renderDisplayInstallStatus({
+          State: "failed",
+          CanInstall: true,
+          Message: error.message || "虛擬螢幕安裝失敗。"
+        });
+      }
+    }
+
+    function setDisplayAvailability(available, title = "", message = "") {
+      document.body.classList.toggle("display-unavailable", !available);
+      if (displayEmptyState) displayEmptyState.hidden = Boolean(available);
+      if (displayEmptyTitle && title) displayEmptyTitle.textContent = title;
+      if (displayEmptyMessage && message) displayEmptyMessage.textContent = message;
     }
 
     function inputSocketUrl() {
@@ -2587,9 +2709,17 @@ import {
         setTrustState(error.message || "配對申請失敗。", false);
       } finally {
         phonePairRequest.disabled = false;
-        phonePairRequest.textContent = "提出配對申請";
+        phonePairRequest.textContent = "開始配對";
       }
     });
+    displaySettingsToggle?.addEventListener("click", () => {
+      const open = !document.body.classList.contains("display-settings-open");
+      document.body.classList.toggle("display-settings-open", open);
+      displaySettingsToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      displaySettingsToggle.textContent = open ? "收起設定" : "顯示設定";
+    });
+    installVirtualDisplay?.addEventListener("click", installDisplayFromWeb);
+    openSideboardFromEmpty?.addEventListener("click", () => setMode("sideboard"));
     hostAuthForm?.addEventListener("submit", event => {
       event.preventDefault();
       loginToHost(hostAuthPassword?.value || "");
@@ -2789,9 +2919,6 @@ import {
       applyClientChrome();
       await loadDeviceTrustStatus();
       applyClientChrome();
-      if (deviceTrusted && isIos() && !isStandaloneApp()) {
-        showPairSuccessBanner("已配對（HTTPS）。同一頁分享 → 加入主畫面，再點「長亮 ON」。");
-      }
       setMode(getInitialMode());
       if (shouldStartInViewer() || (isIos() && deviceTrusted && getInitialMode() === "display" && isStandaloneApp())) {
         setTimeout(() => enterLandscapeViewer(), 350);

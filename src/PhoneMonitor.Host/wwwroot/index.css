@@ -753,6 +753,38 @@ body.eink-client .quota-page-button {
       min-width: 0;
     }
 
+    #displaySettingsToggle {
+      display: none;
+    }
+
+    .display-empty-state {
+      min-height: min(52dvh, 430px);
+      width: min(100%, 720px);
+      box-sizing: border-box;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: 10px;
+      padding: 32px;
+      border: 1px dashed rgba(143, 209, 255, .24);
+      border-radius: 14px;
+      background: linear-gradient(145deg, rgba(18, 29, 39, .88), rgba(8, 13, 19, .92));
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .display-empty-state[hidden] { display: none; }
+    .display-empty-state strong { color: var(--text); font-size: 22px; }
+    .display-empty-state > span:not(.display-empty-icon) { max-width: 440px; line-height: 1.5; }
+    .display-empty-icon { color: var(--blue); font-size: 42px; line-height: 1; }
+    .display-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
+    .display-empty-state button { min-width: 170px; background: var(--blue); color: #071017; font-weight: 800; }
+    .display-empty-state button.secondary { background: transparent; color: var(--text); border-color: var(--border); }
+    .display-empty-state button:disabled { cursor: wait; opacity: .65; }
+    .display-install-detail { min-height: 1.4em; max-width: 520px; color: var(--muted); line-height: 1.45; }
+    body.display-unavailable .display-view .screen-media { display: none !important; }
+    body.display-unavailable .driver-state { display: none; }
+
     .mode-button.active {
       background: var(--text);
       color: var(--surface);
@@ -1707,6 +1739,15 @@ body.eink-client .quota-page-button {
       background: transparent;
       color: rgba(239,247,241,.82);
       font-size: 14px;
+    }
+
+    body:not(.eink-client) .quota-toolbox button {
+      width: auto;
+      min-width: 28px;
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
     }
 
     .quota-toolbox button:hover {
@@ -2893,6 +2934,23 @@ body.eink-client .quota-page-button {
       display: none !important;
     }
 
+    body.phone-client.device-trusted:not(.mode-display) .utility-controls,
+    body.phone-client.device-trusted:not(.mode-display) .setup-panels {
+      display: none !important;
+    }
+
+    body.phone-client.device-trusted.mode-display #displaySettingsToggle {
+      display: inline-flex;
+    }
+
+    body.phone-client.device-trusted .setup-panels {
+      display: none;
+    }
+
+    body.phone-client.device-trusted.mode-display.display-settings-open .setup-panels {
+      display: flex;
+    }
+
     /* Unpaired phone: keep a short trust note, hide PC pairing QR / guide. */
     body.phone-client:not(.device-trusted) .connect-panel {
       grid-template-columns: 1fr;
@@ -2912,6 +2970,19 @@ body.eink-client .quota-page-button {
 
     body.phone-client:not(.device-trusted) .connect-actions {
       grid-template-columns: 1fr;
+    }
+
+    body.phone-client:not(.device-trusted):not(.pc-console) header,
+    body.phone-client:not(.device-trusted):not(.pc-console) .display-view,
+    body.phone-client:not(.device-trusted):not(.pc-console) .sideboard-view,
+    body.phone-client:not(.device-trusted):not(.pc-console) .quota-view {
+      display: none !important;
+    }
+
+    body.phone-client:not(.device-trusted):not(.pc-console) main {
+      display: grid;
+      place-items: start center;
+      padding-top: max(28px, env(safe-area-inset-top));
     }
 
     body.phone-client .panel {
@@ -3004,8 +3075,14 @@ body.eink-client .quota-page-button {
     }
 
     body.phone-client.viewport-portrait .utility-controls {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
+    }
+
+    body.phone-client.viewport-portrait .utility-controls button {
+      min-width: 0;
+      padding-inline: 6px;
+      font-size: 12px;
     }
 
     body.phone-client.viewport-portrait #rotation,
@@ -3017,6 +3094,10 @@ body.eink-client .quota-page-button {
       grid-column: 1 / -1;
       min-height: 32px;
       font-size: 12px;
+    }
+
+    body.phone-client.viewport-portrait.display-unavailable .utility-controls .status {
+      display: none;
     }
 
     body.phone-client.viewport-portrait main {
@@ -3309,12 +3390,16 @@ body.eink-client .quota-page-button {
     }
 
     body.ios-client.phone-client.device-trusted.mode-display .display-view.active::after {
-      content: "單指操作 PC 滑鼠 · 連點兩下全螢幕 · 右上 × 離開";
+      content: "單指操作 PC 滑鼠 · 連點兩下放大畫面";
       color: var(--quiet);
       font-size: 12px;
       line-height: 1.35;
       text-align: center;
       padding: 6px 8px 0;
+    }
+
+    body.display-unavailable.ios-client.phone-client.device-trusted.mode-display .display-view.active::after {
+      display: none;
     }
 
     body.ios-client.viewer-fullscreen.mode-display .display-view.active::after {
@@ -3345,12 +3430,22 @@ body.eink-client .quota-page-button {
     .phone-pair-rescue {
       display: none;
       margin: 0 0 10px;
-      padding: 12px;
+      width: min(100%, 420px);
+      box-sizing: border-box;
+      padding: 22px 18px;
       border: 1px solid rgba(255, 210, 122, .35);
       border-radius: 12px;
       background: rgba(40, 28, 8, .72);
       color: #ffe6b0;
-      gap: 8px;
+      gap: 12px;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, .3);
+    }
+
+    .phone-pair-rescue small {
+      color: #d7af5b;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .12em;
     }
 
     body.phone-client:not(.device-trusted):not(.pc-console) .phone-pair-rescue {
@@ -3364,7 +3459,12 @@ body.eink-client .quota-page-button {
 
     .phone-pair-rescue strong {
       color: #fff4d6;
-      font-size: 15px;
+      font-size: 24px;
+    }
+
+    .phone-pair-rescue > span {
+      color: #f2dca9;
+      line-height: 1.55;
     }
 
     .phone-pair-rescue input,
@@ -3381,9 +3481,9 @@ body.eink-client .quota-page-button {
     }
 
     .phone-pair-rescue button {
-      min-height: 44px;
+      min-height: 50px;
       border: 0;
-      border-radius: 8px;
+      border-radius: 10px;
       background: #70d98b;
       color: #0a1311;
       font-weight: 800;

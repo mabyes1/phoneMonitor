@@ -1,3 +1,12 @@
+export function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 export function renderQuotaWindow(label, windowData = {}) {
   const used = windowData.UsedPercent ?? windowData.usedPercent;
   const providedRemaining = windowData.RemainingPercent ?? windowData.remainingPercent;
@@ -14,7 +23,7 @@ export function renderQuotaWindow(label, windowData = {}) {
   const bar = Number.isFinite(remaining) ? remaining : 0;
   return `
     <div class="quota-window">
-      <span>${label}</span>
+      <span>${escapeHtml(label)}</span>
       <b>${value}</b>
       <div class="quota-bar"><i style="width:${bar}%"></i></div>
       <small>${resetText}</small>

@@ -2,6 +2,8 @@ $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
 $setupHttps = Join-Path $PSScriptRoot "setup-https.ps1"
+$localDotNet = Join-Path $env:LOCALAPPDATA "Microsoft\dotnet\dotnet.exe"
+$dotnet = if (Test-Path -LiteralPath $localDotNet) { $localDotNet } else { "dotnet" }
 
 & $setupHttps -Quiet
 
@@ -38,6 +40,6 @@ if ($installedHost) {
     throw "Another PhoneMonitor.Host is already running (PID $($installedHost[0].Id)). Close the old MSIX/Host window before starting this source build."
 }
 
-dotnet run `
+& $dotnet run `
     --no-launch-profile `
     --project (Join-Path $root "src\PhoneMonitor.Host")
