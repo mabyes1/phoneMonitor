@@ -269,9 +269,148 @@ import {
       }
     }
 
-    function isEinkClient() {
+    const EINK_PREF_KEY = "phoneMonitorEink";
+
+    function readEinkQuery() {
       const requested = new URLSearchParams(location.search).get("eink");
-      return requested === "1" || requested === "true" || /VibeDeck-EInk|BOOX|ONYX/i.test(navigator.userAgent || "");
+      if (requested === "1" || requested === "true") return true;
+      if (requested === "0" || requested === "false") return false;
+      return null;
+    }
+
+    function readEinkCookie() {
+      try {
+        const match = document.cookie.match(/(?:^|;\s*)phoneMonitorEink=([01])/);
+        return match ? match[1] : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function writeEinkPreference(value) {
+      const flag = value ? "1" : "0";
+      try {
+        localStorage.setItem(EINK_PREF_KEY, flag);
+      } catch {
+        // ignore
+      }
+      try {
+        // Cookie backup: some BOOX "Add to Home Screen" WebAPK paths keep cookies
+        // more reliably than a fresh localStorage partition on first launch.
+        document.cookie = `${EINK_PREF_KEY}=${flag}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      } catch {
+        // ignore
+      }
+    }
+
+    function looksLikeBooxScreen() {
+      // Product path is browser/PWA. NeoBrowser on Go Color often sends a generic
+      // Android Chrome UA with no BOOX/ONYX token, so fall back to known panel size.
+      try {
+        const widths = [
+          screen.width || 0,
+          screen.height || 0,
+          window.innerWidth || 0,
+          window.innerHeight || 0,
+          document.documentElement?.clientWidth || 0,
+          document.documentElement?.clientHeight || 0
+        ];
+        const w = Math.max(...widths);
+        const h = Math.min(...widths.filter(v => v > 0));
+        // BOOX Go Color 7: 1680 × 1264 (allow CSS-pixel / density variance)
+        if (w >= 1180 && w <= 1900 && h >= 980 && h <= 1500 && (w / Math.max(h, 1)) >= 1.15) {
+          return true;
+        }
+      } catch {
+        // ignore
+      }
+      return false;
+    }
+
+    function detectEinkHardware() {
+      const ua = navigator.userAgent || "";
+      if (/VibeDeck-EInk|BOOX|ONYX|Onyx|eInk|E-Ink|E Ink/i.test(ua)) return true;
+      // Generic Android Chrome on a known BOOX panel still wants the paper layout.
+      if (/Android/i.test(ua) && looksLikeBooxScreen()) return true;
+      return false;
+    }
+
+    function isEinkClient() {
+      const query = readEinkQuery();
+      if (query !== null) return query;
+
+      try {
+        const stored = localStorage.getItem(EINK_PREF_KEY);
+        if (stored === "1") return true;
+        if (stored === "0") return false;
+      } catch {
+        // ignore
+      }
+
+      const cookie = readEinkCookie();
+      if (cookie === "1") return true;
+      if (cookie === "0") return false;
+
+      return detectEinkHardware();
+    }
+
+    function ensureEinkPreferenceSticky() {
+      // Once we know this device wants e-ink (hardware or explicit query), persist
+      // so PWA home-screen launches (which drop ?eink=1) still open paper mode.
+      const query = readEinkQuery();
+      if (query === false) {
+        writeEinkPreference(false);
+        return;
+      }
+      if (query === true || detectEinkHardware()) {
+        try {
+          if (localStorage.getItem(EINK_PREF_KEY) !== "0" && readEinkCookie() !== "0") {
+            writeEinkPreference(true);
+          }
+        } catch {
+          writeEinkPreference(true);
+        }
+      }
+    }
+
+    function setEinkClient(enabled, { persist = true, syncUrl = true } = {}) {
+      if (persist) {
+        writeEinkPreference(enabled);
+      }
+
+      if (syncUrl) {
+        try {
+          const url = new URL(location.href);
+          if (enabled) url.searchParams.set("eink", "1");
+          else url.searchParams.delete("eink");
+          history.replaceState({}, "", url.pathname + url.search + url.hash);
+        } catch {
+          // ignore
+        }
+      }
+
+      applyClientChrome();
+      if (enabled) {
+        // E-ink product default is sideboard, not display stream.
+        try {
+          if (typeof setMode === "function") setMode("sideboard");
+        } catch {
+          // view switch may not be ready during early boot
+        }
+      }
+      updateEinkToggle();
+    }
+
+    function updateEinkToggle() {
+      const button = document.getElementById("einkModeToggle");
+      if (!button) return;
+      const on = isEinkClient();
+      button.classList.toggle("active", on);
+      button.setAttribute("aria-pressed", on ? "true" : "false");
+      button.textContent = on ? "電子書 ON" : "電子書";
+      button.title = on
+        ? "目前是電子紙版面（資訊板優先、高對比）。再按可切回一般手機版。"
+        : "切換成電子紙版面（BOOX / 電子書）。也可在網址加 ?eink=1。";
     }
 
     function dashboardMinInterval(topic) {
@@ -326,9 +465,10 @@ import {
       const localConsole = Boolean(deviceLocalRequest);
       const phoneClient = !localConsole && (isMobileClient() || nativeShell);
       const ios = isIos();
+      const eink = isEinkClient();
 
       document.body.classList.toggle("native-shell", nativeShell);
-      document.body.classList.toggle("eink-client", isEinkClient());
+      document.body.classList.toggle("eink-client", eink);
       document.body.classList.toggle("phone-client", phoneClient);
       document.body.classList.toggle("ios-client", ios && !localConsole);
       document.body.classList.toggle("device-trusted", Boolean(deviceTrusted) && !localConsole);
@@ -337,6 +477,7 @@ import {
       customCardsController?.syncAccess?.();
       applyForcedLandscape();
       updateIosHomeTip();
+      updateEinkToggle();
     }
 
     function updateIosHomeTip() {
@@ -2137,8 +2278,14 @@ import {
       localStorage.setItem("phoneMonitorOrientation", value);
       applyForcedLandscape();
       updateViewportSize();
-      if (window.screen?.orientation?.lock && value !== "auto") {
-        window.screen.orientation.lock(value).catch(() => {});
+      if (window.screen?.orientation?.lock) {
+        if (value !== "auto") {
+          window.screen.orientation.lock(value).catch(() => {});
+        } else if (isEinkClient()) {
+          // Older installed BOOX PWAs may still carry the former landscape-only
+          // manifest. Override that stale install-time lock at runtime.
+          window.screen.orientation.lock("any").catch(() => {});
+        }
       }
     }
 
@@ -2242,6 +2389,12 @@ import {
       const isDisplayMode = activeMode === "display";
       document.body.classList.toggle("viewer-fullscreen", isDisplayMode);
       document.body.classList.toggle("dashboard-viewer", !isDisplayMode);
+      // E-ink / sideboard also need the immersive body class for 100dvh layout.
+      if (!isDisplayMode) {
+        document.body.classList.add("viewer-immersive");
+      } else {
+        document.body.classList.remove("viewer-immersive");
+      }
       notifyNativeViewerMode(true);
       window.scrollTo(0, 1);
       setTimeout(() => {
@@ -2249,17 +2402,36 @@ import {
         applyRotation();
       }, 250);
 
-      // Safari iOS ignores standard Fullscreen API for arbitrary elements; CSS viewer is enough.
-      if (isDisplayMode && !isIos() && document.fullscreenEnabled && document.documentElement.requestFullscreen) {
-        try {
-          await document.documentElement.requestFullscreen({ navigationUI: "hide" });
-        } catch {
+      // Safari iOS ignores Fullscreen API; CSS immersive classes are enough there.
+      // Android / BOOX: request real fullscreen for display AND sideboard/quota panels.
+      if (!isIos()) {
+        const root = document.documentElement;
+        const candidates = [
+          () => root.requestFullscreen && root.requestFullscreen({ navigationUI: "hide" }),
+          () => root.webkitRequestFullscreen && root.webkitRequestFullscreen(),
+          () => root.webkitRequestFullScreen && root.webkitRequestFullScreen(),
+          () => document.body.requestFullscreen && document.body.requestFullscreen({ navigationUI: "hide" })
+        ];
+        for (const tryEnter of candidates) {
+          try {
+            const result = tryEnter();
+            if (result && typeof result.then === "function") await result;
+            if (document.fullscreenElement || document.webkitFullscreenElement) break;
+          } catch {
+            // try next vendor path
+          }
         }
       }
 
       if (isDisplayMode && orientation.value === "landscape" && window.screen && window.screen.orientation && window.screen.orientation.lock) {
         try {
           await window.screen.orientation.lock("landscape");
+        } catch {
+        }
+      }
+      if (!isDisplayMode && isEinkClient() && orientation.value === "auto" && window.screen?.orientation?.lock) {
+        try {
+          await window.screen.orientation.lock("any");
         } catch {
         }
       }
@@ -2282,12 +2454,15 @@ import {
     async function exitLandscapeViewer() {
       document.body.classList.remove("viewer-fullscreen");
       document.body.classList.remove("dashboard-viewer");
+      document.body.classList.remove("viewer-immersive");
       notifyNativeViewerMode(false);
-      if (document.fullscreenElement && document.exitFullscreen) {
-        try {
+      try {
+        if (document.exitFullscreen && (document.fullscreenElement || document.webkitFullscreenElement)) {
           await document.exitFullscreen();
-        } catch {
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
         }
+      } catch {
       }
       applyRotation();
     }
@@ -2630,6 +2805,12 @@ import {
     });
     displayMode.addEventListener("click", () => setMode("display"));
     sideboardMode.addEventListener("click", () => setMode("sideboard"));
+    const einkModeToggle = document.getElementById("einkModeToggle");
+    if (einkModeToggle) {
+      einkModeToggle.addEventListener("click", () => {
+        setEinkClient(!isEinkClient());
+      });
+    }
     quotaMode.addEventListener("click", () => setMode("quota"));
     for (const button of document.querySelectorAll("[data-side-skin]")) {
       button.addEventListener("click", () => setSideSkin(button.dataset.sideSkin));
@@ -2643,13 +2824,25 @@ import {
     fullscreen.addEventListener("click", enterLandscapeViewer);
     exitViewer.addEventListener("click", exitLandscapeViewer);
     window.PhoneMonitorExitViewer = exitLandscapeViewer;
-    document.addEventListener("fullscreenchange", () => {
-      if (!document.fullscreenElement && !isIos()) {
-        document.body.classList.remove("viewer-fullscreen");
+    function onFullscreenChromeChange() {
+      const inFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
+      if (!inFs && !isIos()) {
+        // Keep CSS immersive for e-ink panel until user taps exit; only drop display
+        // stream chrome when the system fullscreen shell closes.
+        if (activeMode === "display") {
+          document.body.classList.remove("viewer-fullscreen");
+        }
       }
-      notifyNativeViewerMode(document.body.classList.contains("viewer-fullscreen") || document.body.classList.contains("dashboard-viewer"));
+      notifyNativeViewerMode(
+        document.body.classList.contains("viewer-fullscreen") ||
+        document.body.classList.contains("dashboard-viewer") ||
+        document.body.classList.contains("viewer-immersive")
+      );
+      updateViewportSize();
       applyRotation();
-    });
+    }
+    document.addEventListener("fullscreenchange", onFullscreenChromeChange);
+    document.addEventListener("webkitfullscreenchange", onFullscreenChromeChange);
     document.addEventListener("visibilitychange", async () => {
       if (document.visibilityState === "visible") {
         scheduleDashboardRefresh("sideboard", true);
@@ -2731,6 +2924,18 @@ import {
     }
     async function boot() {
       await (window.phoneMonitorServiceWorkerCleanup || Promise.resolve());
+      ensureEinkPreferenceSticky();
+      // If hardware/cookie says e-ink but URL has no flag, stamp ?eink=1 so a later
+      // "Add to Home Screen" is more likely to capture paper mode.
+      if (isEinkClient() && readEinkQuery() === null) {
+        try {
+          const url = new URL(location.href);
+          url.searchParams.set("eink", "1");
+          history.replaceState({}, "", url.pathname + url.search + url.hash);
+        } catch {
+          // ignore
+        }
+      }
       const deckWindow = isDeckWindow();
       document.body.classList.toggle("deck-window", deckWindow);
 

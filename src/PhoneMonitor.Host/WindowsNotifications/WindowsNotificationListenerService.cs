@@ -41,11 +41,7 @@ namespace PhoneMonitor.Host.WindowsNotifications
         {
             this.customSources = customSources;
             this.logger = logger;
-            var directory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "PhoneMonitor",
-                "windows-notifications");
-            Directory.CreateDirectory(directory);
+            var directory = AppPaths.EnsureDirectory(AppPaths.WindowsNotificationsDirectory);
             settingsPath = Path.Combine(directory, "settings.json");
             enabled = LoadEnabled();
         }

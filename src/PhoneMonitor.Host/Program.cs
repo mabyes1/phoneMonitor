@@ -1,11 +1,7 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using PhoneMonitor.Host.Security;
@@ -16,10 +12,18 @@ namespace PhoneMonitor.Host
     {
         public static void Main(string[] args)
         {
+            AppPaths.EnsureDirectory(AppPaths.DataRoot);
+            AppPaths.EnsureDirectory(AppPaths.LogsDirectory);
+            var migrationMessage = AppPaths.TryMigrateLegacyData();
+            if (!string.IsNullOrWhiteSpace(migrationMessage))
+            {
+                Console.WriteLine(migrationMessage);
+            }
+
             using var singleInstance = new Mutex(true, "PhoneMonitor.Host.SingleInstance", out var ownsMutex);
             if (!ownsMutex)
             {
-                Console.Error.WriteLine("PhoneMonitor Host is already running; this launch was ignored.");
+                Console.Error.WriteLine("VibeDeck Host is already running; this launch was ignored.");
                 return;
             }
 
@@ -28,7 +32,23 @@ namespace PhoneMonitor.Host
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             global::Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(args)
+                .UseWindowsService(options =>
+                {
+                    options.ServiceName = AppPaths.ServiceName;
+                })
                 .UseContentRoot(ResolveContentRoot())
+                .ConfigureLogging((context, logging) =>
+                {
+                    if (AppPaths.IsWindowsService)
+                    {
+                        logging.AddEventLog(settings =>
+                        {
+                            // Source is created by Setup when possible; Application log is the fallback.
+                            settings.SourceName = AppPaths.ServiceDisplayName;
+                            settings.LogName = "Application";
+                        });
+                    }
+                })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.ConfigureKestrel(options =>
@@ -37,14 +57,14 @@ namespace PhoneMonitor.Host
                         var httpsStatus = LocalHttpsCertificate.EnsureCurrent();
                         if (!httpsStatus.Success)
                         {
-                            Console.Error.WriteLine($"PhoneMonitor HTTPS certificate check failed: {httpsStatus.Error}");
+                            Console.Error.WriteLine($"VibeDeck HTTPS certificate check failed: {httpsStatus.Error}");
                         }
                         else if (httpsStatus.RootCreated || httpsStatus.HostCreated)
                         {
                             var action = httpsStatus.RootCreated
                                 ? "created"
                                 : "updated";
-                            Console.WriteLine($"PhoneMonitor HTTPS certificate {action} for {string.Join(", ", httpsStatus.IpAddresses)}.");
+                            Console.WriteLine($"VibeDeck HTTPS certificate {action} for {string.Join(", ", httpsStatus.IpAddresses)}.");
                         }
 
                         if (LocalHttpsCertificate.IsConfigured)
@@ -58,7 +78,7 @@ namespace PhoneMonitor.Host
                             }
                             else
                             {
-                                Console.Error.WriteLine($"PhoneMonitor HTTPS disabled: {certificateError}");
+                                Console.Error.WriteLine($"VibeDeck HTTPS disabled: {certificateError}");
                             }
                         }
                     });

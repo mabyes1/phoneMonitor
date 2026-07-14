@@ -1,5 +1,25 @@
 # 更新日誌
 
+## 2026-07-14
+
+### 電子書版自動辨識 + 手動切換
+
+- BOOX NeoBrowser 常送出一般 Android Chrome UA（沒有 `BOOX`／`ONYX`），導致 `isEinkClient()` 失敗、停在一般手機版。
+- 電子書判定改為：`?eink=1` → localStorage 偏好 → cookie 備援 → UA（BOOX／ONYX／VibeDeck-EInk）→ 面板解析度啟發式。
+- 自動／手動進入電子書後會**黏住偏好**（localStorage + cookie），PWA 主畫面啟動（沒有 `?eink=1`）仍開紙面版。
+- 頂部 **電子書** 按鈕；開啟時預設進資訊板；未配對時仍顯示配對區塊。
+- **全螢幕**：資訊板／額度也會呼叫 Fullscreen API（不再只限顯示器模式），並用 `viewer-immersive` 吃滿 100dvh。
+- 電子書版隱藏 **顯示／串流／解析度** 三組設定（無虛擬螢幕不需要）。
+- 電子書資訊板改**固定單欄紙面堆疊**（不再套桌面三欄），避免卡片擠在一起、底部被裁切；數字與內文可完整顯示並可捲動。
+
+### 產品安裝一條龍（Setup）
+
+- 新增 Windows Setup 打包：`scripts\package-windows-setup.ps1` → `VibeDeck-Setup-<version>.exe`（Inno Setup）。
+- 安裝後註冊 **VibeDeck Host** Windows Service（開機自動啟動），不再依賴 `start.bat` 黑視窗當正式入口。
+- 桌面／開始功能表 **VibeDeck** 圖示會啟動服務（若需要）並開啟 PC 端 Web UI（`http://127.0.0.1:5000`）。
+- Host 支援 `UseWindowsService`；產品安裝資料目錄為 `%ProgramData%\VibeDeck`。
+- 備援腳本：`scripts\install-windows-product.ps1` / `uninstall-windows-product.ps1`（無 Inno 時可直接裝 payload）。
+
 ## 2026-07-12
 
 ### 簡化手機使用流程

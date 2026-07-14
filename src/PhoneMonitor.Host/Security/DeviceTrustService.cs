@@ -30,11 +30,7 @@ namespace PhoneMonitor.Host.Security
 
         public DeviceTrustService()
         {
-            var root = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "PhoneMonitor",
-                "devices");
-            Directory.CreateDirectory(root);
+            var root = AppPaths.EnsureDirectory(AppPaths.DevicesDirectory);
             storePath = Path.Combine(root, "trusted-devices.json");
             devices = LoadDevices();
             if (NormalizeDeviceNames(devices))

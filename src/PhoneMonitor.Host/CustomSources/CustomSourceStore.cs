@@ -25,11 +25,7 @@ namespace PhoneMonitor.Host.CustomSources
         public CustomSourceStore(string databasePathOverride)
         {
             databasePath = string.IsNullOrWhiteSpace(databasePathOverride)
-                ? Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "PhoneMonitor",
-                    "custom-sources",
-                    "custom-sources.db")
+                ? Path.Combine(AppPaths.CustomSourcesDirectory, "custom-sources.db")
                 : Path.GetFullPath(databasePathOverride);
             databaseDirectory = Path.GetDirectoryName(databasePath);
 

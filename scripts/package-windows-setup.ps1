@@ -1,0 +1,231 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+  Publish VibeDeck Host and build a Windows Setup installer (service + web UI icon).
+
+.DESCRIPTION
+  1. dotnet publish self-contained win-x64 Host
+  2. Stage payload under artifacts/windows-setup/payload
+  3. Compile Inno Setup script to VibeDeck-Setup-<version>.exe
+
+.PARAMETER Configuration
+  Build configuration (default Release).
+
+.PARAMETER Version
+  Product version stamped into the installer (default 0.1.0).
+
+.PARAMETER SkipInno
+  Only publish payload; do not compile Setup.exe.
+
+.PARAMETER InstallInno
+  If ISCC is missing, install Inno Setup 6 via winget.
+#>
+[CmdletBinding()]
+param(
+    [ValidateSet("Debug", "Release")]
+    [string]$Configuration = "Release",
+    [string]$Version = "0.1.0",
+    [switch]$SkipInno,
+    [switch]$InstallInno
+)
+
+$ErrorActionPreference = "Stop"
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$project = Join-Path $repoRoot "src\PhoneMonitor.Host\PhoneMonitor.Host.csproj"
+$packagingDir = Join-Path $repoRoot "packaging\windows-setup"
+$artifactRoot = Join-Path $repoRoot "artifacts\windows-setup"
+$payloadRoot = Join-Path $artifactRoot "payload"
+$issPath = Join-Path $packagingDir "VibeDeck.iss"
+$iconPath = Join-Path $packagingDir "vibedeck.ico"
+
+function Write-Step([string]$message) {
+    Write-Host ""
+    Write-Host "==> $message" -ForegroundColor Cyan
+}
+
+function Remove-DirectorySafely([string]$path) {
+    $resolved = [System.IO.Path]::GetFullPath($path)
+    $root = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd('\') + '\'
+    if (-not $resolved.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove a path outside the repository: $resolved"
+    }
+    if (Test-Path -LiteralPath $resolved) {
+        Remove-Item -LiteralPath $resolved -Recurse -Force
+    }
+}
+
+function Find-Iscc {
+    $candidates = @(
+        "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 6\ISCC.exe",
+        "${env:ProgramFiles(x86)}\Inno Setup 7\ISCC.exe",
+        "${env:ProgramFiles}\Inno Setup 7\ISCC.exe",
+        "${env:LocalAppData}\Programs\Inno Setup 6\ISCC.exe"
+    )
+    foreach ($path in $candidates) {
+        if ($path -and (Test-Path -LiteralPath $path)) {
+            return [string]$path
+        }
+    }
+
+    $cmd = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+    if ($cmd) {
+        return [string]$cmd.Source
+    }
+
+    return $null
+}
+
+function Ensure-Icon {
+    if (Test-Path -LiteralPath $iconPath) {
+        return
+    }
+
+    Write-Step "Generating vibedeck.ico"
+    $png = Join-Path $repoRoot "src\PhoneMonitor.Host\wwwroot\icons\icon-512.png"
+    if (-not (Test-Path -LiteralPath $png)) {
+        throw "Missing icon source: $png"
+    }
+
+    $python = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $python) {
+        throw "Python + Pillow required to generate vibedeck.ico (or add packaging\windows-setup\vibedeck.ico)."
+    }
+
+    $script = @"
+from PIL import Image
+img = Image.open(r'$($png.Replace('\', '\\'))').convert('RGBA')
+img.save(r'$($iconPath.Replace('\', '\\'))', format='ICO', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])
+print('ok')
+"@
+    $script | & $python.Source -
+}
+
+function Ensure-Iscc {
+    $iscc = Find-Iscc
+    if ($iscc) {
+        return $iscc
+    }
+
+    if (-not $InstallInno) {
+        Write-Warning "Inno Setup compiler (ISCC.exe) not found."
+        Write-Warning "Install with: winget install JRSoftware.InnoSetup"
+        Write-Warning "Or re-run: scripts\package-windows-setup.ps1 -InstallInno"
+        return $null
+    }
+
+    Write-Step "Installing Inno Setup 6 via winget"
+    # Winget writes progress to the success stream; discard so it is not returned from this function.
+    & winget install --id JRSoftware.InnoSetup -e --accept-package-agreements --accept-source-agreements | Out-Host
+    $iscc = Find-Iscc
+    if (-not $iscc) {
+        throw "Inno Setup installed but ISCC.exe still not found. Open a new shell and re-run."
+    }
+    return [string]$iscc
+}
+
+function Normalize-Version([string]$value) {
+    if ($value -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+        throw "Version must look like 0.1.0 (got '$value')"
+    }
+    return $value
+}
+
+$Version = Normalize-Version $Version
+if (-not (Test-Path -LiteralPath $project)) {
+    throw "Host project not found: $project"
+}
+if (-not (Test-Path -LiteralPath $issPath)) {
+    throw "Inno script not found: $issPath"
+}
+
+Ensure-Icon
+
+Write-Step "Publishing VibeDeck Host (self-contained win-x64)"
+Remove-DirectorySafely $payloadRoot
+New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
+
+dotnet publish $project `
+    -c $Configuration `
+    -r win-x64 `
+    --self-contained true `
+    -p:PublishSingleFile=false `
+    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -o $payloadRoot
+
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed with exit code $LASTEXITCODE"
+}
+
+# Product marker forces ProgramData data paths + installed layout detection
+Copy-Item -LiteralPath (Join-Path $packagingDir "product-install.json") -Destination $payloadRoot -Force
+Copy-Item -LiteralPath (Join-Path $packagingDir "Open-VibeDeck.cmd") -Destination $payloadRoot -Force
+$openVbs = Join-Path $packagingDir "Open-VibeDeck.vbs"
+if (Test-Path -LiteralPath $openVbs) {
+    Copy-Item -LiteralPath $openVbs -Destination $payloadRoot -Force
+}
+if (Test-Path -LiteralPath $iconPath) {
+    Copy-Item -LiteralPath $iconPath -Destination $payloadRoot -Force
+}
+
+$hostExe = Join-Path $payloadRoot "PhoneMonitor.Host.exe"
+if (-not (Test-Path -LiteralPath $hostExe)) {
+    throw "Publish output missing PhoneMonitor.Host.exe"
+}
+
+$wwwroot = Join-Path $payloadRoot "wwwroot"
+if (-not (Test-Path -LiteralPath $wwwroot)) {
+    throw "Publish output missing wwwroot"
+}
+
+Write-Host "Payload ready: $payloadRoot"
+
+if ($SkipInno) {
+    Write-Host "SkipInno set — Setup.exe not built."
+    Write-Host "Install manually with an elevated shell:"
+    Write-Host "  scripts\install-windows-product.ps1"
+    exit 0
+}
+
+$iscc = Ensure-Iscc
+if (-not $iscc) {
+    Write-Host ""
+    Write-Host "Payload published. Install Inno Setup to build Setup.exe, then re-run this script."
+    Write-Host "  winget install JRSoftware.InnoSetup"
+    Write-Host "  scripts\package-windows-setup.ps1 -Version $Version"
+    exit 0
+}
+
+Write-Step "Compiling Setup with Inno Setup"
+New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+
+# Inno #define paths must be absolute or relative to the .iss file location
+$payloadForIss = $payloadRoot
+$outputForIss = $artifactRoot
+
+& $iscc `
+    "/DMyAppVersion=$Version" `
+    "/DMyPayloadDir=$payloadForIss" `
+    "/DMyOutputDir=$outputForIss" `
+    $issPath
+
+if ($LASTEXITCODE -ne 0) {
+    throw "ISCC failed with exit code $LASTEXITCODE"
+}
+
+$setup = Get-ChildItem -LiteralPath $artifactRoot -Filter "VibeDeck-Setup-*.exe" |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+
+if (-not $setup) {
+    throw "Setup.exe was not produced under $artifactRoot"
+}
+
+Write-Host ""
+Write-Host "VibeDeck Setup ready:" -ForegroundColor Green
+Write-Host "  $($setup.FullName)"
+Write-Host ""
+Write-Host "After install:"
+Write-Host "  - Desktop / Start Menu icon opens the web PC UI (http://127.0.0.1:5000)"
+Write-Host "  - Windows Service 'VibeDeckHost' auto-starts the Host in the background"
+Write-Host "  - Data: $env:ProgramData\VibeDeck"

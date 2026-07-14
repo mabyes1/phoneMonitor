@@ -11,21 +11,53 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="VibeDeck">
-  <meta name="screen-orientation" content="landscape">
+  <meta name="screen-orientation" content="any">
   <meta name="theme-color" content="#111820">
   <!-- Cache-bust: iOS freezes the first icon/title it saw for a host. -->
-  <link rel="manifest" href="/manifest.json?v=22">
+  <link rel="manifest" href="/manifest.json?v=53">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=22" sizes="180x180">
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=50">
+  <link rel="stylesheet" href="/index.css?v=62">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
     #phonePairRescue { display: grid; }
     body.device-trusted #phonePairRescue,
     body.pc-console #phonePairRescue { display: none; }
+  </style>
+  <script>
+    // Early e-ink paint: PWA start_url has no ?eink=1, so read sticky prefs /
+    // BOOX-sized panels before CSS paints the phone chrome.
+    (function () {
+      try {
+        var params = new URLSearchParams(location.search);
+        var q = params.get("eink");
+        var stored = null;
+        try { stored = localStorage.getItem("phoneMonitorEink"); } catch (e) {}
+        var cookie = (document.cookie.match(/(?:^|;\s*)phoneMonitorEink=([01])/) || [])[1] || null;
+        var ua = navigator.userAgent || "";
+        var w = Math.max(screen.width || 0, screen.height || 0, window.innerWidth || 0, window.innerHeight || 0);
+        var h = Math.min.apply(null, [screen.width || 0, screen.height || 0, window.innerWidth || 0, window.innerHeight || 0].filter(function (v) { return v > 0; }));
+        var booxScreen = w >= 1180 && w <= 1900 && h >= 980 && h <= 1500 && (w / Math.max(h, 1)) >= 1.15;
+        var hardware = /VibeDeck-EInk|BOOX|ONYX|Onyx|eInk|E-Ink|E Ink/i.test(ua) || (/Android/i.test(ua) && booxScreen);
+        var on = q === "1" || q === "true" || stored === "1" || cookie === "1" ||
+          (q !== "0" && q !== "false" && stored !== "0" && cookie !== "0" && hardware);
+        if (on) document.documentElement.classList.add("eink-boot");
+        if (on && stored !== "0" && cookie !== "0") {
+          try { localStorage.setItem("phoneMonitorEink", "1"); } catch (e) {}
+          try { document.cookie = "phoneMonitorEink=1; Path=/; Max-Age=31536000; SameSite=Lax"; } catch (e) {}
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    html.eink-boot body,
+    html.eink-boot {
+      background: #f2f0e8 !important;
+      color: #171714;
+    }
   </style>
   <script>
     // Older builds installed an offline service worker that could serve index.html
@@ -100,6 +132,7 @@
         <button id="quotaMode" class="mode-button" type="button">額度</button>
       </div>
       <div class="utility-controls">
+        <button id="einkModeToggle" type="button" aria-pressed="false" title="切換成電子紙版面（BOOX / 電子書）">電子書</button>
         <button id="keepAwake" type="button">長亮 ON</button>
         <button id="fullscreen" type="button">全螢幕</button>
         <button id="refresh" type="button">重新整理</button>
@@ -247,16 +280,15 @@
             <strong id="sideHeadline">資訊板</strong>
             <span id="sideSummary">等待電腦資訊。</span>
           </div>
+          <div id="sideboardPageTabs" class="sideboard-page-tabs" role="tablist" aria-label="資訊板頁面">
+            <button type="button" data-sideboard-page="system" role="tab" aria-selected="true">系統</button>
+            <button type="button" data-sideboard-page="custom" role="tab" aria-selected="false">自訂卡片</button>
+          </div>
           <div class="skin-picker" aria-label="Sideboard skin">
             <button class="active" data-side-skin="command" type="button">A</button>
             <button data-side-skin="dial" type="button">B</button>
             <button data-side-skin="focus" type="button">C</button>
           </div>
-        </div>
-
-        <div id="sideboardPageTabs" class="sideboard-page-tabs" role="tablist" aria-label="資訊板頁面">
-          <button type="button" data-sideboard-page="system" role="tab" aria-selected="true">系統</button>
-          <button type="button" data-sideboard-page="custom" role="tab" aria-selected="false">自訂卡片</button>
         </div>
 
         <section id="systemSideboardPage" class="sideboard-subpage">
@@ -449,6 +481,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=50"></script>
+  <script type="module" src="/index.js?v=56"></script>
 </body>
 </html>

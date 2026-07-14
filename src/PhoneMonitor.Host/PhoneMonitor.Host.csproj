@@ -8,6 +8,8 @@
   <ItemGroup>
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="6.0.36" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="6.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.EventLog" Version="6.0.0" />
     <PackageReference Include="SharpDX" Version="4.2.0" />
     <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />

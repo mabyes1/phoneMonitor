@@ -12,9 +12,7 @@ namespace PhoneMonitor.Host.Display
 
         public VirtualDisplayController()
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var directory = Path.Combine(appData, "PhoneMonitor");
-            Directory.CreateDirectory(directory);
+            var directory = AppPaths.EnsureDirectory(AppPaths.DataRoot);
             statePath = Path.Combine(directory, "virtual-display-state.json");
         }
 
