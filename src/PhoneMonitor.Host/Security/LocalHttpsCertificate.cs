@@ -22,10 +22,7 @@ namespace PhoneMonitor.Host.Security
 
         private static readonly TimeSpan RenewalWindow = TimeSpan.FromDays(30);
 
-        public static string CertificateDirectory => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "PhoneMonitor",
-            "certs");
+        public static string CertificateDirectory => AppPaths.CertsDirectory;
 
         public static string RootPfxPath => Path.Combine(CertificateDirectory, RootPfxFileName);
         public static string HostPfxPath => Path.Combine(CertificateDirectory, HostPfxFileName);

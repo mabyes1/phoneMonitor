@@ -12,9 +12,7 @@ namespace PhoneMonitor.Host.Display
 
         public VirtualDisplayController()
         {
-            var appData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var directory = Path.Combine(appData, "PhoneMonitor");
-            Directory.CreateDirectory(directory);
+            var directory = AppPaths.EnsureDirectory(AppPaths.DataRoot);
             statePath = Path.Combine(directory, "virtual-display-state.json");
         }
 
@@ -113,44 +111,25 @@ namespace PhoneMonitor.Host.Display
                 var output = process.StandardOutput.ReadToEnd();
                 process.WaitForExit(5000);
 
-                var index = output.IndexOf("PhoneMonitor Display", StringComparison.OrdinalIgnoreCase);
-                if (index < 0)
+                var isPhoneMonitor = output.IndexOf("PhoneMonitor Display", StringComparison.OrdinalIgnoreCase) >= 0;
+                var isVirtualDisplayDriver = output.IndexOf("Virtual Display Driver", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!isPhoneMonitor && !isVirtualDisplayDriver)
                 {
                     return new DetectedDevice();
                 }
 
-                var start = output.LastIndexOf("Instance ID:", index, StringComparison.OrdinalIgnoreCase);
-                var end = output.IndexOf("Driver Name:", index, StringComparison.OrdinalIgnoreCase);
-                var block = output.Substring(start >= 0 ? start : index, end > index ? end - (start >= 0 ? start : index) : output.Length - index);
-                var instanceId = ExtractValue(block, "Instance ID:");
-
                 return new DetectedDevice
                 {
                     Installed = true,
-                    Started = block.IndexOf("Started", StringComparison.OrdinalIgnoreCase) >= 0,
-                    InstanceId = instanceId
+                    Started = output.IndexOf("Started", StringComparison.OrdinalIgnoreCase) >= 0
+                        || output.IndexOf("已啟動", StringComparison.OrdinalIgnoreCase) >= 0,
+                    InstanceId = isVirtualDisplayDriver ? @"ROOT\MTTVDD" : @"ROOT\PHONEMONITORIDD"
                 };
             }
             catch
             {
                 return new DetectedDevice();
             }
-        }
-
-        private static string ExtractValue(string text, string key)
-        {
-            using var reader = new StringReader(text);
-            string line;
-            while ((line = reader.ReadLine()) != null)
-            {
-                var index = line.IndexOf(key, StringComparison.OrdinalIgnoreCase);
-                if (index >= 0)
-                {
-                    return line.Substring(index + key.Length).Trim();
-                }
-            }
-
-            return null;
         }
 
         private sealed class PersistedVirtualDisplayState

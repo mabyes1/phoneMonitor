@@ -883,10 +883,7 @@ namespace PhoneMonitor.Host.Quotas
 
         private static string PhoneMonitorQuotaRoot()
         {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                PhoneMonitorQuotaRootName,
-                PhoneMonitorQuotaFolderName);
+            return AppPaths.EnsureDirectory(AppPaths.QuotasDirectory);
         }
 
         private static string AgyExecutablePath()
@@ -1488,9 +1485,7 @@ namespace PhoneMonitor.Host.Quotas
         private static string AgyGoogleOAuthSecretsPath()
         {
             return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                PhoneMonitorQuotaRootName,
-                "secrets",
+                AppPaths.EnsureDirectory(AppPaths.SecretsDirectory),
                 "agy-google-oauth.json");
         }
 

@@ -8,12 +8,43 @@
 
 ### 你需要
 
-- Windows PC
-- .NET 6 SDK 以上（[下載](https://dotnet.microsoft.com/download)）
+- Windows 10/11 PC（x64）
 - 手機與 PC 在同一個 Wi‑Fi，或兩邊都登入同一個 Tailscale Tailnet
 - 虛擬顯示驅動只在你要使用「顯示器」模式時需要；資訊板與額度不需要
+- **產品安裝不需要**安裝 .NET SDK（Setup 已內含 self-contained Host）
 
-### 1. 啟動 PC Host
+### 1. 安裝 VibeDeck（推薦）
+
+若你已有發行檔，雙擊：
+
+```text
+artifacts\windows-setup\VibeDeck-Setup-0.1.0.exe
+```
+
+或從本機原始碼重新打包後再安裝：
+
+```powershell
+scripts\package-windows-setup.ps1 -Version 0.1.0
+# 需要 Inno Setup 6：winget install JRSoftware.InnoSetup
+# 或加 -InstallInno 自動安裝編譯器
+```
+
+Setup 會完成一條龍：
+
+| 項目 | 說明 |
+|------|------|
+| 程式檔 | 安裝到 `C:\Program Files\VibeDeck` |
+| 背景服務 | Windows Service **VibeDeck Host**（`VibeDeckHost`）自動啟動 |
+| 桌面／開始功能表圖示 | 點開進入 PC 端 Web UI（`http://127.0.0.1:5000`） |
+| 資料目錄 | `%ProgramData%\VibeDeck`（憑證、配對裝置、額度快取等） |
+
+安裝後不需再留著黑視窗；開機後服務會自己起來。點 **VibeDeck** 圖示就是開 Web 控制台。
+
+如果你拿到的是發佈 ZIP，也可解壓後直接執行 `PhoneMonitor.Host.exe`，不需要安裝 .NET SDK。
+
+如果你是從原始碼啟動，才需要 .NET 8 SDK，並使用下方的 `start.bat`。
+
+### 原始碼啟動
 
 在 Repo 根目錄雙擊：
 
@@ -21,17 +52,17 @@
 start.bat
 ```
 
-或在 PowerShell 執行：
+或：
 
 ```powershell
 scripts\dev-run.ps1
 ```
 
-不要關閉這個視窗；它就是正在執行的 VibeDeck Host。
+（開發模式需要 .NET 8 SDK，且要保持終端機視窗開啟。）
 
 ### 2. 先在 PC 確認頁面
 
-用 PC 瀏覽器開啟：
+用桌面圖示開啟，或瀏覽器開：
 
 ```text
 http://127.0.0.1:5000
@@ -122,9 +153,17 @@ Android 也可以安裝憑證來使用 HTTPS；若只是測試資訊板，通常
 
 詳細說明：[docs/https-onboarding.md](docs/https-onboarding.md)
 
-## 虛擬顯示器驅動（選用）
+## 建立虛擬螢幕（顯示器模式）
 
-只有「顯示器」模式需要這個步驟。它會讓 Windows 出現 **PhoneMonitor Display**，手機才能接收真正的延伸桌面。
+只有「顯示器」模式需要這個步驟。當頁面顯示「這台電腦還沒有虛擬螢幕」時，在 PC 的 VibeDeck 頁面按「建立虛擬螢幕」，再接受一次 Windows 管理員確認。VibeDeck 會下載已簽章的 Virtual Display Driver、驗證版本與完整性，並等待 Windows 建立新的延伸桌面。
+
+這個動作只能從 PC 本機頁面開始；已配對手機不能遠端觸發管理員安裝。安裝時需要網路，但不需要 WDK、不會開啟測試簽章模式，通常也不必重新開機。使用的第三方元件與固定雜湊見 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+VibeDeck Host 必須在 PC 的本機 Windows 桌面工作階段執行。若透過 Windows 遠端桌面（RDP）啟動，Windows 會改用 RDP 顯示驅動，Host 看不到真正的虛擬螢幕；Web 會直接提示回到本機桌面重新啟動。
+
+### 自有驅動開發（非一般使用者流程）
+
+`driver/PhoneMonitor.Idd` 仍是開發中的自有驅動；下列命令只供驅動開發與測試，不是產品安裝流程：
 
 ```powershell
 scripts\check-driver-toolchain.ps1
@@ -134,7 +173,7 @@ scripts\build-driver.ps1
 scripts\install-driver-dev.ps1
 ```
 
-這是 Windows 驅動開發流程，可能需要系統管理員權限、測試簽章與重新開機。只是想看資訊板時可以先跳過。
+這條開發流程可能需要系統管理員權限、測試簽章與重新開機。一般使用者不要執行。
 
 ## 額度功能（選用）
 
@@ -156,7 +195,7 @@ VibeDeck 不會要求你貼 Codex token，也沒有 Codex OAuth 匯入按鈕。
 
 | 問題 | 處理方式 |
 |---|---|
-| PC 頁面打不開 | 確認 `start.bat` 視窗仍在執行，並開 `http://127.0.0.1:5000`。 |
+| PC 頁面打不開 | 產品版：在「服務」確認 **VibeDeck Host** 正在執行，再點桌面圖示或開 `http://127.0.0.1:5000`。開發版：確認 `start.bat` 視窗仍在執行。 |
 | 手機連不到 | 確認手機與 PC 在同一 Wi‑Fi，或兩邊 Tailscale 都顯示在線；也可手動輸入 PC IP。 |
 | 手機一直等待配對 | 回 PC 看六位數驗證碼並按「允許」；不要重複使用過期 QR。 |
 | iPhone 顯示憑證錯誤 | 重新下載根憑證，並在 iPhone「憑證信任設定」開啟完整信任。 |
@@ -175,6 +214,7 @@ VibeDeck 不會要求你貼 Codex token，也沒有 Codex OAuth 匯入按鈕。
 ## 進階文件
 
 - [CHANGELOG.md](CHANGELOG.md)
+- [docs/release-checklist.md](docs/release-checklist.md)
 - [docs/custom-data-sources-spec.md](docs/custom-data-sources-spec.md)
 - [docs/remote-access.md](docs/remote-access.md)
 - [docs/https-onboarding.md](docs/https-onboarding.md)
@@ -183,9 +223,20 @@ VibeDeck 不會要求你貼 Codex token，也沒有 Codex OAuth 匯入按鈕。
 - [docs/remote-desktop-streaming.md](docs/remote-desktop-streaming.md)
 - [docs/windows-virtual-display.md](docs/windows-virtual-display.md)
 
+## 打包 Setup 安裝檔
+
+```powershell
+# 產物：artifacts\windows-setup\VibeDeck-Setup-<version>.exe
+scripts\package-windows-setup.ps1 -Version 0.1.0
+```
+
+- 需要 [Inno Setup 6](https://jrsoftware.org/isinfo.php)（`ISCC.exe`）。沒裝可加 `-InstallInno`。
+- 只發布 payload、不編譯 Setup：`-SkipInno`，再用系統管理員跑 `scripts\install-windows-product.ps1`。
+- 移除產品安裝：`scripts\uninstall-windows-product.ps1`（或用「新增或移除程式」）。
+
 ## English quick start
 
-1. On Windows, run `start.bat` from the repository root.
+1. Prefer `artifacts\windows-setup\VibeDeck-Setup-*.exe`, or build it with `scripts\package-windows-setup.ps1`. For source dev, run `start.bat` from the repository root.
 2. Open `http://127.0.0.1:5000` on the PC.
 3. Open the PC's LAN or Tailscale URL in Safari/Chrome on the phone.
 4. Approve the six-digit pairing request on the PC.

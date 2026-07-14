@@ -21,6 +21,8 @@ $msixPath = Join-Path $artifactRoot "PhoneMonitor.WindowsNotifications.msix"
 $pfxPath = Join-Path $artifactRoot "PhoneMonitor.Dev.pfx"
 $cerPath = Join-Path $artifactRoot "PhoneMonitor.Dev.cer"
 $manifestPath = Join-Path $packageRoot "AppxManifest.xml"
+$localDotNet = Join-Path $env:LOCALAPPDATA "Microsoft\dotnet\dotnet.exe"
+$dotnet = if (Test-Path -LiteralPath $localDotNet) { $localDotNet } else { "dotnet" }
 
 function Remove-DirectorySafely([string]$path) {
     $resolved = [System.IO.Path]::GetFullPath($path)
@@ -112,7 +114,7 @@ Remove-DirectorySafely $packageRoot
 if (Test-Path -LiteralPath $msixPath) { Remove-Item -LiteralPath $msixPath -Force }
 New-Item -ItemType Directory -Force -Path $publishRoot, $packageRoot, (Join-Path $packageRoot "Assets") | Out-Null
 
-dotnet publish $project -c $Configuration -r win-x64 --self-contained true -p:UseAppHost=true -o $publishRoot
+& $dotnet publish $project -c $Configuration -r win-x64 --self-contained true -p:UseAppHost=true -o $publishRoot
 Copy-Item -LiteralPath $manifestTemplate -Destination $manifestPath -Force
 $resolvedPackageVersion = Resolve-PackageVersion
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)

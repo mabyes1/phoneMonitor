@@ -21,19 +21,22 @@ namespace PhoneMonitor.Host
                 await WriteWindowsNotificationJsonAsync(context, service.GetStatus());
             });
 
-            endpoints.MapPost("/api/windows-notifications/enable", async context =>
-            {
-                if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context)) return;
-                var service = context.RequestServices.GetRequiredService<WindowsNotificationListenerService>();
-                await HandleWindowsNotificationAsync(context, () => service.EnableAsync());
-            });
+            endpoints.MapPost("/api/windows-notifications/enable", EnableWindowsNotificationsAsync);
+            endpoints.MapPost("/api/windows-notifications/disable", DisableWindowsNotificationsAsync);
+        }
 
-            endpoints.MapPost("/api/windows-notifications/disable", async context =>
-            {
-                if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context)) return;
-                var service = context.RequestServices.GetRequiredService<WindowsNotificationListenerService>();
-                await HandleWindowsNotificationAsync(context, () => service.DisableAsync());
-            });
+        private static async Task EnableWindowsNotificationsAsync(HttpContext context)
+        {
+            if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context)) return;
+            var service = context.RequestServices.GetRequiredService<WindowsNotificationListenerService>();
+            await HandleWindowsNotificationAsync(context, () => service.EnableAsync());
+        }
+
+        private static async Task DisableWindowsNotificationsAsync(HttpContext context)
+        {
+            if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context)) return;
+            var service = context.RequestServices.GetRequiredService<WindowsNotificationListenerService>();
+            await HandleWindowsNotificationAsync(context, () => service.DisableAsync());
         }
 
         private static async Task HandleWindowsNotificationAsync(

@@ -51,6 +51,7 @@ namespace PhoneMonitor.Host
             services.AddSingleton<DeckWindowLauncher>();
             services.AddSingleton<DisplayModeController>();
             services.AddSingleton<VirtualDisplayController>();
+            services.AddSingleton<VirtualDisplayInstaller>();
             services.AddSingleton<ConnectInfoProvider>();
             services.AddSingleton<GlanceBoardProxy>();
             services.AddSingleton<AiQuotaService>();
@@ -80,6 +81,16 @@ namespace PhoneMonitor.Host
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            app.Use(async (context, next) =>
+            {
+                context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+                context.Response.Headers["X-Frame-Options"] = "DENY";
+                context.Response.Headers["Referrer-Policy"] = "no-referrer";
+                context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
+                context.Response.Headers["Content-Security-Policy"] = "frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+                await next();
+            });
 
             app.UseRouting();
             app.UseWebSockets(new WebSocketOptions
@@ -379,6 +390,36 @@ namespace PhoneMonitor.Host
                     var controller = context.RequestServices.GetRequiredService<VirtualDisplayController>();
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(controller.GetStatus()));
+                });
+
+                endpoints.MapGet("/api/display/install/status", async context =>
+                {
+                    if (!await RequireTrustedDeviceAsync(context))
+                    {
+                        return;
+                    }
+
+                    var installer = context.RequestServices.GetRequiredService<VirtualDisplayInstaller>();
+                    context.Response.ContentType = "application/json";
+                    context.Response.Headers["Cache-Control"] = "no-store";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(installer.GetStatus()));
+                });
+
+                endpoints.MapPost("/api/display/install", async context =>
+                {
+                    if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context))
+                    {
+                        return;
+                    }
+
+                    var installer = context.RequestServices.GetRequiredService<VirtualDisplayInstaller>();
+                    var status = installer.StartInstall();
+                    context.Response.StatusCode = status.State == "failed" || status.State == "unavailable"
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status202Accepted;
+                    context.Response.ContentType = "application/json";
+                    context.Response.Headers["Cache-Control"] = "no-store";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(status));
                 });
 
                 endpoints.MapGet("/api/sideboard/stats", async context =>

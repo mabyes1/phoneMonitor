@@ -11,21 +11,53 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="application-name" content="VibeDeck">
-  <meta name="screen-orientation" content="landscape">
+  <meta name="screen-orientation" content="any">
   <meta name="theme-color" content="#111820">
   <!-- Cache-bust: iOS freezes the first icon/title it saw for a host. -->
-  <link rel="manifest" href="/manifest.json?v=22">
+  <link rel="manifest" href="/manifest.json?v=53">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=22" sizes="180x180">
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=51">
+  <link rel="stylesheet" href="/index.css?v=63">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
     #phonePairRescue { display: grid; }
     body.device-trusted #phonePairRescue,
     body.pc-console #phonePairRescue { display: none; }
+  </style>
+  <script>
+    // Early e-ink paint: PWA start_url has no ?eink=1, so read sticky prefs /
+    // BOOX-sized panels before CSS paints the phone chrome.
+    (function () {
+      try {
+        var params = new URLSearchParams(location.search);
+        var q = params.get("eink");
+        var stored = null;
+        try { stored = localStorage.getItem("phoneMonitorEink"); } catch (e) {}
+        var cookie = (document.cookie.match(/(?:^|;\s*)phoneMonitorEink=([01])/) || [])[1] || null;
+        var ua = navigator.userAgent || "";
+        var w = Math.max(screen.width || 0, screen.height || 0, window.innerWidth || 0, window.innerHeight || 0);
+        var h = Math.min.apply(null, [screen.width || 0, screen.height || 0, window.innerWidth || 0, window.innerHeight || 0].filter(function (v) { return v > 0; }));
+        var booxScreen = w >= 1180 && w <= 1900 && h >= 980 && h <= 1500 && (w / Math.max(h, 1)) >= 1.15;
+        var hardware = /VibeDeck-EInk|BOOX|ONYX|Onyx|eInk|E-Ink|E Ink/i.test(ua) || (/Android/i.test(ua) && booxScreen);
+        var on = q === "1" || q === "true" || stored === "1" || cookie === "1" ||
+          (q !== "0" && q !== "false" && stored !== "0" && cookie !== "0" && hardware);
+        if (on) document.documentElement.classList.add("eink-boot");
+        if (on && stored !== "0" && cookie !== "0") {
+          try { localStorage.setItem("phoneMonitorEink", "1"); } catch (e) {}
+          try { document.cookie = "phoneMonitorEink=1; Path=/; Max-Age=31536000; SameSite=Lax"; } catch (e) {}
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    html.eink-boot body,
+    html.eink-boot {
+      background: #f2f0e8 !important;
+      color: #171714;
+    }
   </style>
   <script>
     // Older builds installed an offline service worker that could serve index.html
@@ -100,9 +132,11 @@
         <button id="quotaMode" class="mode-button" type="button">額度</button>
       </div>
       <div class="utility-controls">
+        <button id="einkModeToggle" type="button" aria-pressed="false" title="切換成電子紙版面（BOOX / 電子書）">電子書</button>
         <button id="keepAwake" type="button">長亮 ON</button>
         <button id="fullscreen" type="button">全螢幕</button>
         <button id="refresh" type="button">重新整理</button>
+        <button id="displaySettingsToggle" type="button" aria-expanded="false">顯示設定</button>
         <span class="status" role="status" aria-live="polite"><span id="dot" class="dot"></span><span id="status">連線中</span></span>
       </div>
     </div>
@@ -117,7 +151,7 @@
       aria-hidden="true"></video>
     <div class="setup-panels">
       <details class="panel">
-        <summary>顯示</summary>
+        <summary>畫面方向</summary>
         <div class="controls">
           <label class="field">旋轉
             <select id="rotation" aria-label="旋轉">
@@ -138,7 +172,7 @@
         </div>
       </details>
       <details class="panel">
-        <summary>串流</summary>
+        <summary>畫質與流暢度</summary>
         <div class="controls">
           <select id="streamPreset">
             <option value="battery">省電 30fps / Q48</option>
@@ -153,7 +187,7 @@
         </div>
       </details>
       <details class="panel">
-        <summary>解析度</summary>
+        <summary>虛擬螢幕尺寸</summary>
         <div class="controls">
           <select id="modePreset"></select>
           <input id="modeWidth" type="number" min="320" max="3840" step="1" value="1024" aria-label="Width">
@@ -194,8 +228,8 @@
           </div>
         </div>
         <div class="connect-actions">
-          <button id="pairPhone" class="primary-action" type="button" hidden>顯示手機 QR Code</button>
-          <button id="launchDeckWindow" type="button" hidden>開啟 Deck 視窗</button>
+          <button id="pairPhone" class="primary-action" type="button" hidden>配對新手機</button>
+          <button id="launchDeckWindow" type="button" hidden>把資訊板開到副螢幕</button>
           <a id="httpsCertLink" href="#" hidden>安裝 HTTPS 憑證</a>
         </div>
         <div class="connect-status">
@@ -232,11 +266,22 @@
   <main>
     <div id="pairSuccessBanner" class="pair-success-banner" role="status" aria-live="polite"></div>
     <div id="phonePairRescue" class="phone-pair-rescue">
-      <strong>尚未配對這台手機</strong>
-      <span>確認目前是 HTTPS Host 後，按下申請；接著回 PC 核對六位數驗證碼並按「允許」。</span>
-      <button id="phonePairRequest" type="button">提出配對申請</button>
+      <small>VIBEDECK · 手機設定</small>
+      <strong>連接這台手機</strong>
+      <span>按下開始配對，再到 PC 視窗核對六位數驗證碼並按「允許」。</span>
+      <button id="phonePairRequest" type="button">開始配對</button>
     </div>
     <section id="displayView" class="app-view display-view active">
+      <div id="displayEmptyState" class="display-empty-state">
+        <span class="display-empty-icon">▱</span>
+        <strong id="displayEmptyTitle">正在尋找虛擬螢幕</strong>
+        <span id="displayEmptyMessage">資訊板與 AI 額度不需要虛擬螢幕，可以直接使用。</span>
+        <div class="display-empty-actions">
+          <button id="installVirtualDisplay" type="button">建立虛擬螢幕</button>
+          <button id="openSideboardFromEmpty" class="secondary" type="button">改用資訊板</button>
+        </div>
+        <small id="displayInstallDetail" class="display-install-detail" role="status" aria-live="polite"></small>
+      </div>
       <img id="screen" class="screen-media" alt="VibeDeck 顯示器串流">
       <video id="rtcScreen" class="screen-media" autoplay playsinline muted hidden aria-label="VibeDeck WebRTC 顯示器串流"></video>
     </section>
@@ -247,16 +292,15 @@
             <strong id="sideHeadline">資訊板</strong>
             <span id="sideSummary">等待電腦資訊。</span>
           </div>
-          <div class="skin-picker" aria-label="Sideboard skin">
-            <button class="active" data-side-skin="command" type="button">A</button>
-            <button data-side-skin="dial" type="button">B</button>
-            <button data-side-skin="focus" type="button">C</button>
+          <div id="sideboardPageTabs" class="sideboard-page-tabs" role="tablist" aria-label="資訊板頁面">
+            <button type="button" data-sideboard-page="system" role="tab" aria-selected="true">系統</button>
+            <button type="button" data-sideboard-page="custom" role="tab" aria-selected="false">自訂卡片</button>
           </div>
-        </div>
-
-        <div id="sideboardPageTabs" class="sideboard-page-tabs" role="tablist" aria-label="資訊板頁面">
-          <button type="button" data-sideboard-page="system" role="tab" aria-selected="true">系統</button>
-          <button type="button" data-sideboard-page="custom" role="tab" aria-selected="false">自訂卡片</button>
+          <div class="skin-picker" aria-label="Sideboard skin">
+            <button class="active" data-side-skin="command" type="button">命令</button>
+            <button data-side-skin="dial" type="button">儀表</button>
+            <button data-side-skin="focus" type="button">專注</button>
+          </div>
         </div>
 
         <section id="systemSideboardPage" class="sideboard-subpage">
@@ -449,6 +493,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=51"></script>
+  <script type="module" src="/index.js?v=58"></script>
 </body>
 </html>
