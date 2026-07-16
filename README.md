@@ -1,227 +1,247 @@
 # VibeDeck
 
-VibeDeck 把 Windows PC 變成手機可用的副螢幕、資訊板與 AI 額度面板。
+VibeDeck turns a spare phone or e-paper device into a private wireless second screen, system dashboard, and AI-usage sideboard for Windows.
 
-## 先記住：產品只有這一條路
+It runs locally: the Windows Host creates and captures an optional virtual display, while iPhone, Android, and BOOX devices connect through Safari, Chrome, or an installable PWA. No native mobile app or cloud account is required.
 
-| 元件 | 唯一正式路線 |
+## Product Architecture
+
+| Component | Supported product path |
 |---|---|
-| Windows Host | 使用 `VibeDeck-Setup-<version>.exe` 安裝，登入 Windows 後在目前桌面 Session 背景啟動 |
-| Android／iPhone／BOOX | Safari、Chrome 或加入主畫面的 PWA；沒有原生手機 App |
-| 虛擬顯示器 | 選用，只供「顯示器」模式；從 PC Web UI 安裝 |
-| Windows 通知 | 選用的 MSIX companion；只讀通知並傳給 Host，不是第二個 Host |
-| 正式更新 | 直接執行較新版本 Setup 覆蓋更新 |
-| 原始碼開發 | `start.bat` 或 `scripts\dev-run.ps1`；不可與已安裝 Host 同時占用連接埠 |
+| Windows Host | Install with `VibeDeck-Setup-<version>.exe`; it starts in the signed-in desktop session |
+| Phone and e-paper clients | Safari, Chrome, or Add to Home Screen/PWA |
+| Virtual display | Optional; required only for second-screen mode |
+| Windows notifications | Optional packaged companion; it forwards notifications to the Host |
+| Product updates | Run a newer Setup with the same AppId |
+| Source development | Use `start.bat` or `scripts\dev-run.ps1` |
 
-Host **不能註冊成 Windows Service**。服務會進入 Session 0，看不到登入使用者的實體／虛擬顯示器。產品啟動器使用隱藏背景程序，因此不會留下黑色終端機視窗。
+The Host must not run as a Windows Service. A service runs in Session 0 and cannot enumerate or capture displays belonging to the signed-in user. VibeDeck instead launches as a hidden background process in the interactive desktop session.
 
-## 一、全新安裝
+## Features
 
-### 使用已建好的 Setup
+- A real Windows virtual monitor that accepts normal desktop windows.
+- Low-latency WebRTC H.264 streaming with a JPEG compatibility fallback.
+- Responsive phone, tablet, and e-paper layouts from one browser/PWA client.
+- Live CPU, GPU, memory, storage, network, weather, and process information.
+- AI-tool usage and quota cards.
+- Configurable dashboard layouts and activity updates.
+- Optional Windows notification integration.
+- Local device approval and pairing without a third-party backend.
+- Windows Setup, in-place updates, autostart, and persistent product data.
 
-執行：
+## Requirements
+
+For an installed build:
+
+- Windows 10 or Windows 11 on x64.
+- A phone or e-paper device on the same Wi-Fi network, or connected through the same Tailscale network.
+- The optional virtual display only when using second-screen mode.
+
+Building from source additionally requires the .NET 8 SDK. Creating the Windows installer requires Inno Setup 6.
+
+## Install VibeDeck
+
+Run the packaged installer:
 
 ```text
 VibeDeck-Setup-<version>.exe
 ```
 
-Setup 會完成：
+Setup performs the complete product installation:
 
-- 安裝程式到 `C:\Program Files\VibeDeck`。
-- 將可保留的產品資料放在 `%ProgramData%\VibeDeck`。
-- 建立開始功能表／桌面入口。
-- 建立登入後自動啟動，但讓 Host 留在使用者桌面 Session。
-- 建立手機透過 LAN 存取 Host 所需的防火牆規則。
-- 清除舊版誤裝的 `VibeDeckHost` Windows Service。
+- installs the application under `C:\Program Files\VibeDeck`;
+- stores persistent product data under `%ProgramData%\VibeDeck`;
+- creates Start menu and desktop shortcuts;
+- configures hidden autostart in the signed-in desktop session;
+- creates the firewall rules required for LAN access;
+- removes obsolete VibeDeck Windows Service registrations.
 
-安裝後開啟：
+After installation, open:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-### 從原始碼建立 Setup
-
-需要 .NET 8 SDK 與 Inno Setup 6：
+### Build the installer from source
 
 ```powershell
 scripts\package-windows-setup.ps1
 ```
 
-版本預設讀取 [PhoneMonitor.Host.csproj](src/PhoneMonitor.Host/PhoneMonitor.Host.csproj) 的 `Version`。也可明確指定：
+The default version comes from `src/PhoneMonitor.Host/PhoneMonitor.Host.csproj`. To specify it explicitly:
 
 ```powershell
 scripts\package-windows-setup.ps1 -Version 0.1.1
 ```
 
-產物：
+Output:
 
 ```text
 artifacts\windows-setup\VibeDeck-Setup-<version>.exe
 ```
 
-只需要建立安裝 payload、暫時不編譯 Setup 時：
+To build only the installation payload without compiling the Setup executable:
 
 ```powershell
 scripts\package-windows-setup.ps1 -SkipInno
 ```
 
-`package-windows-setup.ps1` 預設先跑測試、JavaScript 語法、產品路線與 payload 檢查。只有已經另外完成相同驗證時，才使用 `-SkipTests`。
+The packaging script normally runs tests, JavaScript syntax checks, product-path checks, and payload validation before producing the installer.
 
-## 二、更新既有安裝
+## Update an Existing Installation
 
-1. 建立版本號較新的 Setup。
-2. 直接執行新 Setup，不必先解除安裝。
-3. Setup 會停止舊 Host、移除遺留 Service、替換程式與 Web 資產，再於登入桌面啟動新版 Host。
-4. `%ProgramData%\VibeDeck` 不會被覆蓋，因此配對裝置、HTTPS 憑證、額度帳號、自訂卡片與通知設定會保留。
+1. Build or download a newer Setup version.
+2. Run it without uninstalling the existing version.
+3. Setup stops the old Host, replaces application files, removes obsolete service registrations, and starts the new Host in the desktop session.
+4. `%ProgramData%\VibeDeck` is preserved, including paired devices, certificates, quota accounts, custom cards, and notification settings.
 
-更新後執行：
+Verify the updated installation:
 
 ```powershell
 scripts\test-product-flow.ps1 -Installed
 ```
 
-若這台機器已安裝虛擬顯示器：
+If the optional virtual display is installed:
 
 ```powershell
 scripts\test-product-flow.ps1 -Installed -RequireVirtualDisplay
 ```
 
-這會確認：
+These checks verify that:
 
-- 舊 Windows Service 不存在。
-- Host 正在非 Session 0 的登入桌面執行。
-- 5000 連接埠由正確 Host 擁有。
-- Host 沒有錯把 Session 0 的 `WinDisc` 當成桌面。
-- 選用檢查可找到 PhoneMonitor 虛擬顯示器。
+- no obsolete Host service remains;
+- the Host runs outside Session 0;
+- port 5000 belongs to the correct Host process;
+- Windows display enumeration is coming from the interactive session;
+- the PhoneMonitor virtual display is available when required.
 
-## 三、手機連線與配對
+## Connect a Phone or E-Paper Device
 
-手機與 PC 在同一 Wi-Fi 時，用 Safari／Chrome 開啟 PC 顯示的 HTTPS 網址，例如：
+With both devices on the same Wi-Fi network, open the HTTPS address shown by the PC Host, for example:
 
 ```text
 https://192.168.1.20:5443
 ```
 
-第一次使用：
+On first connection:
 
-1. 手機提出配對申請。
-2. PC 核對裝置名稱與六位數驗證碼。
-3. PC 按「允許」。
-4. 手機可在「顯示器／資訊板／額度」間切換。
+1. Request pairing from the phone.
+2. Confirm the device name and six-digit code on the PC.
+3. Select **Allow** on the PC.
+4. Switch between Display, Information Board, and Quota modes on the client.
 
-資訊板與額度不需要虛擬顯示器。iPhone、Android 與 BOOX 使用同一份 Host Web/PWA；平台差異只由 responsive／e-ink UI 處理。
+Information Board and Quota modes do not require the virtual display. iPhone, Android, and BOOX all use the same Host-served web application; responsive and e-paper styles handle platform differences.
 
-不同網路建議使用 Tailscale，說明見 [docs/remote-access.md](docs/remote-access.md)。HTTPS 與 iPhone 憑證流程見 [docs/https-onboarding.md](docs/https-onboarding.md)。
+For access across different networks, use Tailscale. See `docs/remote-access.md`. HTTPS and iPhone certificate setup are documented in `docs/https-onboarding.md`.
 
-## 四、虛擬顯示器
+## Virtual Display
 
-只有「顯示器」模式需要 PhoneMonitor Display。
+Only Display mode requires the PhoneMonitor virtual display.
 
-在 PC Web UI 顯示找不到虛擬螢幕時，按「建立虛擬螢幕」並接受 UAC。一般使用者不需要 WDK、測試簽章或自行跑驅動開發腳本。
+When the PC UI reports that no virtual display is available, select **Create virtual display** and approve the Windows elevation prompt. Normal users do not need the Windows Driver Kit, test-signing mode, or driver-development scripts.
 
-Host 必須在本機登入桌面 Session 執行。若 API 只回傳 `WinDisc 1024×768`，代表 Host 被錯誤放在 Session 0，**不代表驅動沒安裝**；先跑產品流程檢查，不要先重灌驅動。
+The Host must run in the local signed-in desktop session. If `/api/displays` reports only `WinDisc 1024x768`, the Host is running in the wrong session; this is not evidence that the virtual display driver is missing.
 
-自有驅動開發工具仍位於 `driver/` 與 `scripts/*driver*.ps1`，但不屬於一般產品安裝流程。
+Driver-development tools remain under `driver/` and `scripts/*driver*.ps1`, but they are not part of the normal product installation path.
 
-## 五、Windows 通知 companion（選用）
+## Windows Notification Companion
 
-Windows 的 `userNotificationListener` 必須有封裝身分，因此通知使用獨立 MSIX companion。後端資料來源仍與 Host 分開，前端才合併成「活動動態」。
+Windows `userNotificationListener` access requires packaged application identity, so notification capture is implemented as an optional MSIX companion. It forwards notification data to the Host and must not listen on ports 5000 or 5443.
 
-開發簽章安裝／更新：
+Build and install the development package:
 
 ```powershell
 scripts\package-windows-notifications.ps1 -Install
 ```
 
-若 Windows 要求機器層級信任開發憑證，使用系統管理員 PowerShell：
+If Windows requires machine-level trust for the development certificate, run from an elevated PowerShell window:
 
 ```powershell
 scripts\package-windows-notifications.ps1 -RegisterOnly -InstallCertificateMachine
 ```
 
-程序名稱應為 `VibeDeck.Notifications.exe`。它不應監聽 5000／5443，也不要把它當成另一個 Host 除錯。詳細說明見 [docs/windows-notifications.md](docs/windows-notifications.md)。
+The companion process is `VibeDeck.Notifications.exe`. See `docs/windows-notifications.md` for details.
 
-## 六、原始碼開發
+## Run from Source
 
-需要 .NET 8 SDK：
+Start the project with:
 
 ```text
 start.bat
 ```
 
-或：
+or:
 
 ```powershell
 scripts\dev-run.ps1
 ```
 
-開發資料位於 `%LocalAppData%\PhoneMonitor`；正式安裝資料位於 `%ProgramData%\VibeDeck`。開發前若 5000 已被安裝版占用，先關閉安裝版 Host。通知 companion 可以保持執行。
+Source-development data is stored under `%LocalAppData%\PhoneMonitor`. Installed-product data is stored under `%ProgramData%\VibeDeck`.
 
-完整來源檢查：
+The source and installed Hosts cannot use port 5000 at the same time. Stop the installed Host before starting source development. The notification companion may remain running.
+
+Run the source product-flow checks with:
 
 ```powershell
 scripts\test-product-flow.ps1 -Source
 ```
 
-## 七、解除安裝
+## Uninstall
 
-優先使用 Windows「已安裝的應用程式」移除 VibeDeck，或在系統管理員 PowerShell 執行：
+Prefer Windows **Installed apps**, or run from an elevated PowerShell window:
 
 ```powershell
 scripts\uninstall-windows-product.ps1
 ```
 
-保留 `%ProgramData%\VibeDeck`：
+To preserve product data:
 
 ```powershell
 scripts\uninstall-windows-product.ps1 -KeepData
 ```
 
-通知 companion 為獨立 MSIX；需要一併移除時：
+The notification companion is a separate MSIX package. Remove it with:
 
 ```powershell
 scripts\package-windows-notifications.ps1 -Uninstall
 ```
 
-## 故障判斷
+## Troubleshooting
 
-| 現象 | 先做什麼 |
+| Symptom | First check |
 |---|---|
-| PC 頁面打不開 | 點 VibeDeck 圖示，再跑 `scripts\test-product-flow.ps1 -Installed` |
-| 虛擬顯示器明明安裝卻找不到 | 查 Host Session；API 出現 `WinDisc` 時不要重灌驅動 |
-| 手機無法連線 | 確認同一 Wi-Fi／Tailscale、PC 防火牆及 HTTPS 網址 |
-| 手機 UI 看起來像舊 App | 關掉錯誤程式，只用 Safari／Chrome／PWA 開 Host URL |
-| Windows 通知沒進活動動態 | 查 companion 是否 `Connected / Allowed`，不要把通知與 Host 程序混為一談 |
-| 更新後資料消失 | 正式資料應在 `%ProgramData%\VibeDeck`；不要用開發模式資料路徑判斷產品資料 |
-| 額度沒有資料 | 額度讀 Host PC 的本機帳號資料；先在同一台 PC 使用對應 CLI／帳號 |
+| PC page does not open | Start VibeDeck, then run `scripts\test-product-flow.ps1 -Installed` |
+| Virtual display is installed but missing | Check the Host session; do not reinstall the driver solely because `WinDisc` appears |
+| Phone cannot connect | Confirm Wi-Fi/Tailscale connectivity, firewall access, and the HTTPS URL |
+| Phone UI looks like an old app | Close obsolete clients and use Safari, Chrome, or the PWA |
+| Windows notifications do not appear | Confirm that the companion is connected and allowed |
+| Data appears missing after an update | Verify `%ProgramData%\VibeDeck`; do not confuse it with the development data directory |
+| Quota cards have no data | Use the corresponding local CLI/account on the Host PC, then refresh the card |
 
-## 專案結構
+## Repository Structure
 
-- `src/PhoneMonitor.Host`：Windows Host、API、串流與手機 Web/PWA。
-- `packaging/windows-setup`：唯一正式 Windows Setup。
-- `packaging/windows-notifications`：Windows 通知 companion MSIX。
-- `scripts/test-product-flow.ps1`：來源、payload、已安裝產品的共同檢查。
-- `driver/`：虛擬顯示器開發模組。
-- `docs/`：協定、遠端連線、HTTPS、通知與發佈文件。
-- [AGENTS.md](AGENTS.md)：後續開發與除錯不可違反的產品路線規則。
+- `src/PhoneMonitor.Host`: Windows Host, APIs, streaming, and browser/PWA client.
+- `packaging/windows-setup`: canonical Windows Setup packaging.
+- `packaging/windows-notifications`: optional notification companion package.
+- `scripts/test-product-flow.ps1`: shared source, payload, and installed-product checks.
+- `driver`: virtual display development project.
+- `docs`: protocol, remote access, HTTPS, notifications, product, and release documentation.
+- `AGENTS.md`: engineering constraints for future development and debugging.
 
-## Release checklist
-
-正式交付前依序執行：
+## Release Checklist
 
 ```powershell
 scripts\test-product-flow.ps1 -Source
 scripts\package-windows-setup.ps1
-# 執行新 Setup 完成全新安裝或覆蓋更新
+# Run the new Setup for a clean installation or in-place update.
 scripts\test-product-flow.ps1 -Installed
 ```
 
-完整人工檢核見 [docs/release-checklist.md](docs/release-checklist.md)。
+See `docs/release-checklist.md` for the complete manual checklist.
 
 ## OpenAI Build Week
 
-VibeDeck entered OpenAI Build Week as an existing Windows virtual-display prototype. During the submission period, it was meaningfully extended into a more complete product workflow with Codex and GPT-5.6.
+VibeDeck entered OpenAI Build Week as an existing Windows virtual-display prototype. During the submission period, it was meaningfully extended into a complete product workflow with Codex and GPT-5.6.
 
 Build Week work includes:
 
@@ -232,9 +252,21 @@ Build Week work includes:
 - configurable dashboard layouts, activity updates, quota cards, and optional Windows notification integration;
 - installed-product and source-product flow checks for packaging and release verification.
 
-Codex was used as an engineering partner for product planning, implementation, debugging, review, testing, and packaging. GPT-5.6 helped reason across Windows desktop-session behavior, display enumeration, browser media constraints, mobile/e-paper layouts, and installer lifecycle. Dated commits and Codex session logs document the work completed during the event.
+Codex was used as an engineering partner for product planning, implementation, debugging, review, testing, and packaging. GPT-5.6 helped reason across Windows desktop-session behavior, display enumeration, browser-media constraints, mobile and e-paper layouts, and installer lifecycle.
 
-The current interface is primarily available in Traditional Chinese. Planned work includes a maintainable internationalization layer, beginning with English and expanding to additional languages.
+Dated commits and Codex session logs document work completed during the event. The primary Build Week Codex session ID is:
+
+```text
+019f6890-877f-71e0-9ffa-7cf4d4457f2a
+```
+
+## Roadmap
+
+- Add a maintainable internationalization layer. The current interface is primarily Traditional Chinese; English is the first planned additional language.
+- Improve adaptive stream quality and latency handling.
+- Add more dashboard modules and integrations.
+- Make e-paper refresh behavior configurable.
+- Simplify signed distribution for non-technical users.
 
 ## License
 
