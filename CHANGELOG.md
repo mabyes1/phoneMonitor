@@ -1,5 +1,15 @@
 # 更新日誌
 
+## 0.1.2 - 2026-07-16
+
+### 產品化品牌與路徑統一（不破壞既有配對）
+
+- 使用者可見字串、錯誤訊息、憑證下載名改為 VibeDeck；內部協定仍雙讀舊 `PhoneMonitor` / `X-PhoneMonitor-*` header 與 cookie。
+- `/health` 與 `/api/session` 回報產品版本；PC UI 顯示 `vX.Y.Z`。
+- 虛擬螢幕安裝結果與通知 bridge-token 走 `AppPaths`（安裝態 `%ProgramData%\VibeDeck`，開發態 `%LocalAppData%\PhoneMonitor`）。
+- Open-VibeDeck 改為輪詢 `/health` 就緒後再開瀏覽器，失敗時提示 log 位置。
+- 憑證下載：`/cert/vibedeck-root.cer`（保留 `phone-monitor-*` 別名）。
+
 ## 0.1.1 - 2026-07-15
 
 ### 正式安裝／更新路線收斂
@@ -12,7 +22,7 @@
 - 新增 `scripts\test-product-flow.ps1`，統一驗證來源、payload 與已安裝產品的 Session、連接埠、遺留 Service 和虛擬顯示器狀態。
 - 新增 `AGENTS.md` 工程護欄並重寫 README／release checklist，明確禁止回到淘汰路線。
 
-## 2026-07-14
+## 2026-07-14（歷史；部分敘述已廢止）
 
 ### 電子書版自動辨識 + 手動切換
 
@@ -27,16 +37,16 @@
 ### 產品安裝一條龍（Setup）
 
 - 新增 Windows Setup 打包：`scripts\package-windows-setup.ps1` → `VibeDeck-Setup-<version>.exe`（Inno Setup）。
-- 安裝後註冊 **VibeDeck Host** Windows Service（開機自動啟動），不再依賴 `start.bat` 黑視窗當正式入口。
-- 桌面／開始功能表 **VibeDeck** 圖示會啟動服務（若需要）並開啟 PC 端 Web UI（`http://127.0.0.1:5000`）。
-- Host 支援 `UseWindowsService`；產品安裝資料目錄為 `%ProgramData%\VibeDeck`。
+- ~~安裝後註冊 Windows Service~~ **已廢止（見 0.1.1）**：正式路線改為登入桌面 Session 背景啟動，禁止 Host Windows Service。
+- 桌面／開始功能表 **VibeDeck** 圖示啟動 Host（若需要）並開啟 PC 端 Web UI（`http://127.0.0.1:5000`）。
+- 產品安裝資料目錄為 `%ProgramData%\VibeDeck`。
 - 備援腳本：`scripts\install-windows-product.ps1` / `uninstall-windows-product.ps1`（無 Inno 時可直接裝 payload）。
 
 ### 發佈準備
 
 - Host 與測試升級到 .NET 8 LTS，並同步更新 Microsoft.Data.Sqlite 與 Windows 系統套件。
-- 新增免安裝 .NET SDK 的 Windows ZIP 發佈流程，並附 SHA-256 完整性檢查。
-- 明確區分一般 ZIP 與具 Windows 通知權限的 MSIX，避免首次使用被開發憑證流程卡住。
+- ~~portable ZIP 正式發佈~~ **已廢止（見 0.1.1）**：Setup 是唯一產品安裝包。
+- 明確區分 Setup 與選用通知 MSIX companion。
 - 補上瀏覽器基本防護標頭，並避免配對裝置名稱被當成 HTML 顯示。
 - README 改為先說一般使用者怎麼啟動，再區分原始碼開發流程。
 

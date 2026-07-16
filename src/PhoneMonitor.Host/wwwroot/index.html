@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=80">
+  <link rel="stylesheet" href="/index.css?v=83">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -98,7 +98,7 @@
       <input id="hostAuthPassword" name="password" type="password" autocomplete="current-password" required autofocus>
       <button id="hostAuthSubmit" class="gate-primary" type="submit">登入</button>
       <p id="hostAuthError" class="host-auth-error" role="alert"></p>
-      <small>遠端登入只接受 HTTPS。若還沒設定，請在 Host 啟動前設定 PHONEMONITOR_REMOTE_PASSWORD。</small>
+      <small>遠端登入只接受 HTTPS。若還沒設定，請在 Host 啟動前設定 VIBEDECK_REMOTE_PASSWORD 或 PHONEMONITOR_REMOTE_PASSWORD。</small>
     </form>
   </div>
   <div id="iosHttpsGate" role="dialog" aria-modal="true" aria-labelledby="iosHttpsGateTitle">
@@ -110,7 +110,7 @@
       <li>回到這裡按「開啟 HTTPS」</li>
     </ol>
     <div class="gate-actions">
-      <a id="iosGateCertLink" class="gate-primary" href="/cert/phone-monitor-root.cer">1. 安裝 HTTPS 憑證</a>
+      <a id="iosGateCertLink" class="gate-primary" href="/cert/vibedeck-root.cer">1. 安裝 HTTPS 憑證</a>
       <button id="iosGateOpenHttps" class="gate-primary" type="button">2. 開啟 HTTPS</button>
       <a id="iosGateHttpsUrl" class="gate-secondary" href="#">複製用的 HTTPS 網址</a>
     </div>
@@ -122,12 +122,13 @@
       <span class="brand-mark">›_</span>
       <div class="brand-copy">
         <strong>VibeDeck</strong>
-        <span>手機副螢幕與資訊板 Host</span>
+        <span>手機副螢幕與資訊板 Host <em id="hostVersionLabel" class="host-version-label" hidden></em></span>
       </div>
     </div>
     <div class="controls top-controls">
       <div class="view-switcher" aria-label="切換檢視">
         <button id="displayMode" class="mode-button active" type="button">顯示器</button>
+        <button id="setupMode" class="mode-button" type="button" hidden>裝置設定</button>
         <button id="sideboardMode" class="mode-button" type="button">資訊板</button>
         <button id="quotaMode" class="mode-button" type="button">額度</button>
       </div>
@@ -150,6 +151,13 @@
       style="position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-10px;top:-10px"
       aria-hidden="true"></video>
     <div class="setup-panels">
+      <details class="panel" open>
+        <summary>虛擬螢幕安裝與修復</summary>
+        <div class="controls">
+          <button id="setupInstallVirtualDisplay" type="button">安裝／修復虛擬螢幕</button>
+          <span id="setupDisplayInstallDetail" role="status" aria-live="polite">安裝完成後 Host 會自動重新偵測顯示器，不需要離開此頁。</span>
+        </div>
+      </details>
       <details class="panel">
         <summary>畫面方向</summary>
         <div class="controls">
@@ -210,6 +218,10 @@
           <strong>裝置連線</strong>
           <span id="connectTitleHint">用手機瀏覽器開啟 HTTPS 網址；第一次只需在下方允許一次。</span>
         </div>
+        <div class="pairing-progress" data-pair-progress style="--pair-progress:0%">
+          <div><strong data-pair-progress-detail>準備配對</strong><b data-pair-progress-label>0%</b></div>
+          <progress data-pair-progress-bar max="100" value="0" aria-label="配對進度"></progress>
+        </div>
         <div class="pairing-guide" aria-label="手機配對流程">
           <div id="pairingStepInstall" class="pairing-step active">
             <b>1</b>
@@ -269,6 +281,10 @@
       <small>VIBEDECK · 手機設定</small>
       <strong>連接這台手機</strong>
       <span>按下開始配對，再到 PC 視窗核對六位數驗證碼並按「允許」。</span>
+      <div class="pairing-progress" data-pair-progress style="--pair-progress:0%">
+        <div><strong data-pair-progress-detail>準備配對</strong><b data-pair-progress-label>0%</b></div>
+        <progress data-pair-progress-bar max="100" value="0" aria-label="配對進度"></progress>
+      </div>
       <button id="phonePairRequest" type="button">開始配對</button>
     </div>
     <section id="displayView" class="app-view display-view active">
@@ -277,7 +293,7 @@
         <strong id="displayEmptyTitle">正在尋找虛擬螢幕</strong>
         <span id="displayEmptyMessage">資訊板與 AI 額度不需要虛擬螢幕，可以直接使用。</span>
         <div class="display-empty-actions">
-          <button id="installVirtualDisplay" type="button">建立虛擬螢幕</button>
+          <button id="installVirtualDisplay" type="button">前往裝置設定</button>
           <button id="openSideboardFromEmpty" class="secondary" type="button">改用資訊板</button>
         </div>
         <small id="displayInstallDetail" class="display-install-detail" role="status" aria-live="polite"></small>
@@ -630,7 +646,7 @@
 
             <div id="customCredentialPanel" class="custom-credential-panel" hidden>
               <strong>請立即保存這組寫入資訊</strong>
-              <span>Token 只會顯示這一次；關閉後 PhoneMonitor 不會再提供舊 Token。</span>
+              <span>Token 只會顯示這一次；關閉後 VibeDeck 不會再提供舊 Token。</span>
               <textarea id="customCredentialText" rows="8" readonly spellcheck="false"></textarea>
               <div class="custom-source-form-actions">
                 <button id="customCredentialCopy" type="button">複製</button>
@@ -669,6 +685,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=81"></script>
+  <script type="module" src="/index.js?v=85"></script>
 </body>
 </html>

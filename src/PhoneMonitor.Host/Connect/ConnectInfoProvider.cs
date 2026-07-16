@@ -22,8 +22,8 @@ namespace PhoneMonitor.Host.Connect
             var httpUrl = $"http://{primaryAddress}:{HttpPort}/";
             var localNameHttpsUrl = $"https://{localNameHost}:{HttpsPort}/";
             var localNameHttpUrl = $"http://{localNameHost}:{HttpPort}/";
-            var rootCertificateUrl = new Uri(new Uri(httpUrl), "cert/phone-monitor-root.cer").ToString();
-            var hostCertificateUrl = new Uri(new Uri(httpUrl), "cert/phone-monitor-host.cer").ToString();
+            var rootCertificateUrl = new Uri(new Uri(httpUrl), "cert/vibedeck-root.cer").ToString();
+            var hostCertificateUrl = new Uri(new Uri(httpUrl), "cert/vibedeck-host.cer").ToString();
             var httpsAvailable = LocalHttpsCertificate.IsConfigured;
             var preferredUrl = httpsAvailable ? httpsUrl : httpUrl;
             return new ConnectInfo
@@ -43,8 +43,8 @@ namespace PhoneMonitor.Host.Connect
                 RootCertificateUrl = rootCertificateUrl,
                 HostCertificateUrl = hostCertificateUrl,
                 HttpsSetupHint = httpsAvailable
-                    ? "Install and trust the PhoneMonitor root certificate on the phone, then use the HTTPS URL."
-                    : "Run scripts\\setup-https.ps1 on the PC to enable HTTPS on port 5443.",
+                    ? "Install and trust the VibeDeck root certificate on the phone, then use the HTTPS URL."
+                    : "Restart VibeDeck Host so it can mint a local HTTPS certificate on port 5443.",
                 IsHttpsRequest = request.IsHttps,
                 WakeLockNeedsHttps = !request.IsHttps,
                 Addresses = addresses

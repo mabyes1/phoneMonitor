@@ -15,13 +15,13 @@ Product installer assets for the one-click Windows install path.
 From repo root:
 
 ```powershell
-scripts\package-windows-setup.ps1 -Version 0.1.0
+scripts\package-windows-setup.ps1
 ```
 
 Output:
 
 ```text
-artifacts\windows-setup\VibeDeck-Setup-0.1.0.exe
+artifacts\windows-setup\VibeDeck-Setup-<version>.exe
 artifacts\windows-setup\payload\          # published self-contained Host
 ```
 
@@ -31,6 +31,8 @@ Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php). Optional:
 scripts\package-windows-setup.ps1 -InstallInno
 scripts\package-windows-setup.ps1 -SkipInno   # payload only
 ```
+
+For a complete local one-click build and installation, double-click `install.bat`. For an in-place update, double-click `update.bat`; it silently stops the old Host, runs Setup, preserves `%ProgramData%\VibeDeck`, restarts the Host, and verifies the installed product.
 
 Fallback install without Setup.exe (elevated):
 

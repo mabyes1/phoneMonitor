@@ -75,7 +75,7 @@ namespace PhoneMonitor.Host.Sideboard
 
             if (string.IsNullOrWhiteSpace(collectorPath))
             {
-                return GlanceBoardResponse.Failed("PhoneMonitor sideboard collector was not found.", null);
+                return GlanceBoardResponse.Failed("VibeDeck sideboard collector was not found.", null);
             }
 
             var response = await RunLocalCollectorAsync(cancellationToken);
@@ -96,9 +96,10 @@ namespace PhoneMonitor.Host.Sideboard
             var startInfo = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoLogo -NoProfile -ExecutionPolicy Bypass -File \"{collectorPath}\"",
+                Arguments = $"-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{collectorPath}\"",
                 WorkingDirectory = Path.GetDirectoryName(collectorPath) ?? Directory.GetCurrentDirectory(),
                 CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
                 UseShellExecute = false
@@ -109,7 +110,7 @@ namespace PhoneMonitor.Host.Sideboard
                 using var process = Process.Start(startInfo);
                 if (process == null)
                 {
-                    return GlanceBoardResponse.Failed("PhoneMonitor sideboard collector could not start.", null);
+                    return GlanceBoardResponse.Failed("VibeDeck sideboard collector could not start.", null);
                 }
 
                 var stdoutTask = process.StandardOutput.ReadToEndAsync();
@@ -120,7 +121,7 @@ namespace PhoneMonitor.Host.Sideboard
                 if (completedTask != waitTask || !waitTask.Result)
                 {
                     TryKill(process);
-                    return GlanceBoardResponse.Failed("PhoneMonitor sideboard collector timed out.", null);
+                    return GlanceBoardResponse.Failed("VibeDeck sideboard collector timed out.", null);
                 }
 
                 var stdout = (await stdoutTask).Trim();
@@ -128,19 +129,19 @@ namespace PhoneMonitor.Host.Sideboard
 
                 if (process.ExitCode != 0)
                 {
-                    return GlanceBoardResponse.Failed($"PhoneMonitor sideboard collector exited with code {process.ExitCode}.", stderr);
+                    return GlanceBoardResponse.Failed($"VibeDeck sideboard collector exited with code {process.ExitCode}.", stderr);
                 }
 
                 if (string.IsNullOrWhiteSpace(stdout))
                 {
-                    return GlanceBoardResponse.Failed("PhoneMonitor sideboard collector returned no data.", stderr);
+                    return GlanceBoardResponse.Failed("VibeDeck sideboard collector returned no data.", stderr);
                 }
 
                 return GlanceBoardResponse.Success(stdout);
             }
             catch (Exception ex) when (ex is IOException || ex is InvalidOperationException || ex is TaskCanceledException || ex is Win32Exception)
             {
-                return GlanceBoardResponse.Failed($"PhoneMonitor sideboard collector failed: {ex.Message}", null);
+                return GlanceBoardResponse.Failed($"VibeDeck sideboard collector failed: {ex.Message}", null);
             }
         }
 
@@ -199,7 +200,7 @@ namespace PhoneMonitor.Host.Sideboard
                     title = "工作脈搏",
                     session = (string)null,
                     headline = "目前沒有工作脈搏。",
-                    status = "PhoneMonitor 本機收集器"
+                    status = "VibeDeck 本機收集器"
                 },
                 todos = new
                 {

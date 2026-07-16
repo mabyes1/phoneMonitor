@@ -41,6 +41,7 @@ if ($Source) {
     Write-Check "Product PowerShell syntax"
     foreach ($relative in @(
         "scripts\install-windows-product.ps1",
+        "scripts\build-and-install-windows.ps1",
         "scripts\uninstall-windows-product.ps1",
         "scripts\package-windows-setup.ps1",
         "scripts\package-windows-notifications.ps1",
@@ -57,6 +58,8 @@ if ($Source) {
     Write-Check "Canonical product path"
     Assert-Product (-not (Test-Path (Join-Path $repoRoot "apps\android"))) "Deprecated apps/android still exists. Phone clients must remain browser/PWA-only."
     Assert-Product (-not (Test-Path (Join-Path $repoRoot "scripts\package-release.ps1"))) "Deprecated portable ZIP release script still exists. Setup is the only product release path."
+    Assert-Product (Test-Path (Join-Path $repoRoot "install.bat")) "One-click install entry is missing."
+    Assert-Product (Test-Path (Join-Path $repoRoot "update.bat")) "One-click update entry is missing."
     Assert-Product (-not (Get-ChildItem (Join-Path $repoRoot "src\PhoneMonitor.Host\wwwroot") -Recurse -File -Include "*.apk","*.ipa" -ErrorAction SilentlyContinue)) "Native mobile package found under wwwroot."
     $webSource = Get-ChildItem (Join-Path $repoRoot "src\PhoneMonitor.Host\wwwroot") -Recurse -File -Include "*.js","*.css","*.html" |
         ForEach-Object { Get-Content $_.FullName -Raw }
@@ -91,7 +94,10 @@ if ($Payload) {
 if ($Installed) {
     Write-Check "Live installed product"
     Assert-Product (-not (Get-Service "VibeDeckHost" -ErrorAction SilentlyContinue)) "Legacy VibeDeckHost Windows Service is still registered."
-    $run = (Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "VibeDeckHost" -ErrorAction SilentlyContinue).VibeDeckHost
+    $run = (Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "VibeDeckHost" -ErrorAction SilentlyContinue).VibeDeckHost
+    if ([string]::IsNullOrWhiteSpace($run)) {
+        $run = (Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "VibeDeckHost" -ErrorAction SilentlyContinue).VibeDeckHost
+    }
     Assert-Product (-not [string]::IsNullOrWhiteSpace($run)) "VibeDeckHost sign-in auto-start is missing."
 
     $listener = Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1

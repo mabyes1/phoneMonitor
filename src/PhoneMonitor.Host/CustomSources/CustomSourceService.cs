@@ -479,7 +479,7 @@ namespace PhoneMonitor.Host.CustomSources
         {
             if (IsSystemSource(sourceKey))
             {
-                Problem(403, "system_source", "The Windows notification source is managed by PhoneMonitor.");
+                Problem(403, "system_source", "The Windows notification source is managed by VibeDeck.");
             }
         }
 

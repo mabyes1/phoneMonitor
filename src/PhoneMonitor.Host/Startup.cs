@@ -125,11 +125,15 @@ namespace PhoneMonitor.Host
                 endpoints.MapGet("/health", async context =>
                 {
                     context.Response.ContentType = "application/json";
+                    context.Response.Headers["Cache-Control"] = "no-store";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(new
                     {
                         status = "ok",
-                        app = "PhoneMonitor.Host",
-                        transport = "wifi-websocket-jpeg"
+                        app = "VibeDeck.Host",
+                        product = AppPaths.ProductName,
+                        version = GetProductVersion(),
+                        installed = AppPaths.IsInstalledLayout,
+                        transport = "webrtc-h264+jpeg-fallback"
                     }));
                 });
 
@@ -166,18 +170,17 @@ namespace PhoneMonitor.Host
                     var result = auth.Login(request.Password, GetRemoteAddress(context));
                     if (result.Success)
                     {
-                        context.Response.Cookies.Append(
-                            HostAccessAuthService.CookieName,
-                            result.SessionToken,
-                            new CookieOptions
-                            {
-                                HttpOnly = true,
-                                Secure = context.Request.IsHttps,
-                                SameSite = SameSiteMode.Lax,
-                                Path = "/",
-                                MaxAge = result.SessionLifetime,
-                                IsEssential = true
-                            });
+                        var sessionCookie = new CookieOptions
+                        {
+                            HttpOnly = true,
+                            Secure = context.Request.IsHttps,
+                            SameSite = SameSiteMode.Lax,
+                            Path = "/",
+                            MaxAge = result.SessionLifetime,
+                            IsEssential = true
+                        };
+                        context.Response.Cookies.Append(HostAccessAuthService.CookieName, result.SessionToken, sessionCookie);
+                        context.Response.Cookies.Append(HostAccessAuthService.LegacyCookieName, result.SessionToken, sessionCookie);
                     }
 
                     context.Response.StatusCode = result.Success
@@ -194,7 +197,9 @@ namespace PhoneMonitor.Host
                 endpoints.MapPost("/api/auth/logout", async context =>
                 {
                     context.RequestServices.GetRequiredService<HostAccessAuthService>().Logout(context);
-                    context.Response.Cookies.Delete(HostAccessAuthService.CookieName, new CookieOptions { Path = "/", Secure = context.Request.IsHttps });
+                    var clearCookie = new CookieOptions { Path = "/", Secure = context.Request.IsHttps };
+                    context.Response.Cookies.Delete(HostAccessAuthService.CookieName, clearCookie);
+                    context.Response.Cookies.Delete(HostAccessAuthService.LegacyCookieName, clearCookie);
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(new { success = true }));
                 });
@@ -234,7 +239,10 @@ namespace PhoneMonitor.Host
                     {
                         actionToken = token.Token,
                         actionHeader = ActionTokenService.HeaderName,
-                        deviceHeader = DeviceTrustService.HeaderName
+                        deviceHeader = DeviceTrustService.HeaderName,
+                        product = AppPaths.ProductName,
+                        version = GetProductVersion(),
+                        installed = AppPaths.IsInstalledLayout
                     }));
                 });
 
@@ -250,7 +258,9 @@ namespace PhoneMonitor.Host
                         GetRemoteAddress(context),
                         context.Request.Headers["User-Agent"].FirstOrDefault(),
                         isLocal,
-                        hostAuthenticated)));
+                        hostAuthenticated,
+                        Uri.UnescapeDataString(context.Request.Headers[DeviceTrustService.DeviceModelHeaderName].FirstOrDefault() ?? ""),
+                        context.Request.Headers[DeviceTrustService.ClientInstanceHeaderName].FirstOrDefault())));
                 });
 
                 endpoints.MapPost("/api/devices/revoke", async context =>
@@ -290,6 +300,25 @@ namespace PhoneMonitor.Host
                     var connectInfo = provider.Get(context.Request);
                     var phonePageUrl = new Uri(new Uri(connectInfo.PreferredUrl), "index.html").ToString();
                     await WriteQrSvgAsync(context, phonePageUrl);
+                });
+
+                // Canonical product cert URLs; legacy phone-monitor-* paths stay for already-bookmarked phones.
+                endpoints.MapGet("/cert/vibedeck-root.cer", async context =>
+                {
+                    await WriteCertificateFileAsync(
+                        context,
+                        LocalHttpsCertificate.RootCertificatePath,
+                        "vibedeck-root.cer",
+                        "application/x-x509-ca-cert");
+                });
+
+                endpoints.MapGet("/cert/vibedeck-host.cer", async context =>
+                {
+                    await WriteCertificateFileAsync(
+                        context,
+                        LocalHttpsCertificate.HostCertificatePath,
+                        "vibedeck-host.cer",
+                        "application/x-x509-ca-cert");
                 });
 
                 endpoints.MapGet("/cert/phone-monitor-root.cer", async context =>
@@ -615,6 +644,8 @@ namespace PhoneMonitor.Host
                     var result = devices.RequestApproval(
                         request.Name,
                         request.Platform,
+                        request.Model,
+                        request.ClientInstanceId,
                         context.Request.Headers["User-Agent"].FirstOrDefault(),
                         GetRemoteAddress(context));
                     context.Response.ContentType = "application/json";
@@ -650,11 +681,13 @@ namespace PhoneMonitor.Host
                     var result = devices.PollApproval(request.RequestId, request.RequestSecret);
                     if (result.Success && result.Status == "approved" && !string.IsNullOrWhiteSpace(result.DeviceToken))
                     {
-                        context.Response.Cookies.Append(DeviceTrustService.CookieName, result.DeviceToken, new CookieOptions
+                        var deviceCookie = new CookieOptions
                         {
                             HttpOnly = false, Secure = context.Request.IsHttps, SameSite = SameSiteMode.Lax,
                             Path = "/", MaxAge = TimeSpan.FromDays(400), IsEssential = true
-                        });
+                        };
+                        context.Response.Cookies.Append(DeviceTrustService.CookieName, result.DeviceToken, deviceCookie);
+                        context.Response.Cookies.Append(DeviceTrustService.LegacyCookieName, result.DeviceToken, deviceCookie);
                     }
                     context.Response.StatusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
                     context.Response.ContentType = "application/json";
@@ -905,7 +938,7 @@ namespace PhoneMonitor.Host
                 context.Response.ContentType = "application/json";
                 await context.Response.WriteAsync(JsonSerializer.Serialize(new
                 {
-                    error = "PhoneMonitor HTTPS certificate is not configured. Run scripts\\setup-https.ps1 on the PC."
+                    error = "VibeDeck HTTPS certificate is not configured. Reinstall or restart the Host so it can mint a local certificate."
                 }));
                 return;
             }
@@ -983,6 +1016,11 @@ namespace PhoneMonitor.Host
         {
             var tokens = context.RequestServices.GetRequiredService<ActionTokenService>();
             var supplied = context.Request.Headers[ActionTokenService.HeaderName].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(supplied))
+            {
+                supplied = context.Request.Headers[ActionTokenService.LegacyHeaderName].FirstOrDefault();
+            }
+
             if (tokens.IsValid(supplied))
             {
                 return true;
@@ -992,7 +1030,7 @@ namespace PhoneMonitor.Host
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsync(JsonSerializer.Serialize(new
             {
-                error = "PhoneMonitor action token is missing or invalid."
+                error = "VibeDeck action token is missing or invalid."
             }));
             return false;
         }
@@ -1137,6 +1175,11 @@ namespace PhoneMonitor.Host
         private static string ReadDeviceToken(HttpContext context)
         {
             var headerValue = context.Request.Headers[DeviceTrustService.HeaderName].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(headerValue))
+            {
+                headerValue = context.Request.Headers[DeviceTrustService.LegacyHeaderName].FirstOrDefault();
+            }
+
             if (!string.IsNullOrWhiteSpace(headerValue))
             {
                 return headerValue;
@@ -1148,7 +1191,32 @@ namespace PhoneMonitor.Host
                 return queryValue;
             }
 
-            return context.Request.Cookies[DeviceTrustService.CookieName];
+            var cookieValue = context.Request.Cookies[DeviceTrustService.CookieName];
+            if (!string.IsNullOrWhiteSpace(cookieValue))
+            {
+                return cookieValue;
+            }
+
+            return context.Request.Cookies[DeviceTrustService.LegacyCookieName];
+        }
+
+        private static string GetProductVersion()
+        {
+            try
+            {
+                var version = typeof(Startup).Assembly.GetName().Version;
+                if (version == null)
+                {
+                    return "0.0.0";
+                }
+
+                // Assembly version is Major.Minor.Build.Revision; product stamps three-part.
+                return $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
+            }
+            catch
+            {
+                return "0.0.0";
+            }
         }
 
         private static string GetRemoteAddress(HttpContext context)

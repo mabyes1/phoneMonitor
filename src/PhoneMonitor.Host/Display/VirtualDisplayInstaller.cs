@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using PhoneMonitor.Host.Windows;
+// AppPaths lives in the root Host namespace.
 
 namespace PhoneMonitor.Host.Display
 {
@@ -24,11 +25,29 @@ namespace PhoneMonitor.Host.Display
             this.displayCatalog = displayCatalog;
             installerPath = Path.Combine(AppContext.BaseDirectory, "Installers", "install-virtual-display.ps1");
 
-            var stateDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "PhoneMonitor");
-            Directory.CreateDirectory(stateDirectory);
+            // Product state lives under AppPaths (ProgramData when installed).
+            // Also probe the legacy LocalAppData path so in-flight install results
+            // from older builds still surface after upgrade.
+            var stateDirectory = AppPaths.EnsureDirectory(AppPaths.DataRoot);
             resultPath = Path.Combine(stateDirectory, "virtual-display-install-result.json");
+            var legacyResultPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                AppPaths.LegacyProductFolderName,
+                "virtual-display-install-result.json");
+            if (!File.Exists(resultPath) && File.Exists(legacyResultPath))
+            {
+                try
+                {
+                    File.Copy(legacyResultPath, resultPath, overwrite: false);
+                }
+                catch (IOException)
+                {
+                    // Prefer the product path; fall through if copy is locked.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
         }
 
         public VirtualDisplayInstallStatus GetStatus()

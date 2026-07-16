@@ -10,8 +10,12 @@ namespace PhoneMonitor.Host.Security
 {
     public sealed class DeviceTrustService
     {
-        public const string HeaderName = "X-PhoneMonitor-Device-Token";
-        public const string CookieName = "PhoneMonitor-Device-Token";
+        public const string HeaderName = "X-VibeDeck-Device-Token";
+        public const string LegacyHeaderName = "X-PhoneMonitor-Device-Token";
+        public const string CookieName = "VibeDeck-Device-Token";
+        public const string LegacyCookieName = "PhoneMonitor-Device-Token";
+        public const string ClientInstanceHeaderName = "X-VibeDeck-Client-Instance";
+        public const string DeviceModelHeaderName = "X-VibeDeck-Device-Model";
 
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
@@ -29,26 +33,53 @@ namespace PhoneMonitor.Host.Security
         private DateTimeOffset lastDevicesFlushAt = DateTimeOffset.MinValue;
 
         public DeviceTrustService()
+            : this(AppPaths.DevicesDirectory)
         {
-            var root = AppPaths.EnsureDirectory(AppPaths.DevicesDirectory);
+        }
+
+        public DeviceTrustService(string devicesDirectory)
+        {
+            var root = AppPaths.EnsureDirectory(devicesDirectory);
             storePath = Path.Combine(root, "trusted-devices.json");
             devices = LoadDevices();
-            if (NormalizeDeviceNames(devices))
+            if (NormalizeDeviceRecords(devices))
             {
-                SaveDevices(force: true);
+                devicesDirty = true;
+                try
+                {
+                    SaveDevices(force: true);
+                }
+                catch (IOException)
+                {
+                    // Keep valid in-memory trust even when an old install has bad ACLs.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Setup repairs ProgramData permissions; retry after that repair.
+                }
             }
         }
 
-        public PairingApprovalRequestResult RequestApproval(string name, string platform, string userAgent, string remoteAddress)
+        public PairingApprovalRequestResult RequestApproval(
+            string name,
+            string platform,
+            string model,
+            string clientInstanceId,
+            string userAgent,
+            string remoteAddress)
         {
             lock (sync)
             {
                 RemoveExpiredPairings(DateTimeOffset.UtcNow);
+                var normalizedClientId = NormalizeClientInstanceId(clientInstanceId);
                 var existing = pendingApprovals.Values.FirstOrDefault(item =>
                     item.ExpiresAt > DateTimeOffset.UtcNow &&
                     item.Status == "pending" &&
-                    string.Equals(item.RemoteAddress, remoteAddress, StringComparison.Ordinal) &&
-                    string.Equals(item.UserAgent, userAgent, StringComparison.Ordinal));
+                    ((!string.IsNullOrWhiteSpace(normalizedClientId) &&
+                      string.Equals(item.ClientInstanceId, normalizedClientId, StringComparison.Ordinal)) ||
+                     (string.IsNullOrWhiteSpace(normalizedClientId) &&
+                      string.Equals(item.RemoteAddress, remoteAddress, StringComparison.Ordinal) &&
+                      string.Equals(item.UserAgent, userAgent, StringComparison.Ordinal))));
                 if (existing != null)
                 {
                     return PairingApprovalRequestResult.From(existing, existing.RequestSecret);
@@ -60,8 +91,10 @@ namespace PhoneMonitor.Host.Security
                     RequestId = CreateToken(18),
                     RequestSecretHash = HashToken(secret),
                     RequestSecret = secret,
-                    Name = ResolveDeviceName(name, userAgent),
+                    Name = ResolveDeviceName(name, model, userAgent),
                     Platform = string.IsNullOrWhiteSpace(platform) ? "web" : platform.Trim(),
+                    Model = NormalizeDeviceModel(model),
+                    ClientInstanceId = normalizedClientId,
                     RemoteAddress = remoteAddress,
                     UserAgent = userAgent,
                     VerificationCode = CreateNumericCode(),
@@ -95,23 +128,55 @@ namespace PhoneMonitor.Host.Security
                 if (!pendingApprovals.TryGetValue(requestId ?? "", out var request) || request.Status != "pending")
                     return DeviceTrustActionResult.Fail("Pairing request expired or was not found.");
 
+                var originalDevices = devices.Select(CloneDevice).ToList();
+                var originalDirty = devicesDirty;
                 var token = CreateToken(40);
-                var device = new TrustedDeviceRecord
+                var device = FindPairingContinuation(request);
+                var continued = device != null;
+                if (device == null)
                 {
-                    DeviceId = CreateToken(16),
-                    Name = request.Name,
-                    TokenHash = HashToken(token),
-                    CreatedAt = DateTimeOffset.UtcNow,
-                    LastSeenAt = DateTimeOffset.UtcNow,
-                    LastRemoteAddress = request.RemoteAddress,
-                    LastUserAgent = request.UserAgent
-                };
-                devices.Add(device);
+                    device = new TrustedDeviceRecord
+                    {
+                        DeviceId = CreateToken(16),
+                        CreatedAt = DateTimeOffset.UtcNow
+                    };
+                    devices.Add(device);
+                }
+
+                device.Name = request.Name;
+                device.Model = request.Model;
+                device.ClientInstanceId = request.ClientInstanceId;
+                device.TokenHash = HashToken(token);
+                device.LastSeenAt = DateTimeOffset.UtcNow;
+                device.LastRemoteAddress = request.RemoteAddress;
+                device.LastUserAgent = request.UserAgent;
+
+                if (!string.IsNullOrWhiteSpace(request.ClientInstanceId))
+                {
+                    devices.RemoveAll(item =>
+                        !ReferenceEquals(item, device) &&
+                        string.Equals(item.ClientInstanceId, request.ClientInstanceId, StringComparison.Ordinal));
+                }
+                try
+                {
+                    SaveDevices(force: true);
+                }
+                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
+                {
+                    devices = originalDevices;
+                    devicesDirty = originalDirty;
+                    return DeviceTrustActionResult.Fail("Pairing could not be saved. Repair the VibeDeck ProgramData permissions and try again.");
+                }
+
                 request.Status = "approved";
                 request.DeviceId = device.DeviceId;
                 request.DeviceToken = token;
-                SaveDevices(force: true);
-                return new DeviceTrustActionResult { Success = true, Message = $"{device.Name} approved." };
+                request.Continued = continued;
+                return new DeviceTrustActionResult
+                {
+                    Success = true,
+                    Message = continued ? $"{device.Name} pairing continued." : $"{device.Name} approved."
+                };
             }
         }
 
@@ -141,7 +206,8 @@ namespace PhoneMonitor.Host.Security
                     Status = request.Status,
                     DeviceId = request.Status == "approved" ? request.DeviceId : null,
                     DeviceToken = request.Status == "approved" ? request.DeviceToken : null,
-                    DeviceName = request.Name
+                    DeviceName = request.Name,
+                    Continued = request.Continued
                 };
                 if (request.Status == "approved" || request.Status == "denied") pendingApprovals.Remove(request.RequestId);
                 return result;
@@ -150,12 +216,25 @@ namespace PhoneMonitor.Host.Security
 
         public DeviceTrustStatus GetStatus(string deviceToken, string remoteAddress, string userAgent, bool isLocalRequest, bool hostAuthenticated)
         {
+            return GetStatus(deviceToken, remoteAddress, userAgent, isLocalRequest, hostAuthenticated, "", "");
+        }
+
+        public DeviceTrustStatus GetStatus(
+            string deviceToken,
+            string remoteAddress,
+            string userAgent,
+            bool isLocalRequest,
+            bool hostAuthenticated,
+            string model,
+            string clientInstanceId)
+        {
             lock (sync)
             {
                 var now = DateTimeOffset.UtcNow;
                 var device = FindTrustedDevice(deviceToken);
                 if (device != null)
                 {
+                    UpdateDeviceIdentity(device, model, clientInstanceId, userAgent);
                     TouchDevice(device, remoteAddress, userAgent);
                 }
 
@@ -239,23 +318,47 @@ namespace PhoneMonitor.Host.Security
             return devices.FirstOrDefault(device => string.Equals(device.TokenHash, hash, StringComparison.Ordinal));
         }
 
+        private static TrustedDeviceRecord CloneDevice(TrustedDeviceRecord device)
+        {
+            return new TrustedDeviceRecord
+            {
+                DeviceId = device.DeviceId,
+                Name = device.Name,
+                Model = device.Model,
+                ClientInstanceId = device.ClientInstanceId,
+                TokenHash = device.TokenHash,
+                CreatedAt = device.CreatedAt,
+                LastSeenAt = device.LastSeenAt,
+                LastRemoteAddress = device.LastRemoteAddress,
+                LastUserAgent = device.LastUserAgent
+            };
+        }
+
         private List<TrustedDeviceRecord> LoadDevices()
         {
-            try
+            foreach (var candidate in new[] { storePath, storePath + ".bak" })
             {
-                if (!File.Exists(storePath))
+                try
                 {
-                    return new List<TrustedDeviceRecord>();
-                }
+                    if (!File.Exists(candidate))
+                    {
+                        continue;
+                    }
 
-                var text = File.ReadAllText(storePath);
-                return JsonSerializer.Deserialize<List<TrustedDeviceRecord>>(text, JsonOptions)
-                    ?? new List<TrustedDeviceRecord>();
+                    var text = File.ReadAllText(candidate);
+                    var loaded = JsonSerializer.Deserialize<List<TrustedDeviceRecord>>(text, JsonOptions);
+                    if (loaded != null)
+                    {
+                        return loaded;
+                    }
+                }
+                catch
+                {
+                    // Try the last known-good backup before treating this as a new install.
+                }
             }
-            catch
-            {
-                return new List<TrustedDeviceRecord>();
-            }
+
+            return new List<TrustedDeviceRecord>();
         }
 
         private void TouchDevice(TrustedDeviceRecord device, string remoteAddress, string userAgent)
@@ -281,6 +384,85 @@ namespace PhoneMonitor.Host.Security
             }
         }
 
+        private void UpdateDeviceIdentity(TrustedDeviceRecord device, string model, string clientInstanceId, string userAgent)
+        {
+            var normalizedModel = NormalizeDeviceModel(model);
+            var normalizedClientId = NormalizeClientInstanceId(clientInstanceId);
+            var changed = false;
+
+            if (!string.IsNullOrWhiteSpace(normalizedModel) &&
+                !string.Equals(device.Model, normalizedModel, StringComparison.Ordinal))
+            {
+                device.Model = normalizedModel;
+                changed = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(normalizedClientId) &&
+                !string.Equals(device.ClientInstanceId, normalizedClientId, StringComparison.Ordinal))
+            {
+                device.ClientInstanceId = normalizedClientId;
+                changed = true;
+            }
+
+            var resolvedName = ResolveDeviceName(device.Name, device.Model, userAgent);
+            if (!string.Equals(device.Name, resolvedName, StringComparison.Ordinal))
+            {
+                device.Name = resolvedName;
+                changed = true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(device.ClientInstanceId))
+            {
+                changed |= devices.RemoveAll(item =>
+                    !ReferenceEquals(item, device) &&
+                    string.Equals(item.ClientInstanceId, device.ClientInstanceId, StringComparison.Ordinal)) > 0;
+            }
+
+            if (!changed)
+            {
+                return;
+            }
+
+            devicesDirty = true;
+            try
+            {
+                SaveDevices(force: true);
+            }
+            catch (IOException)
+            {
+                // Identity enrichment must never invalidate an otherwise trusted device.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Setup repairs ProgramData ACLs; retry through a later status request.
+            }
+        }
+
+        private TrustedDeviceRecord FindPairingContinuation(PendingApprovalPairing request)
+        {
+            if (!string.IsNullOrWhiteSpace(request.ClientInstanceId))
+            {
+                var stable = devices
+                    .Where(item => string.Equals(item.ClientInstanceId, request.ClientInstanceId, StringComparison.Ordinal))
+                    .OrderByDescending(item => item.LastSeenAt)
+                    .FirstOrDefault();
+                if (stable != null)
+                {
+                    return stable;
+                }
+            }
+
+            // Adopt one legacy record on the first pairing after this upgrade.
+            // Exact UA + address avoids merging two different phones on one LAN.
+            return devices
+                .Where(item =>
+                    string.IsNullOrWhiteSpace(item.ClientInstanceId) &&
+                    string.Equals(item.LastRemoteAddress, request.RemoteAddress, StringComparison.Ordinal) &&
+                    string.Equals(item.LastUserAgent, request.UserAgent, StringComparison.Ordinal))
+                .OrderByDescending(item => item.LastSeenAt)
+                .FirstOrDefault();
+        }
+
         private void SaveDevices(bool force)
         {
             if (!force && !devicesDirty)
@@ -293,8 +475,28 @@ namespace PhoneMonitor.Host.Security
                 return;
             }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(storePath));
-            File.WriteAllText(storePath, JsonSerializer.Serialize(devices, JsonOptions));
+            var directory = Path.GetDirectoryName(storePath);
+            Directory.CreateDirectory(directory);
+            var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(storePath)}.{Guid.NewGuid():N}.tmp");
+            try
+            {
+                File.WriteAllText(temporaryPath, JsonSerializer.Serialize(devices, JsonOptions));
+                if (File.Exists(storePath))
+                {
+                    File.Replace(temporaryPath, storePath, storePath + ".bak", true);
+                }
+                else
+                {
+                    File.Move(temporaryPath, storePath);
+                }
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
             devicesDirty = false;
             lastDevicesFlushAt = DateTimeOffset.UtcNow;
         }
@@ -332,9 +534,26 @@ namespace PhoneMonitor.Host.Security
                 .Replace('/', '_');
         }
 
-        private static string ResolveDeviceName(string requestedName, string userAgent)
+        private static string ResolveDeviceName(string requestedName, string model, string userAgent)
         {
             var name = string.IsNullOrWhiteSpace(requestedName) ? "" : requestedName.Trim();
+            var normalizedModel = NormalizeDeviceModel(model);
+            if (!string.IsNullOrWhiteSpace(normalizedModel))
+            {
+                if (normalizedModel.Equals("GoColor7", StringComparison.OrdinalIgnoreCase) ||
+                    normalizedModel.Replace(" ", "").Equals("BOOXGoColor7", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "BOOX Go Color 7";
+                }
+
+                if (normalizedModel.StartsWith("SM-", StringComparison.OrdinalIgnoreCase))
+                {
+                    return $"Samsung {normalizedModel.ToUpperInvariant()}";
+                }
+
+                return normalizedModel;
+            }
+
             if (!string.IsNullOrWhiteSpace(name) && !IsGenericPairingName(name))
             {
                 return name;
@@ -356,25 +575,67 @@ namespace PhoneMonitor.Host.Security
             return string.IsNullOrWhiteSpace(name) ? "Phone" : name;
         }
 
+        private static string NormalizeDeviceModel(string model)
+        {
+            var value = string.IsNullOrWhiteSpace(model) ? "" : model.Trim();
+            if (value.Length > 80 || value.Equals("K", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                return "";
+            }
+            return value;
+        }
+
+        private static string NormalizeClientInstanceId(string value)
+        {
+            var normalized = string.IsNullOrWhiteSpace(value) ? "" : value.Trim();
+            return normalized.Length >= 16 && normalized.Length <= 100 ? normalized : "";
+        }
+
         private static bool IsGenericPairingName(string name)
         {
             return string.Equals(name, "Phone", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(name, "Win32", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(name, "Android Phone", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(name, "Android 裝置", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(name, "iPhone", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static bool NormalizeDeviceNames(List<TrustedDeviceRecord> records)
+        private static bool NormalizeDeviceRecords(List<TrustedDeviceRecord> records)
         {
             var changed = false;
             foreach (var record in records)
             {
-                var resolvedName = ResolveDeviceName(record.Name, record.LastUserAgent);
+                var resolvedName = ResolveDeviceName(record.Name, record.Model, record.LastUserAgent);
                 if (!string.Equals(record.Name, resolvedName, StringComparison.Ordinal))
                 {
                     record.Name = resolvedName;
                     changed = true;
                 }
+            }
+
+            foreach (var group in records
+                .Where(record => !string.IsNullOrWhiteSpace(record.ClientInstanceId))
+                .GroupBy(record => record.ClientInstanceId, StringComparer.Ordinal)
+                .Where(group => group.Count() > 1)
+                .ToList())
+            {
+                var keep = group.OrderByDescending(record => record.LastSeenAt).First();
+                changed |= records.RemoveAll(record => group.Contains(record) && !ReferenceEquals(record, keep)) > 0;
+            }
+
+            // Clean records created by older builds, which had no browser ID.
+            // Exact address + full user-agent is intentionally conservative.
+            foreach (var group in records
+                .Where(record => string.IsNullOrWhiteSpace(record.ClientInstanceId) &&
+                    !string.IsNullOrWhiteSpace(record.LastRemoteAddress) &&
+                    !string.IsNullOrWhiteSpace(record.LastUserAgent))
+                .GroupBy(record => $"{record.LastRemoteAddress}\n{record.LastUserAgent}", StringComparer.Ordinal)
+                .Where(group => group.Count() > 1)
+                .ToList())
+            {
+                var keep = group.OrderByDescending(record => record.LastSeenAt).First();
+                changed |= records.RemoveAll(record => group.Contains(record) && !ReferenceEquals(record, keep)) > 0;
             }
 
             return changed;
@@ -385,6 +646,8 @@ namespace PhoneMonitor.Host.Security
     {
         public string Name { get; set; }
         public string Platform { get; set; }
+        public string Model { get; set; }
+        public string ClientInstanceId { get; set; }
     }
 
     public sealed class PairingApprovalActionRequest { public string RequestId { get; set; } }
@@ -397,12 +660,15 @@ namespace PhoneMonitor.Host.Security
         public string RequestSecret { get; set; }
         public string Name { get; set; }
         public string Platform { get; set; }
+        public string Model { get; set; }
+        public string ClientInstanceId { get; set; }
         public string RemoteAddress { get; set; }
         public string UserAgent { get; set; }
         public string VerificationCode { get; set; }
         public string Status { get; set; }
         public string DeviceId { get; set; }
         public string DeviceToken { get; set; }
+        public bool Continued { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset ExpiresAt { get; set; }
     }
@@ -439,6 +705,7 @@ namespace PhoneMonitor.Host.Security
         public string DeviceId { get; set; }
         public string DeviceToken { get; set; }
         public string DeviceName { get; set; }
+        public bool Continued { get; set; }
         public static PairingApprovalPollResult Fail(string message) => new PairingApprovalPollResult { Success = false, Status = "expired", Message = message };
     }
 
@@ -502,6 +769,8 @@ namespace PhoneMonitor.Host.Security
     {
         public string DeviceId { get; set; }
         public string Name { get; set; }
+        public string Model { get; set; }
+        public string ClientInstanceId { get; set; }
         public string TokenHash { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset LastSeenAt { get; set; }

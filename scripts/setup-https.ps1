@@ -42,7 +42,7 @@ function Get-PhoneMonitorLanIpAddresses {
 
 if ((Test-Path $rootPfxPath) -and (Test-Path $hostPfxPath) -and (Test-Path $rootCerPath) -and (Test-Path $hostCerPath) -and (Test-Path $statePath) -and -not $Force) {
     if (-not $Quiet) {
-        Write-Host "PhoneMonitor HTTPS certificate already exists."
+        Write-Host "VibeDeck HTTPS certificate already exists."
         Write-Host "Root PFX : $rootPfxPath"
         Write-Host "Host PFX : $hostPfxPath"
         Write-Host "Root CER : $rootCerPath"
@@ -66,7 +66,7 @@ $hostKey = [System.Security.Cryptography.RSA]::Create(2048)
 
 try {
     $rootRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
-        "CN=PhoneMonitor Local Root CA",
+        "CN=VibeDeck Local Root CA",
         $rootKey,
         [System.Security.Cryptography.HashAlgorithmName]::SHA256,
         [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
@@ -82,7 +82,7 @@ try {
     $rootCertificate = $rootRequest.CreateSelfSigned($notBefore, $rootNotAfter)
 
     $hostRequest = [System.Security.Cryptography.X509Certificates.CertificateRequest]::new(
-        "CN=PhoneMonitor Local Host",
+        "CN=VibeDeck Local Host",
         $hostKey,
         [System.Security.Cryptography.HashAlgorithmName]::SHA256,
         [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
@@ -146,14 +146,14 @@ finally {
 }
 
 if (-not $Quiet) {
-    Write-Host "PhoneMonitor HTTPS certificate created."
+    Write-Host "VibeDeck HTTPS certificate created."
     Write-Host "Root PFX : $rootPfxPath"
     Write-Host "Host PFX : $hostPfxPath"
     Write-Host "Root CER : $rootCerPath"
     Write-Host "Host CER : $hostCerPath"
     Write-Host "State    : $statePath"
     Write-Host ""
-    Write-Host "Restart PhoneMonitor Host. It will serve HTTPS on https://0.0.0.0:5443 when the PFX exists."
+    Write-Host "Restart VibeDeck Host. It will serve HTTPS on https://0.0.0.0:5443 when the PFX exists."
     Write-Host "Install and trust the Root CER on the phone before opening the HTTPS URL."
     Write-Host "Host startup auto-refreshes the Host certificate if this PC's LAN IP changes."
 }

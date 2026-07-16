@@ -5,7 +5,8 @@ namespace PhoneMonitor.Host.Security
 {
     public sealed class ActionTokenService
     {
-        public const string HeaderName = "X-PhoneMonitor-Action-Token";
+        public const string HeaderName = "X-VibeDeck-Action-Token";
+        public const string LegacyHeaderName = "X-PhoneMonitor-Action-Token";
         private readonly string token;
 
         public ActionTokenService()

@@ -757,6 +757,13 @@ body.eink-client .quota-page-button {
       text-overflow: ellipsis;
     }
 
+    .host-version-label {
+      font-style: normal;
+      font-weight: 600;
+      opacity: 0.75;
+      margin-left: 0.35em;
+    }
+
     .controls,
     .view-switcher,
     .utility-controls {
@@ -1074,6 +1081,61 @@ body.eink-client .quota-page-button {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
+    }
+
+    .pairing-progress {
+      display: grid;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .pairing-progress > div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .pairing-progress > div strong {
+      color: #dce7f4;
+      font-size: 12px;
+    }
+
+    .pairing-progress > div b {
+      color: #8fd1ff;
+      font-family: var(--mono);
+    }
+
+    .pairing-progress progress {
+      width: 100%;
+      height: 9px;
+      overflow: hidden;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      appearance: none;
+    }
+
+    .pairing-progress progress::-webkit-progress-bar {
+      background: rgba(255,255,255,.08);
+      border-radius: 999px;
+    }
+
+    .pairing-progress progress::-webkit-progress-value {
+      background: linear-gradient(90deg, #579fd4, #8fd1ff);
+      border-radius: 999px;
+      transition: width .25s ease;
+    }
+
+    .pairing-progress.complete progress::-webkit-progress-value {
+      background: #2fcf72;
+    }
+
+    .pairing-progress.complete > div b,
+    .pairing-progress.complete > div strong {
+      color: #8de6a6;
     }
 
     .pairing-step {
@@ -2432,6 +2494,68 @@ body.eink-client .quota-page-button {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 6px;
+    }
+
+    /* Windows console: settings are a dedicated product page. Everyday views
+       keep a compact header and own the entire remaining viewport. */
+    body.pc-console {
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    body.pc-console:not(.mode-setup) header .setup-panels,
+    body.pc-console:not(.mode-setup) header .connect-panel,
+    body.pc-console:not(.mode-setup) header .driver-state {
+      display: none !important;
+    }
+
+    body.pc-console.mode-setup {
+      grid-template-rows: minmax(0, 1fr);
+    }
+
+    body.pc-console.mode-setup header {
+      align-content: start;
+      overflow-x: hidden;
+      overflow-y: auto;
+    }
+
+    body.pc-console.mode-setup main {
+      display: none;
+    }
+
+    body.pc-console:not(.mode-setup) main {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    body.pc-console:not(.mode-setup) .app-view.active {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      min-height: 0;
+      align-self: stretch;
+      justify-self: stretch;
+    }
+
+    body.pc-console.mode-display .screen-media {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      max-height: 100%;
+      aspect-ratio: auto;
+      object-fit: contain;
+    }
+
+    body.pc-console.mode-sideboard .sideboard-shell,
+    body.pc-console.mode-quota .quota-shell {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+
+    body.pc-console.mode-quota .quota-shell {
+      overflow: hidden;
     }
 
     .process-list li > span {
@@ -4711,6 +4835,39 @@ body.eink-client .quota-account-email {
   isolation: isolate;
 }
 
+/* Desktop control and deck windows are one-screen dashboards. The previous
+   680px minimum made a short PC window grow with the notification feed even
+   though the feed itself was scrollable. Constrain the dashboard to the
+   available viewport and let individual cards own their scrolling. */
+body.pc-console.mode-sideboard {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.pc-console.mode-sideboard main {
+  min-height: 0;
+  overflow: hidden;
+}
+
+body.pc-console.mode-sideboard .sideboard-view.active {
+  align-self: stretch;
+  height: 100%;
+  min-height: 0;
+}
+
+body.pc-console.mode-sideboard .sideboard-shell {
+  height: 100%;
+  min-height: 0;
+}
+
+body.pc-console.mode-sideboard #systemSideboardPage.dashboard-grid,
+body.deck-window.mode-sideboard #systemSideboardPage.dashboard-grid {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 #systemSideboardPage.dashboard-grid > .metric-grid,
 #systemSideboardPage.dashboard-grid > .custom-cards-grid {
   display: contents !important;
@@ -5634,6 +5791,7 @@ body.eink-client .load-pet span::after { background: #000; }
   scrollbar-gutter: stable;
   touch-action: pan-y;
   list-style: none;
+  scrollbar-width: thin;
 }
 
 .activity-feed-item {

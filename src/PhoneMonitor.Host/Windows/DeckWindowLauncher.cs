@@ -25,7 +25,7 @@ namespace PhoneMonitor.Host.Windows
             var display = displays.GetDisplays().FirstOrDefault(item => item.IsPhoneMonitor);
             if (display == null)
             {
-                return DeckLaunchResult.Fail("找不到 PhoneMonitor Display。請先確認 Windows 顯示設定裡已有 VibeDeck 虛擬螢幕。");
+                return DeckLaunchResult.Fail("找不到 VibeDeck 虛擬螢幕。請先在 Windows 顯示設定確認虛擬顯示器已安裝。");
             }
 
             var browser = FindBrowser();

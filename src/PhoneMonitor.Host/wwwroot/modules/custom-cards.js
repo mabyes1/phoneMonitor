@@ -617,7 +617,7 @@ export function createCustomCardsController({
       "",
       "PowerShell:",
       `$headers = @{ Authorization = \"Bearer ${ingest.token}\" }`,
-      `$body = @{ id = \"msg-123\"; from = \"Source\"; text = \"Hello from PhoneMonitor\" } | ConvertTo-Json`,
+      `$body = @{ id = \"msg-123\"; from = \"Source\"; text = \"Hello from VibeDeck\" } | ConvertTo-Json`,
       `Invoke-RestMethod -Method Post -Uri \"${ingest.endpointUrl}\" -Headers $headers -ContentType \"application/json\" -Body $body`,
     ].join("\n");
     customCredentialText.value = credentialValue;

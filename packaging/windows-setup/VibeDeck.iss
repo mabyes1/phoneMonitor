@@ -87,7 +87,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Open-VibeDeck.vbs"; IconFil
 [Run]
 ; Allow LAN phones to reach Host HTTP/HTTPS
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VibeDeck Host"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden; StatusMsg: "Adding firewall rule..."; Tasks: autostart
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VibeDeck Host"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden; StatusMsg: "Adding firewall rule..."
 Filename: "{sys}\wscript.exe"; Parameters: """{app}\Start-VibeDeck-Host.vbs"""; Flags: runhidden nowait runasoriginaluser; StatusMsg: "Starting VibeDeck Host in your desktop session..."; Tasks: autostart
 ; Open web UI after install
 Filename: "{app}\Open-VibeDeck.vbs"; Description: "Open VibeDeck web UI now"; Flags: postinstall nowait skipifsilent shellexec
@@ -98,8 +98,10 @@ Filename: "{sys}\sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidde
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden; RunOnceId: "RemoveVibeDeckFirewall"
 
 [Registry]
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VibeDeckHost"; ValueData: """{sys}\wscript.exe"" ""{app}\Start-VibeDeck-Host.vbs"""; Flags: uninsdeletevalue; Tasks: autostart
-Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VibeDeckHost"; Flags: deletevalue; Tasks: not autostart
+; Autostart belongs to the signed-in desktop user whose display Host captures.
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VibeDeckHost"; Flags: deletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VibeDeckHost"; ValueData: """{sys}\wscript.exe"" ""{app}\Start-VibeDeck-Host.vbs"""; Flags: uninsdeletevalue; Tasks: autostart
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VibeDeckHost"; Flags: deletevalue; Tasks: not autostart
 
 [Code]
 function ServiceExists(): Boolean;

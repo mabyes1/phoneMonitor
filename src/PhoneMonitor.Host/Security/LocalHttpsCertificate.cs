@@ -146,7 +146,7 @@ namespace PhoneMonitor.Host.Security
                 var notBefore = DateTimeOffset.UtcNow.AddMinutes(-5);
                 var notAfter = notBefore.AddYears(10);
                 var request = new CertificateRequest(
-                    "CN=PhoneMonitor Local Root CA",
+                    "CN=VibeDeck Local Root CA",
                     rootKey,
                     HashAlgorithmName.SHA256,
                     RSASignaturePadding.Pkcs1);
@@ -226,7 +226,7 @@ namespace PhoneMonitor.Host.Security
                 var notBefore = DateTimeOffset.UtcNow.AddMinutes(-5);
                 var notAfter = notBefore.AddYears(2);
                 var request = new CertificateRequest(
-                    "CN=PhoneMonitor Local Host",
+                    "CN=VibeDeck Local Host",
                     hostKey,
                     HashAlgorithmName.SHA256,
                     RSASignaturePadding.Pkcs1);

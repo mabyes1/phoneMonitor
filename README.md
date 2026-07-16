@@ -55,6 +55,8 @@ Building from source additionally requires the .NET 8 SDK. Creating the Windows 
 
 ## Install VibeDeck
 
+For a complete build + install from this repository, double-click `install.bat`. It builds the canonical Setup, requests administrator permission once, installs silently, starts the Host hidden, and verifies the running product.
+
 Run the packaged installer:
 
 ```text
@@ -104,6 +106,8 @@ The packaging script normally runs tests, JavaScript syntax checks, product-path
 
 ## Update an Existing Installation
 
+From this repository, double-click `update.bat`. The update uses the same Setup AppId and performs this sequence automatically: stop the running Host, replace the app files, preserve `%ProgramData%\VibeDeck`, start the Host hidden, and run the installed-product checks. Do not uninstall first.
+
 1. Build or download a newer Setup version.
 2. Run it without uninstalling the existing version.
 3. Setup stops the old Host, replaces application files, removes obsolete service registrations, and starts the new Host in the desktop session.
@@ -143,6 +147,19 @@ On first connection:
 2. Confirm the device name and six-digit code on the PC.
 3. Select **Allow** on the PC.
 4. Switch between Display, Information Board, and Quota modes on the client.
+
+The phone and PC show the same explicit pairing progress:
+
+| Progress | Meaning |
+|---:|---|
+| 0–20% | Host, HTTPS address, and QR code are being prepared |
+| 25% | Phone reached the Host and is waiting for **Start pairing** |
+| 40% | Browser identity and the exact available device model are being read |
+| 70–75% | Request and six-digit code reached the PC; waiting for **Allow** |
+| 90% | Approval succeeded and the persistent credential is being saved |
+| 100% | Pairing is saved, or an existing pairing was restored; the page reloads automatically |
+
+Pairing is attached to a persistent browser-instance ID and stored under `%ProgramData%\VibeDeck\devices`. Re-pairing the same browser continues the existing device record and rotates its credential instead of adding a duplicate. Android Chromium reports its model when available, so known devices appear as names such as `BOOX Go Color 7` and `Samsung SM-S9110`; browsers that intentionally hide the model fall back to a platform name.
 
 Information Board and Quota modes do not require the virtual display. iPhone, Android, and BOOX all use the same Host-served web application; responsive and e-paper styles handle platform differences.
 
@@ -228,6 +245,8 @@ scripts\package-windows-notifications.ps1 -Uninstall
 | Virtual display is installed but missing | Check the Host session; do not reinstall the driver solely because `WinDisc` appears |
 | Phone cannot connect | Confirm Wi-Fi/Tailscale connectivity, firewall access, and the HTTPS URL |
 | Phone UI looks like an old app | Close obsolete clients and use Safari, Chrome, or the PWA |
+| A paired phone asks to pair again | Run `scripts\test-product-flow.ps1 -Installed`, then verify `%ProgramData%\VibeDeck\devices\trusted-devices.json`; Setup grants signed-in users write access and the Host keeps a `.bak` recovery copy |
+| Refresh briefly opens PowerShell | Update to the latest Setup; the local information collector is launched non-interactively with a hidden window |
 | Windows notifications do not appear | Confirm that the companion is connected and allowed |
 | Data appears missing after an update | Verify `%ProgramData%\VibeDeck`; do not confuse it with the development data directory |
 | Quota cards have no data | Use the corresponding local CLI/account on the Host PC, then refresh the card |

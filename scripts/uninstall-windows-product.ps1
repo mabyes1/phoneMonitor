@@ -39,6 +39,7 @@ if ($existing) {
 }
 
 Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
+Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
 foreach ($processName in @("VibeDeck.Host.exe", "PhoneMonitor.Host.exe")) {
     Get-CimInstance Win32_Process -Filter "Name='$processName'" -ErrorAction SilentlyContinue |
         Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDir, [StringComparison]::OrdinalIgnoreCase) } |

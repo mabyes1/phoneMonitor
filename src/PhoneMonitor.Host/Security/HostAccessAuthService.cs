@@ -12,7 +12,8 @@ namespace PhoneMonitor.Host.Security
 {
     public sealed class HostAccessAuthService
     {
-        public const string CookieName = "PhoneMonitor-Host-Session";
+        public const string CookieName = "VibeDeck-Host-Session";
+        public const string LegacyCookieName = "PhoneMonitor-Host-Session";
 
         private const int SaltSize = 16;
         private const int HashSize = 32;
@@ -31,7 +32,8 @@ namespace PhoneMonitor.Host.Security
             var configuredPassword = configuration["RemoteAccess:Password"];
             if (string.IsNullOrWhiteSpace(configuredPassword))
             {
-                configuredPassword = Environment.GetEnvironmentVariable("PHONEMONITOR_REMOTE_PASSWORD");
+                configuredPassword = Environment.GetEnvironmentVariable("VIBEDECK_REMOTE_PASSWORD")
+                    ?? Environment.GetEnvironmentVariable("PHONEMONITOR_REMOTE_PASSWORD");
             }
 
             passwordHash = !string.IsNullOrWhiteSpace(configuredHash)
@@ -48,7 +50,7 @@ namespace PhoneMonitor.Host.Security
                 return false;
             }
 
-            var token = context.Request.Cookies[CookieName];
+            var token = ReadSessionToken(context);
             if (string.IsNullOrWhiteSpace(token) || !sessions.TryGetValue(HashToken(token), out var session))
             {
                 return false;
@@ -61,6 +63,17 @@ namespace PhoneMonitor.Host.Security
             }
 
             return true;
+        }
+
+        private static string ReadSessionToken(HttpContext context)
+        {
+            var token = context.Request.Cookies[CookieName];
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                return token;
+            }
+
+            return context.Request.Cookies[LegacyCookieName];
         }
 
         public HostLoginResult Login(string password, string remoteAddress)
@@ -98,7 +111,7 @@ namespace PhoneMonitor.Host.Security
 
         public void Logout(HttpContext context)
         {
-            var token = context.Request.Cookies[CookieName];
+            var token = ReadSessionToken(context);
             if (!string.IsNullOrWhiteSpace(token))
             {
                 sessions.TryRemove(HashToken(token), out _);

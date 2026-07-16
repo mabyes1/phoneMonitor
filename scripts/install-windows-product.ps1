@@ -81,6 +81,29 @@ if ($existing) {
     Write-Host "Removed legacy Session 0 service $serviceName."
 }
 
+function Clear-InstallDirectory([string]$path) {
+    $resolved = [IO.Path]::GetFullPath($path).TrimEnd('\')
+    $programFilesRoot = [IO.Path]::GetFullPath(${env:ProgramFiles}).TrimEnd('\') + '\'
+    if (-not $resolved.StartsWith($programFilesRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clear an install directory outside Program Files: $resolved"
+    }
+
+    $lastError = $null
+    foreach ($attempt in 1..8) {
+        try {
+            Get-ChildItem -LiteralPath $resolved -Force -ErrorAction Stop |
+                Remove-Item -Recurse -Force -ErrorAction Stop
+            return
+        }
+        catch {
+            $lastError = $_
+            Start-Sleep -Milliseconds (200 * $attempt)
+        }
+    }
+
+    throw "Could not replace VibeDeck application files after 8 attempts: $($lastError.Exception.Message)"
+}
+
 # Stop an existing desktop-session Host from this install directory before
 # replacing files. The packaged Windows notification companion has a different
 # path and must remain running.
@@ -101,7 +124,7 @@ if (Test-Path -LiteralPath $InstallDir) {
     }
     # Product data lives in ProgramData. Clearing the replaceable app directory
     # prevents removed web modules or old launchers from surviving an update.
-    Get-ChildItem -LiteralPath $InstallDir -Force | Remove-Item -Recurse -Force
+    Clear-InstallDirectory $InstallDir
 }
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Copy-Item -Path (Join-Path $PayloadPath "*") -Destination $InstallDir -Recurse -Force
@@ -192,10 +215,11 @@ if (-not $SkipAutostart) {
     if (-not (Test-Path -LiteralPath $hostVbs)) {
         throw "Payload missing Start-VibeDeck-Host.vbs. Re-package VibeDeck before installing."
     }
-    $runPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
+    $runPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
     $runCommand = "`"$env:WINDIR\System32\wscript.exe`" `"$hostVbs`""
     New-Item -Path $runPath -Force | Out-Null
     New-ItemProperty -Path $runPath -Name $runValueName -Value $runCommand -PropertyType String -Force | Out-Null
+    Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
     & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
     & netsh.exe advfirewall firewall add rule name="VibeDeck Host" dir=in action=allow program="$hostExe" enable=yes profile=any | Out-Null
     # Route the launch through the signed-in Explorer shell. This keeps Host in

@@ -29,8 +29,8 @@ namespace PhoneMonitor.Host.Display
                     DevicePath = device.InstanceId ?? persisted.DevicePath,
                     State = device.Installed ? (device.Started ? "driver-started" : "driver-installed") : "driver-not-installed",
                     Detail = device.Installed
-                        ? "PhoneMonitor Display is installed. Check Windows Settings > System > Display for the virtual monitor."
-                        : "Install the PhoneMonitor Indirect Display Driver to expose a real Windows monitor."
+                        ? "VibeDeck virtual display is installed. Check Windows Settings > System > Display for the virtual monitor."
+                        : "Install the VibeDeck virtual display driver to expose a real Windows monitor."
                 };
             }
         }

@@ -9,7 +9,7 @@ import {
   formatTemperature,
   formatWeatherLocation,
 } from "./modules/formatters.js?v=47";
-import { createDisplayInputController } from "./modules/display-input.js?v=47";
+import { createDisplayInputController } from "./modules/display-input.js?v=48";
 import { createCustomCardsController } from "./modules/custom-cards.js?v=52";
 import { createActivityFeedController } from "./modules/activity-feed.js?v=53";
 import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=55";
@@ -37,6 +37,7 @@ import {
     let einkOrientationCandidate = "";
     let einkOrientationCandidateSince = 0;
     const displayMode = document.getElementById("displayMode");
+    const setupMode = document.getElementById("setupMode");
     const sideboardMode = document.getElementById("sideboardMode");
     const quotaMode = document.getElementById("quotaMode");
     const refresh = document.getElementById("refresh");
@@ -46,6 +47,8 @@ import {
     const displayEmptyTitle = document.getElementById("displayEmptyTitle");
     const displayEmptyMessage = document.getElementById("displayEmptyMessage");
     const installVirtualDisplay = document.getElementById("installVirtualDisplay");
+    const setupInstallVirtualDisplay = document.getElementById("setupInstallVirtualDisplay");
+    const setupDisplayInstallDetail = document.getElementById("setupDisplayInstallDetail");
     const displayInstallDetail = document.getElementById("displayInstallDetail");
     const openSideboardFromEmpty = document.getElementById("openSideboardFromEmpty");
     const exitViewer = document.getElementById("exitViewer");
@@ -213,13 +216,21 @@ import {
     let customCardsController = null;
     let quotaMiniController = null;
     let actionToken = "";
-    let actionHeaderName = "X-PhoneMonitor-Action-Token";
+    let actionHeaderName = "X-VibeDeck-Action-Token";
     let hostAuthEnabled = false;
     let hostAuthenticated = false;
     let hostAuthRequired = false;
-    const DEVICE_TOKEN_KEY = "phoneMonitorDeviceToken";
-    const DEVICE_ID_KEY = "phoneMonitorDeviceId";
-    const DEVICE_COOKIE = "PhoneMonitor-Device-Token";
+    let hostVersionLabel = "";
+    const DEVICE_TOKEN_KEY = "vibeDeckDeviceToken";
+    const LEGACY_DEVICE_TOKEN_KEY = "phoneMonitorDeviceToken";
+    const DEVICE_ID_KEY = "vibeDeckDeviceId";
+    const LEGACY_DEVICE_ID_KEY = "phoneMonitorDeviceId";
+    const DEVICE_COOKIE = "VibeDeck-Device-Token";
+    const LEGACY_DEVICE_COOKIE = "PhoneMonitor-Device-Token";
+    const CLIENT_INSTANCE_KEY = "vibeDeckClientInstanceId";
+    const LEGACY_CLIENT_INSTANCE_KEY = "phoneMonitorClientInstanceId";
+    const CLIENT_INSTANCE_COOKIE = "VibeDeck-Client-Instance";
+    const LEGACY_CLIENT_INSTANCE_COOKIE = "PhoneMonitor-Client-Instance";
     const IPHONE_XS_EXACT_PRESET = "iphonexs-css-812x375";
     const IPHONE_XS_ASPECT_VERSION = "1";
 
@@ -230,18 +241,28 @@ import {
     }
 
     function writeCookie(name, value, days) {
-      const maxAge = Math.max(1, Math.floor(days * 24 * 60 * 60));
+      const maxAge = Math.max(0, Math.floor(days * 24 * 60 * 60));
       const secure = location.protocol === "https:" ? "; Secure" : "";
       document.cookie = `${name}=${encodeURIComponent(value || "")}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
     }
 
+    function writeDeviceCookies(token, days) {
+      writeCookie(DEVICE_COOKIE, token, days);
+      writeCookie(LEGACY_DEVICE_COOKIE, token, days);
+    }
+
     function loadStoredDeviceCredentials() {
       const token = localStorage.getItem(DEVICE_TOKEN_KEY)
+        || localStorage.getItem(LEGACY_DEVICE_TOKEN_KEY)
         || sessionStorage.getItem(DEVICE_TOKEN_KEY)
+        || sessionStorage.getItem(LEGACY_DEVICE_TOKEN_KEY)
         || readCookie(DEVICE_COOKIE)
+        || readCookie(LEGACY_DEVICE_COOKIE)
         || "";
       const id = localStorage.getItem(DEVICE_ID_KEY)
+        || localStorage.getItem(LEGACY_DEVICE_ID_KEY)
         || sessionStorage.getItem(DEVICE_ID_KEY)
+        || sessionStorage.getItem(LEGACY_DEVICE_ID_KEY)
         || "";
       return { token, id };
     }
@@ -254,33 +275,42 @@ import {
       try {
         if (nextToken) {
           localStorage.setItem(DEVICE_TOKEN_KEY, nextToken);
+          localStorage.setItem(LEGACY_DEVICE_TOKEN_KEY, nextToken);
           sessionStorage.setItem(DEVICE_TOKEN_KEY, nextToken);
-          writeCookie(DEVICE_COOKIE, nextToken, 400);
+          sessionStorage.setItem(LEGACY_DEVICE_TOKEN_KEY, nextToken);
+          writeDeviceCookies(nextToken, 400);
         } else {
           localStorage.removeItem(DEVICE_TOKEN_KEY);
+          localStorage.removeItem(LEGACY_DEVICE_TOKEN_KEY);
           sessionStorage.removeItem(DEVICE_TOKEN_KEY);
-          writeCookie(DEVICE_COOKIE, "", 0);
+          sessionStorage.removeItem(LEGACY_DEVICE_TOKEN_KEY);
+          writeDeviceCookies("", 0);
         }
         if (nextId) {
           localStorage.setItem(DEVICE_ID_KEY, nextId);
+          localStorage.setItem(LEGACY_DEVICE_ID_KEY, nextId);
           sessionStorage.setItem(DEVICE_ID_KEY, nextId);
+          sessionStorage.setItem(LEGACY_DEVICE_ID_KEY, nextId);
         } else {
           localStorage.removeItem(DEVICE_ID_KEY);
+          localStorage.removeItem(LEGACY_DEVICE_ID_KEY);
           sessionStorage.removeItem(DEVICE_ID_KEY);
+          sessionStorage.removeItem(LEGACY_DEVICE_ID_KEY);
         }
       } catch {
         // Private mode / storage blocked: cookie may still work.
-        if (nextToken) writeCookie(DEVICE_COOKIE, nextToken, 400);
+        if (nextToken) writeDeviceCookies(nextToken, 400);
       }
     }
 
     const storedDevice = loadStoredDeviceCredentials();
     let deviceToken = storedDevice.token;
     let deviceId = storedDevice.id;
-    let deviceHeaderName = "X-PhoneMonitor-Device-Token";
+    let deviceHeaderName = "X-VibeDeck-Device-Token";
     let deviceTrusted = false;
     let deviceLocalRequest = false;
     let pairingQrActive = false;
+    let resolvedPairingInfo = null;
     let quotaSnapshotData = null;
     // Keep the initial quota view consistent across phone and E Ink clients.
     // Users can still switch tabs; the versioned key prevents an old device
@@ -508,6 +538,8 @@ import {
       document.body.classList.toggle("device-trusted", Boolean(deviceTrusted) && !localConsole);
       document.body.classList.toggle("pc-console", localConsole);
       document.body.classList.toggle("standalone-app", isStandaloneApp());
+      const pairingRescue = document.getElementById("phonePairRescue");
+      if (pairingRescue) pairingRescue.hidden = !phoneClient || Boolean(deviceTrusted);
       customCardsController?.syncAccess?.();
       applyForcedLandscape();
       updateIosHomeTip();
@@ -719,7 +751,7 @@ import {
         link.textContent = httpsUrl;
       }
       if (cert) {
-        cert.href = "/cert/phone-monitor-root.cer";
+        cert.href = "/cert/vibedeck-root.cer";
       }
       if (openBtn) {
         openBtn.onclick = () => {
@@ -733,22 +765,25 @@ import {
 
     function setMode(mode) {
       activeMode = mode;
+      const isSetup = mode === "setup";
       const isSideboard = mode === "sideboard";
       const isQuota = mode === "quota";
       // A leftover "paired" toast must never sit on top of the display stream.
       if (!isSideboard && !isQuota) hidePairSuccessBanner();
-      document.body.classList.toggle("mode-display", !isSideboard && !isQuota);
+      document.body.classList.toggle("mode-display", !isSetup && !isSideboard && !isQuota);
+      document.body.classList.toggle("mode-setup", isSetup);
       document.body.classList.toggle("mode-sideboard", isSideboard);
       document.body.classList.toggle("mode-quota", isQuota);
-      if (isSideboard || isQuota) {
+      if (isSetup || isSideboard || isQuota) {
         document.body.classList.remove("display-settings-open");
         displaySettingsToggle?.setAttribute("aria-expanded", "false");
         if (displaySettingsToggle) displaySettingsToggle.textContent = "顯示設定";
       }
-      displayView.classList.toggle("active", !isSideboard && !isQuota);
+      displayView.classList.toggle("active", !isSetup && !isSideboard && !isQuota);
       sideboardView.classList.toggle("active", isSideboard);
       quotaView.classList.toggle("active", isQuota);
-      displayMode.classList.toggle("active", !isSideboard && !isQuota);
+      displayMode.classList.toggle("active", !isSetup && !isSideboard && !isQuota);
+      setupMode?.classList.toggle("active", isSetup);
       sideboardMode.classList.toggle("active", isSideboard);
       quotaMode.classList.toggle("active", isQuota);
       document.querySelectorAll("[data-dashboard-mode]").forEach(button => {
@@ -758,7 +793,11 @@ import {
       });
       localStorage.setItem("phoneMonitorViewMode", mode);
 
-      if (isSideboard) {
+      if (isSetup) {
+        if (document.body.classList.contains("viewer-fullscreen") || document.body.classList.contains("dashboard-viewer")) {
+          exitLandscapeViewer();
+        }
+      } else if (isSideboard) {
         scheduleDashboardRefresh("sideboard", true);
         scheduleDashboardRefresh("customCards", true);
         if (document.body.classList.contains("viewer-fullscreen")) {
@@ -777,7 +816,7 @@ import {
 
     function getInitialMode() {
       const requestedMode = new URLSearchParams(location.search).get("mode");
-      if (["display", "sideboard", "quota"].includes(requestedMode)) {
+      if (["display", "setup", "sideboard", "quota"].includes(requestedMode)) {
         return isEinkClient() && requestedMode === "display" ? "sideboard" : requestedMode;
       }
 
@@ -891,6 +930,23 @@ import {
       trustState.classList.toggle("warn", !good);
     }
 
+    function setPairingProgress(percent, message) {
+      const value = Math.max(0, Math.min(100, Number(percent) || 0));
+      document.querySelectorAll("[data-pair-progress]").forEach(element => {
+        element.style.setProperty("--pair-progress", `${value}%`);
+        element.classList.toggle("complete", value >= 100);
+        const meter = element.querySelector("[data-pair-progress-bar]");
+        const label = element.querySelector("[data-pair-progress-label]");
+        const detail = element.querySelector("[data-pair-progress-detail]");
+        if (meter) {
+          meter.value = value;
+          meter.setAttribute("aria-valuenow", String(value));
+        }
+        if (label) label.textContent = `${value}%`;
+        if (detail) detail.textContent = message || "準備配對";
+      });
+    }
+
     function setPairingStep(element, state) {
       element.classList.toggle("done", state === "done");
       element.classList.toggle("active", state === "active");
@@ -922,7 +978,13 @@ import {
         }
         qrCode.src = `/qr.svg?t=${Date.now()}`;
       }
+      if (deviceTrusted && !deviceLocalRequest) {
+        updatePairingGuide("paired");
+        setPairingProgress(100, `${resolvedPairingInfo?.name || pairingDeviceName()} 可繼續使用`);
+        return true;
+      }
       updatePairingGuide("pair");
+      setPairingProgress(20, "HTTPS 與 QR Code 已準備");
       return true;
     }
 
@@ -1012,10 +1074,56 @@ import {
     }
 
     function pairingDeviceName() {
+      if (resolvedPairingInfo?.name) return resolvedPairingInfo.name;
       if (isEinkClient()) return "BOOX Go Color 7";
       if (isIos()) return "iPhone";
       if (/Android/i.test(navigator.userAgent || "")) return "Android 裝置";
       return navigator.platform || "新裝置";
+    }
+
+    function getOrCreateClientInstanceId() {
+      let value = "";
+      try {
+        value = localStorage.getItem(CLIENT_INSTANCE_KEY)
+          || localStorage.getItem(LEGACY_CLIENT_INSTANCE_KEY)
+          || readCookie(CLIENT_INSTANCE_COOKIE)
+          || readCookie(LEGACY_CLIENT_INSTANCE_COOKIE)
+          || "";
+      } catch { }
+      if (!value) {
+        value = crypto.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(18)))
+          .map(item => item.toString(16).padStart(2, "0")).join("");
+      }
+      try {
+        localStorage.setItem(CLIENT_INSTANCE_KEY, value);
+        localStorage.setItem(LEGACY_CLIENT_INSTANCE_KEY, value);
+      } catch { }
+      writeCookie(CLIENT_INSTANCE_COOKIE, value, 800);
+      writeCookie(LEGACY_CLIENT_INSTANCE_COOKIE, value, 800);
+      return value;
+    }
+
+    async function resolvePairingDeviceInfo() {
+      if (resolvedPairingInfo) return resolvedPairingInfo;
+      let model = "";
+      try {
+        const data = await navigator.userAgentData?.getHighEntropyValues?.(["model", "platform", "platformVersion"]);
+        model = String(data?.model || "").trim();
+      } catch { }
+
+      let name = pairingDeviceName();
+      if (model && model.toUpperCase() !== "K") {
+        if (/^SM-/i.test(model)) name = `Samsung ${model.toUpperCase()}`;
+        else if (/^(GoColor7|BOOXGoColor7)$/i.test(model.replace(/\s+/g, ""))) name = "BOOX Go Color 7";
+        else name = model;
+      }
+      resolvedPairingInfo = {
+        name,
+        model,
+        platform: pairingPlatform(),
+        clientInstanceId: getOrCreateClientInstanceId()
+      };
+      return resolvedPairingInfo;
     }
 
     async function requestApprovalPairing(options = {}) {
@@ -1027,13 +1135,16 @@ import {
 
       if (!pending?.requestId || !pending?.requestSecret) {
         if (!allowCreate) {
+          setPairingProgress(25, "Host 已連線，等待你開始配對");
           setTrustState("請按「配對申請」，再回 PC 按允許。", false);
           updatePairingGuide("pair");
           return false;
         }
+        setPairingProgress(40, "正在辨識裝置名稱");
+        const deviceInfo = await resolvePairingDeviceInfo();
         const response = await fetch("/api/devices/pairing/request", {
           method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: pairingDeviceName(), platform: pairingPlatform() })
+          body: JSON.stringify(deviceInfo)
         });
         const result = parseJsonResponse(await response.text(), "/api/devices/pairing/request");
         if (!response.ok) throw new Error(result.error || result.message || "無法提出配對申請。");
@@ -1045,6 +1156,7 @@ import {
         localStorage.setItem(storageKey, JSON.stringify(pending));
       }
 
+      setPairingProgress(70, `等待 PC 核准 · ${pending.verificationCode || "------"}`);
       setTrustState(`已找到 Host，請在 PC 按允許（驗證碼 ${pending.verificationCode || "------"}）。`, false);
       const poll = async () => {
         try {
@@ -1055,6 +1167,7 @@ import {
           const result = parseJsonResponse(await response.text(), "/api/devices/pairing/poll");
           const status = result.Status || result.status;
           if (response.ok && status === "approved") {
+            setPairingProgress(90, "核准成功，正在保存配對");
             persistDeviceCredentials(result.DeviceToken || result.deviceToken, result.DeviceId || result.deviceId);
             localStorage.removeItem(storageKey);
             clearInterval(approvalPollTimer);
@@ -1065,6 +1178,7 @@ import {
               setTrustState("配對 token 已取得，正在重新載入驗證。", true);
             }
             showPairSuccessBanner(`裝置：${result.DeviceName || result.deviceName || pairingDeviceName()}`);
+            setPairingProgress(100, (result.Continued ?? result.continued) ? "已恢復既有配對" : "配對完成");
             // Reload from the Host after approval so every controller starts
             // from the newly trusted state. The cache-busting query also
             // escapes stale installed-PWA module caches.
@@ -1077,6 +1191,7 @@ import {
             localStorage.removeItem(storageKey);
             clearInterval(approvalPollTimer);
             approvalPollTimer = null;
+            setPairingProgress(0, status === "denied" ? "配對已被拒絕" : "配對已逾時");
             setTrustState(status === "denied" ? "PC 已拒絕這次配對。" : "配對申請已逾時，重新整理可再試。", false);
           }
         } catch { }
@@ -1089,6 +1204,7 @@ import {
     function renderPendingApprovals(result) {
       const requests = result?.Requests || result?.requests || [];
       pendingPairingPanel.hidden = !requests.length;
+      if (requests.length) setPairingProgress(75, "手機申請已送達，等待 PC 核准");
       pendingPairingList.replaceChildren();
       for (const request of requests) {
         const row = document.createElement("div");
@@ -1206,6 +1322,11 @@ import {
     }
 
     function setPairControlsVisible(localConsole) {
+      if (setupMode) {
+        setupMode.hidden = !localConsole;
+        if (localConsole) setupMode.removeAttribute("hidden");
+        else setupMode.setAttribute("hidden", "");
+      }
       if (pairPhone) {
         pairPhone.hidden = !localConsole;
         if (localConsole) pairPhone.removeAttribute("hidden");
@@ -1222,7 +1343,13 @@ import {
 
     async function loadDeviceTrustStatus() {
       try {
-        const result = await fetchJsonOrThrow("/api/devices/status");
+        const identity = await resolvePairingDeviceInfo();
+        const result = await fetchJsonOrThrow("/api/devices/status", {
+          headers: {
+            "X-VibeDeck-Client-Instance": identity.clientInstanceId,
+            "X-VibeDeck-Device-Model": encodeURIComponent(identity.model || "")
+          }
+        });
         deviceHeaderName = result.DeviceHeader || result.deviceHeader || deviceHeaderName;
         deviceTrusted = Boolean(result.Trusted ?? result.trusted);
 
@@ -1242,18 +1369,22 @@ import {
 
         if (deviceLocalRequest) {
           setTrustState("信任狀態：本機控制。", true);
+          if (!pairingQrActive) setPairingProgress(0, "按「配對新手機」開始");
           if (!pairingQrActive) updatePairingGuide("pair");
           loadPendingApprovals();
           if (!pendingApprovalTimer) pendingApprovalTimer = setInterval(loadPendingApprovals, 2000);
         } else if (hostAuthenticated) {
           setTrustState("遠端 Host 登入成功。", true);
+          setPairingProgress(100, "遠端登入完成");
           updatePairingGuide("paired");
         } else if (deviceTrusted) {
           const name = currentDevice?.Name || currentDevice?.name || "已配對手機";
           setTrustState(`信任狀態：${name} 已配對。`, true);
+          setPairingProgress(100, `${name} 可繼續使用`);
           updatePairingGuide("paired");
         } else if (hostAuthRequired && !hostAuthenticated) {
           setTrustState("請先登入 Host。", false);
+          setPairingProgress(10, "等待 Host 登入");
           updatePairingGuide("install");
         } else {
           const storageKey = `phoneMonitorPendingApproval:${location.host}`;
@@ -1266,6 +1397,7 @@ import {
             requestApprovalPairing().catch(error => setTrustState(error.message || "配對申請失敗。", false));
           } else {
             setTrustState("請按「配對申請」，再回 PC 按允許。", false);
+            setPairingProgress(25, "Host 已連線，等待你開始配對");
             updatePairingGuide("pair");
           }
         }
@@ -1282,6 +1414,7 @@ import {
         setPairControlsVisible(deviceLocalRequest);
         if (!deviceTrusted) renderTrustedDevices(null);
         setTrustState(error.message || "信任狀態暫時無法取得，沿用上次狀態。", deviceTrusted);
+        if (!deviceTrusted) setPairingProgress(10, "正在重新連接 Host");
         applyClientChrome();
         syncDeviceStatusPolling();
         return null;
@@ -1305,6 +1438,7 @@ import {
         pairPhone.textContent = "正在準備…";
       }
       setPairingUiActive(true);
+      setPairingProgress(10, "正在準備配對流程");
       try {
         showInstallQr();
         setPairingUiActive(true);
@@ -1350,8 +1484,21 @@ import {
       actionToken = data.ActionToken || data.actionToken || "";
       actionHeaderName = data.ActionHeader || data.actionHeader || actionHeaderName;
       deviceHeaderName = data.DeviceHeader || data.deviceHeader || deviceHeaderName;
+      const version = data.Version || data.version || "";
+      if (version) {
+        hostVersionLabel = version;
+        applyHostVersionLabel();
+      }
       if (!actionToken) throw new Error("session 沒有 action token。");
       return actionToken;
+    }
+
+    function applyHostVersionLabel() {
+      const el = document.getElementById("hostVersionLabel");
+      if (!el || !hostVersionLabel) return;
+      el.textContent = `v${hostVersionLabel}`;
+      el.hidden = false;
+      el.title = `VibeDeck Host ${hostVersionLabel}`;
     }
 
     async function fetchJsonOrThrow(url, init = {}, retryOnTokenRefresh = true) {
@@ -1736,7 +1883,7 @@ import {
             : [
                 "Ingest path: Host tails %USERPROFILE%\\.codex\\sessions\\**\\*.jsonl for the newest event_msg.rate_limits snapshot.",
                 "Identity only: auth*.json supplies account metadata (email / plan); Codex tokens are not stored by VibeDeck.",
-                "Cache: normalized rows under %LOCALAPPDATA%\\PhoneMonitor\\quotas\\codex\\accounts\\.",
+                "Cache: normalized rows under the Host quotas folder (codex/accounts).",
                 "Re-sample: generate a newer rate_limits event on this PC, then ↻ (POST /api/quotas/refresh)."
               ]);
         }
@@ -1747,7 +1894,7 @@ import {
               "Trigger rescan via ↻. No OAuth / token-import surface."
             ]
           : [
-              "Runtime co-location: Codex CLI must run on the same Windows host process tree as PhoneMonitor.Host.",
+              "Runtime co-location: Codex CLI must run on the same Windows host process tree as VibeDeck.Host.",
               "Filesystem probe: %USERPROFILE%\\.codex\\sessions\\**\\*.jsonl — Host scans newest files for rate_limits.",
               "No remote bind: there is no Codex OAuth, paste-token, or cloud account import API.",
               "State source-needed: auth identity exists but no compatible rate_limits snapshot has been observed yet.",
@@ -1758,11 +1905,11 @@ import {
       if (state.agyCount > 0) {
         return renderQuotaHelpBlock("AGY 資料來源", eink
           ? [
-              "Store: DPAPI-protected refresh tokens under LocalAppData\\PhoneMonitor\\quotas\\agy.",
+              "Store: DPAPI-protected refresh tokens under the Host quotas/agy folder.",
               "Actions: + OAuth · ↻ token refresh + quota API · ⌫ drop local account store."
             ]
           : [
-              "Credential store: %LOCALAPPDATA%\\PhoneMonitor\\quotas\\agy\\accounts\\ (refresh_token_protected, DPAPI CurrentUser).",
+              "Credential store: Host data → quotas/agy/accounts (refresh_token_protected, DPAPI CurrentUser).",
               "Quota fetch: Host exchanges refresh → access token, then calls Antigravity quota endpoints (not Claude Code local config).",
               "Controls: + → POST /api/quotas/agy/oauth/start · ↻ → /api/quotas/refresh · ⌫ → /api/quotas/agy/account/delete."
             ]);
@@ -1775,9 +1922,9 @@ import {
             "↻ → refresh tokens + retrieveUserQuotaSummary."
           ]
         : [
-              "Prerequisite: Google OAuth client on the Host — AGY_GOOGLE_CLIENT_ID / AGY_GOOGLE_CLIENT_SECRET, or %LOCALAPPDATA%\\PhoneMonitor\\secrets\\agy-google-oauth.json.",
+              "Prerequisite: Google OAuth client on the Host — AGY_GOOGLE_CLIENT_ID / AGY_GOOGLE_CLIENT_SECRET, or Host secrets/agy-google-oauth.json.",
               "Bind: + issues POST /api/quotas/agy/oauth/start (PKCE, loopback redirect to Host); complete consent in the PC browser.",
-              "Persist: refresh tokens land in %LOCALAPPDATA%\\PhoneMonitor\\quotas\\agy\\accounts\\; quota cache under ...\\quotas\\agy\\cache\\.",
+              "Persist: refresh tokens land in Host quotas/agy/accounts; quota cache under quotas/agy/cache.",
               "Hydrate: ↻ refreshes access tokens and pulls Antigravity remaining-quota windows (Claude / Gemini buckets).",
               "Missing client credentials: oauth/start fails closed — expected, not a device-pairing fault."
             ]);
@@ -1829,7 +1976,7 @@ import {
         <ul class="quota-setup-list">
           <li>No passive filesystem discovery for AGY — bind via OAuth only.</li>
           <li>Client credentials must exist on Host before <b>+</b> (see pipeline notes above).</li>
-          <li>Successful consent writes DPAPI-protected refresh tokens under LocalAppData\\PhoneMonitor\\quotas\\agy.</li>
+          <li>Successful consent writes DPAPI-protected refresh tokens under the Host quotas/agy folder.</li>
         </ul>
         <div class="quota-footer">
           <span class="quota-time">POST /api/quotas/agy/oauth/start</span>
@@ -2769,11 +2916,17 @@ import {
           ? message
           : "請到這台 PC 的 VibeDeck 頁面建立虛擬螢幕；手機不能遠端觸發管理員安裝。";
       }
+      if (setupDisplayInstallDetail) setupDisplayInstallDetail.textContent = message || "等待虛擬螢幕狀態。";
 
-      if (!installVirtualDisplay) return state;
-      installVirtualDisplay.hidden = !deviceLocalRequest || state === "installed" || state === "finishing" || state === "console-required";
-      installVirtualDisplay.disabled = !canInstall || state === "installing";
-      installVirtualDisplay.textContent = state === "installing"
+      if (installVirtualDisplay) {
+        installVirtualDisplay.hidden = !deviceLocalRequest || state === "installed" || state === "finishing" || state === "console-required";
+        installVirtualDisplay.disabled = false;
+        installVirtualDisplay.textContent = "前往裝置設定";
+      }
+      if (!setupInstallVirtualDisplay) return state;
+      setupInstallVirtualDisplay.hidden = !deviceLocalRequest || state === "installed" || state === "finishing" || state === "console-required";
+      setupInstallVirtualDisplay.disabled = !canInstall || state === "installing";
+      setupInstallVirtualDisplay.textContent = state === "installing"
         ? "正在建立…"
         : state === "failed"
           ? "再試一次"
@@ -2821,10 +2974,11 @@ import {
     }
 
     async function installDisplayFromWeb() {
-      if (!deviceLocalRequest || !installVirtualDisplay) return;
-      installVirtualDisplay.disabled = true;
-      installVirtualDisplay.textContent = "等待 Windows 確認…";
+      if (!deviceLocalRequest || !setupInstallVirtualDisplay) return;
+      setupInstallVirtualDisplay.disabled = true;
+      setupInstallVirtualDisplay.textContent = "等待 Windows 確認…";
       if (displayInstallDetail) displayInstallDetail.textContent = "請在這台 PC 跳出的管理員確認視窗按「是」。";
+      if (setupDisplayInstallDetail) setupDisplayInstallDetail.textContent = "請在這台 PC 跳出的管理員確認視窗按「是」。";
 
       try {
         const status = await fetchJsonOrThrow("/api/display/install", { method: "POST" });
@@ -3116,7 +3270,8 @@ import {
       displaySettingsToggle.setAttribute("aria-expanded", open ? "true" : "false");
       displaySettingsToggle.textContent = open ? "收起設定" : "顯示設定";
     });
-    installVirtualDisplay?.addEventListener("click", installDisplayFromWeb);
+    installVirtualDisplay?.addEventListener("click", () => setMode("setup"));
+    setupInstallVirtualDisplay?.addEventListener("click", installDisplayFromWeb);
     openSideboardFromEmpty?.addEventListener("click", () => setMode("sideboard"));
     hostAuthForm?.addEventListener("submit", event => {
       event.preventDefault();
@@ -3157,6 +3312,7 @@ import {
       refreshQuotas();
     });
     displayMode.addEventListener("click", () => setMode("display"));
+    setupMode?.addEventListener("click", () => setMode("setup"));
     sideboardMode.addEventListener("click", () => setMode("sideboard"));
     const einkModeToggle = document.getElementById("einkModeToggle");
     if (einkModeToggle) {
@@ -3179,6 +3335,8 @@ import {
     }
     fullscreen.addEventListener("click", enterLandscapeViewer);
     exitViewer.addEventListener("click", exitLandscapeViewer);
+    window.VibeDeckExitViewer = exitLandscapeViewer;
+    // Legacy alias for any old injected callers.
     window.PhoneMonitorExitViewer = exitLandscapeViewer;
     function onFullscreenChromeChange() {
       const inFs = Boolean(document.fullscreenElement || document.webkitFullscreenElement);
@@ -3350,6 +3508,7 @@ import {
         persistDeviceCredentials(again.token, again.id);
       }
       applyClientChrome();
+      ensureActionToken().catch(() => {});
       await loadDeviceTrustStatus();
       applyClientChrome();
       setMode(getInitialMode());

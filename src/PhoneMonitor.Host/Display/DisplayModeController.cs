@@ -43,7 +43,7 @@ namespace PhoneMonitor.Host.Display
             var display = FindPhoneDisplay();
             if (display == null)
             {
-                return ApplyDisplayModeResult.Failed("PhoneMonitor display was not found.");
+                return ApplyDisplayModeResult.Failed("VibeDeck virtual display was not found.");
             }
 
             var devMode = new DevMode

@@ -1,33 +1,43 @@
 # VibeDeck HTTPS Onboarding
 
-Last updated: 2026-07-04
+Last updated: 2026-07-16
 
-The zero-install phone path still starts from the Host web page, but HTTPS is now available for local LAN use. `PhoneMonitor` remains in the certificate file names and local storage path for compatibility. This matters for two product reasons:
+The zero-install phone path still starts from the Host web page. HTTPS is required for real LAN pairing and is strongly preferred for Wake Lock / home-screen use.
 
-- iPhone/Safari Wake Lock behavior is better when the page is opened over HTTPS.
-- Pairing and device tokens should not travel over plain HTTP on a real LAN.
+## Where certificates live
 
-## PC Setup
+Installed product (Setup):
 
-Normal Host startup checks the local certificate automatically. If the certificate set is missing, incomplete, close to renewal, or does not match the current LAN IP list, the Host generates or refreshes it before opening the HTTPS listener.
+```text
+%ProgramData%\VibeDeck\certs
+```
 
-The certificate files live in:
+Source / dev runs:
 
 ```text
 %LOCALAPPDATA%\PhoneMonitor\certs
 ```
 
-Managed files:
+On-disk filenames keep the legacy `phone-monitor-*` names so existing installs keep working. The phone download links use product names:
 
-- `phone-monitor-root.pfx`
-- `phone-monitor-root.cer`
-- `phone-monitor-host.pfx`
-- `phone-monitor-host.cer`
+- `/cert/vibedeck-root.cer` (preferred)
+- `/cert/vibedeck-host.cer`
+- `/cert/phone-monitor-root.cer` (legacy alias, same file)
+- `/cert/phone-monitor-host.cer` (legacy alias, same file)
+
+Managed files on disk:
+
+- `phone-monitor-root.pfx` / `phone-monitor-root.cer`
+- `phone-monitor-host.pfx` / `phone-monitor-host.cer`
 - `phone-monitor-certificate-state.json`
 
-The root PFX stays local to the PC so the Host can reissue the Host certificate when the LAN IP changes without forcing the phone to trust a new root certificate.
+New roots are issued as `CN=VibeDeck Local Root CA`. Already-trusted older roots continue to work until they are renewed.
 
-Manual repair command:
+## PC Setup
+
+Normal Host startup checks the local certificate automatically. If the set is missing, incomplete, close to renewal, or does not match the current LAN IP list, the Host generates or refreshes it before opening the HTTPS listener.
+
+Manual repair (dev / recovery):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup-https.ps1
@@ -38,44 +48,44 @@ After the certificate files exist, the Host listens on:
 - `http://0.0.0.0:5000`
 - `https://0.0.0.0:5443`
 
-`scripts\dev-run.ps1` runs the setup script automatically before starting the Host.
-
 If you want to throw away the local root and start over:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\setup-https.ps1 -Force
 ```
 
+Phones must reinstall and re-trust the root after a forced reset.
+
 ## Phone Setup
 
-Open the normal HTTP page first:
+Open the bootstrap HTTP page first (or scan the PC QR, which prefers HTTPS when ready):
 
 ```text
 http://<pc-lan-ip>:5000/
 ```
 
-Use the `安裝 HTTPS 憑證` link to download the root certificate onto the phone. Then install and trust that certificate in the phone OS.
+Use **安裝 HTTPS 憑證** to download the root certificate. Install and fully trust it in the phone OS.
 
-Android / Chrome path:
+### Android / Chrome
 
-- Install the downloaded `.cer` as a CA certificate from Android settings when HTTPS and Wake Lock are needed.
-- Chrome/PWA can then open the HTTPS URL and use WebRTC H.264 with JPEG fallback.
-- Android does not allow normal web pages to silently install CA certificates; the final CA install confirmation stays in system settings.
+- Install the `.cer` as a CA certificate from system settings.
+- Open the HTTPS URL for WebRTC H.264 with JPEG fallback.
+- Android never silently installs CAs from a normal web page.
 
-iPhone path:
+### iPhone / Safari
 
 - Install the downloaded certificate profile.
-- Enable full trust for the root certificate in iOS settings.
-- Open the HTTPS URL in Safari for the best zero-install Wake Lock path.
+- Settings → General → About → Certificate Trust Settings → enable full trust.
+- Open the HTTPS URL in Safari (or re-add to Home Screen from HTTPS).
 
-After trust is enabled, open the secure URL:
+Secure URL:
 
 ```text
 https://<pc-lan-ip>:5443/
 ```
 
-The Host reports both URLs through `/api/connect`. The PC QR opens the preferred Host URL; device pairing requests and approval polling require the phone to stay on the HTTPS URL.
+Pairing request and approval polling require HTTPS. `/api/connect` reports both HTTP and HTTPS URLs.
 
 ## Current Limits
 
-This is local development HTTPS, not a public CA certificate. It is good enough for a trusted personal LAN and Wake Lock testing. For remote access, use Tailscale or a reverse proxy with a publicly trusted certificate.
+This is local development HTTPS, not a public CA certificate. It is good enough for a trusted personal LAN. For remote access, use Tailscale or a reverse proxy with a publicly trusted certificate.

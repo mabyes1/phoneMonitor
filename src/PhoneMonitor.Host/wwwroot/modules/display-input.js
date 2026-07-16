@@ -182,6 +182,10 @@ export function createDisplayInputController({
     });
     target.addEventListener("pointermove", event => {
       if (event.pointerType === "touch") return updateTouch(event);
+      // A desktop hover must not move the real Windows cursor onto the virtual
+      // display. Only relay movement while a mouse/pen button is held so the
+      // embedded display behaves like a deliberate drag target, not a focus trap.
+      if (!event.buttons) return;
       sendPointer("pointermove", event);
     });
     target.addEventListener("pointerup", event => {

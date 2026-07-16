@@ -175,8 +175,9 @@ namespace PhoneMonitor.Host.WindowsNotifications
         {
             var candidates = new[]
             {
+                Path.Combine(AppPaths.WindowsNotificationsDirectory, "bridge-token"),
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "VibeDeck", "windows-notifications", "bridge-token"),
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhoneMonitor", "windows-notifications", "bridge-token")
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), AppPaths.LegacyProductFolderName, "windows-notifications", "bridge-token")
             };
             for (var attempt = 0; attempt < 20; attempt++)
             {

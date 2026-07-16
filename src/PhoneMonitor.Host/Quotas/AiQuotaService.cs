@@ -72,9 +72,9 @@ namespace PhoneMonitor.Host.Quotas
                 StoreDirectory = accountStoreDir,
                 CacheDirectory = AgyQuotaCacheDirectory(),
                 Message = after > before
-                    ? $"Imported {after - before} AGY account token(s) into PhoneMonitor."
+                    ? $"Imported {after - before} AGY account token(s) into VibeDeck."
                     : imported > 0
-                        ? "AGY account token(s) were refreshed in the PhoneMonitor store."
+                        ? "AGY account token(s) were refreshed in the VibeDeck store."
                         : "No Antigravity account token was available to import."
             };
         }
@@ -224,7 +224,7 @@ namespace PhoneMonitor.Host.Quotas
             var account = FindPhoneMonitorAgyAccount(accountId, email);
             if (account == null)
             {
-                return AgyAccountActionResult.Fail("AGY account was not found in the PhoneMonitor store.", AgyAccountStoreDirectory());
+                return AgyAccountActionResult.Fail("AGY account was not found in the VibeDeck store.", AgyAccountStoreDirectory());
             }
 
             var launcher = WriteAgyCliLauncher(agyExe, account);
@@ -257,7 +257,7 @@ namespace PhoneMonitor.Host.Quotas
                     Email = account.Email,
                     Path = launcher,
                     Message = string.IsNullOrWhiteSpace(account.Email)
-                        ? "AGY CLI opened with the selected PhoneMonitor account context."
+                        ? "AGY CLI opened with the selected VibeDeck account context."
                         : $"AGY CLI opened for {account.Email}."
                 };
             }
@@ -565,7 +565,7 @@ namespace PhoneMonitor.Host.Quotas
                 AccountTier = identity.Tier,
                 State = "source-needed",
                 Source = identity.Source,
-                Detail = "Codex account was seen, but PhoneMonitor has not recorded a quota snapshot for it yet."
+                Detail = "Codex account was seen, but VibeDeck has not recorded a quota snapshot for it yet."
             };
         }
 
@@ -825,7 +825,7 @@ namespace PhoneMonitor.Host.Quotas
                         Family = "agy",
                         State = "source-needed",
                         Source = accountStoreDir,
-                        Detail = "AGY is installed, but PhoneMonitor has no AGY account token yet. Import once from Antigravity or complete PhoneMonitor OAuth."
+                        Detail = "AGY is installed, but VibeDeck has no AGY account token yet. Import once from Antigravity or complete VibeDeck OAuth."
                     }
                 };
             }
@@ -857,7 +857,7 @@ namespace PhoneMonitor.Host.Quotas
                 AccountTier = account.Tier,
                 State = "source-needed",
                 Source = account.Source,
-                Detail = "PhoneMonitor has an AGY token, but no quota cache could be refreshed."
+                Detail = "VibeDeck has an AGY token, but no quota cache could be refreshed."
             }).ToList();
         }
 
@@ -1202,7 +1202,7 @@ namespace PhoneMonitor.Host.Quotas
                 $"set \"AGY_ACCOUNT_ID={EscapeBatchValue(accountId)}\"",
                 $"set \"AGY_ACCOUNT_EMAIL={EscapeBatchValue(email)}\"",
                 "cd /d \"%USERPROFILE%\"",
-                $"echo PhoneMonitor selected AGY account: {EscapeBatchValue(email.Length > 0 ? email : accountId)}",
+                $"echo VibeDeck selected AGY account: {EscapeBatchValue(email.Length > 0 ? email : accountId)}",
                 "echo If AGY prompts for sign-in, use the account above.",
                 $"\"{agyExe}\""
             };
@@ -1493,7 +1493,7 @@ namespace PhoneMonitor.Host.Quotas
             error =
                 "AGY Google OAuth is not configured. Set environment variables " +
                 AgyGoogleClientIdEnv + " and " + AgyGoogleClientSecretEnv +
-                ", or create %LOCALAPPDATA%\\PhoneMonitor\\secrets\\agy-google-oauth.json " +
+                ", or create the Host secrets folder (agy-google-oauth.json) " +
                 "with clientId and clientSecret.";
             oauthClient = null;
             return false;
