@@ -7,9 +7,9 @@
   IgnorableNamespaces="uap uap3 rescap">
   <Identity Name="PhoneMonitor.Dev" Publisher="CN=PhoneMonitor Dev" Version="1.0.0.0" />
   <Properties>
-    <DisplayName>PhoneMonitor</DisplayName>
-    <PublisherDisplayName>PhoneMonitor Dev</PublisherDisplayName>
-    <Description>PhoneMonitor Windows 通知橋接</Description>
+    <DisplayName>VibeDeck Notifications</DisplayName>
+    <PublisherDisplayName>VibeDeck Development</PublisherDisplayName>
+    <Description>VibeDeck Windows 通知橋接</Description>
     <Logo>Assets\icon-192.png</Logo>
   </Properties>
   <Dependencies>
@@ -19,14 +19,19 @@
     <Resource Language="zh-TW" />
   </Resources>
   <Applications>
-    <Application Id="App" Executable="PhoneMonitor.Host.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="App" Executable="VibeDeck.Notifications.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         AppListEntry="default"
-        DisplayName="PhoneMonitor"
-        Description="PhoneMonitor Windows 通知橋接"
+        DisplayName="VibeDeck Windows 通知"
+        Description="VibeDeck Windows 通知 Companion"
         BackgroundColor="#111820"
         Square44x44Logo="Assets\icon-192.png"
         Square150x150Logo="Assets\icon-192.png" />
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="vibedeck-notifications" />
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>

@@ -17,30 +17,12 @@ driver/**/*.cat
 driver/**/*.cer
 driver/**/*.pfx
 
-# Android build output
-.gradle/
-build/
 captures/
-local.properties
-apps/android/release-signing.properties
-*.jks
-*.keystore
-src/PhoneMonitor.Host/wwwroot/downloads/*.apk
-src/PhoneMonitor.Host/wwwroot/downloads/*.sha256
-src/PhoneMonitor.Host/wwwroot/downloads/*.json
-
-# Legacy Xcode/IPA patterns (no apps/ios in tree; keep ignore for accidental drops)
-DerivedData/
-*.xcuserstate
-xcuserdata/
-*.ipa
-*.dSYM/
 
 # External samples fetched by scripts/fetch-idd-sample.ps1
 third_party/Windows-driver-samples/
 
 # Local inspection / temp dumps (never publish)
-scratch/apk-*/
 test-results/
 *.user.json
 

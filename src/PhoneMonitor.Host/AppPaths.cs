@@ -1,28 +1,22 @@
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
 
 namespace PhoneMonitor.Host
 {
     /// <summary>
-    /// Resolves product data directories for dev, Setup install, and Windows Service modes.
+    /// Resolves product data directories for source development and Setup installs.
     /// </summary>
     public static class AppPaths
     {
         public const string ProductName = "VibeDeck";
-        public const string ServiceName = "VibeDeckHost";
-        public const string ServiceDisplayName = "VibeDeck Host";
         public const string InstallMarkerFileName = "product-install.json";
         public const string WebUiUrl = "http://127.0.0.1:5000";
         public const string LegacyProductFolderName = "PhoneMonitor";
 
         private static readonly Lazy<string> DataRootLazy = new Lazy<string>(ResolveDataRoot);
-        private static readonly Lazy<bool> IsServiceLazy = new Lazy<bool>(DetectWindowsService);
         private static readonly Lazy<bool> IsInstalledLazy = new Lazy<bool>(DetectInstalledLayout);
 
         public static string DataRoot => DataRootLazy.Value;
-
-        public static bool IsWindowsService => IsServiceLazy.Value;
 
         public static bool IsInstalledLayout => IsInstalledLazy.Value;
 
@@ -33,6 +27,8 @@ namespace PhoneMonitor.Host
         public static string CustomSourcesDirectory => Path.Combine(DataRoot, "custom-sources");
 
         public static string WindowsNotificationsDirectory => Path.Combine(DataRoot, "windows-notifications");
+
+        public static string DashboardDirectory => Path.Combine(DataRoot, "dashboard");
 
         public static string QuotasDirectory => Path.Combine(DataRoot, "quotas");
 
@@ -47,7 +43,7 @@ namespace PhoneMonitor.Host
         }
 
         /// <summary>
-        /// First product/service start: pull legacy LocalAppData\PhoneMonitor state into
+        /// First installed product start: pull legacy LocalAppData\PhoneMonitor state into
         /// ProgramData\VibeDeck so browser/PWA pairings and the already-trusted root CA
         /// survive Setup. Only fills empty product state; never clobbers real product data.
         /// </summary>
@@ -55,7 +51,7 @@ namespace PhoneMonitor.Host
         {
             try
             {
-                if (!(IsInstalledLayout || IsWindowsService))
+                if (!IsInstalledLayout)
                 {
                     return null;
                 }
@@ -191,8 +187,8 @@ namespace PhoneMonitor.Host
                 return Path.GetFullPath(env.Trim());
             }
 
-            // Setup / service installs write under ProgramData so LocalSystem and all users share state.
-            if (IsInstalledLayout || IsWindowsService)
+            // Setup installs keep product state outside the replaceable app directory.
+            if (IsInstalledLayout)
             {
                 return Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -238,43 +234,5 @@ namespace PhoneMonitor.Host
             return false;
         }
 
-        private static bool DetectWindowsService()
-        {
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return false;
-            }
-
-            try
-            {
-                // Parent session 0 + non-interactive is the SCM host for services.
-                // Prefer the official helper when the WindowsServices package is loaded.
-                var helperType = Type.GetType(
-                    "Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers, Microsoft.Extensions.Hosting.WindowsServices");
-                if (helperType != null)
-                {
-                    var method = helperType.GetMethod(
-                        "IsWindowsService",
-                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-                    if (method != null)
-                    {
-                        return (bool)method.Invoke(null, null);
-                    }
-                }
-            }
-            catch
-            {
-                // Fall back below.
-            }
-
-            try
-            {
-                return !Environment.UserInteractive;
-            }
-            catch
-            {
-                return false;
-            }
-        }
     }
 }

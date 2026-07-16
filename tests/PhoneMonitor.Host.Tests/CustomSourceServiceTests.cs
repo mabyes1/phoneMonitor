@@ -147,6 +147,53 @@ namespace PhoneMonitor.Host.Tests
             Assert.Null(empty.Cards[0].Content);
         }
 
+        [Fact]
+        public void CorruptDatabaseIsQuarantinedAndRecreated()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "PhoneMonitorTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, "custom-sources.db");
+            File.WriteAllBytes(path, new byte[] { 0x56, 0x49, 0x42, 0x45, 0x44, 0x45, 0x43, 0x4b });
+            try
+            {
+                var store = new CustomSourceStore(path);
+                Assert.True(store.IsAvailable, store.InitializationError?.ToString());
+                Assert.Empty(store.GetSources());
+                Assert.Single(Directory.GetFiles(directory, "custom-sources.db.corrupt-*"));
+            }
+            finally
+            {
+                try { Directory.Delete(directory, true); } catch { }
+            }
+        }
+
+        [Fact]
+        public void StoreReopensWithoutChangingSystemCardIdentity()
+        {
+            var directory = Path.Combine(Path.GetTempPath(), "PhoneMonitorTests", Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, "custom-sources.db");
+            try
+            {
+                var firstStore = new CustomSourceStore(path);
+                var firstService = new CustomSourceService(firstStore, new CustomSourceOptions(), new DashboardEventHub());
+                var original = firstService.EnsureSystemSource(DateTimeOffset.UtcNow);
+
+                var reopenedStore = new CustomSourceStore(path);
+                var reopenedService = new CustomSourceService(reopenedStore, new CustomSourceOptions(), new DashboardEventHub());
+                var reopened = reopenedService.EnsureSystemSource(DateTimeOffset.UtcNow.AddSeconds(1));
+
+                Assert.True(reopenedStore.IsAvailable, reopenedStore.InitializationError?.ToString());
+                Assert.Equal(original.Id, reopened.Id);
+                Assert.Equal(original.Card.Id, reopened.Card.Id);
+                Assert.Empty(Directory.GetFiles(directory, "custom-sources.db.corrupt-*"));
+            }
+            finally
+            {
+                try { Directory.Delete(directory, true); } catch { }
+            }
+        }
+
         private sealed class Fixture : IDisposable
         {
             private readonly string directory = Path.Combine(Path.GetTempPath(), "PhoneMonitorTests", Guid.NewGuid().ToString("N"));

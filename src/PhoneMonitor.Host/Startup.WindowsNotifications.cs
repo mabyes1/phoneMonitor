@@ -23,6 +23,42 @@ namespace PhoneMonitor.Host
 
             endpoints.MapPost("/api/windows-notifications/enable", EnableWindowsNotificationsAsync);
             endpoints.MapPost("/api/windows-notifications/disable", DisableWindowsNotificationsAsync);
+            endpoints.MapPost("/api/windows-notifications/companion/heartbeat", async context =>
+            {
+                if (!await RequireLocalRequestAsync(context)) return;
+                var service = context.RequestServices.GetRequiredService<WindowsNotificationListenerService>();
+                if (!service.ValidateBridgeToken(context.Request.Headers[WindowsNotificationListenerService.BridgeHeaderName]))
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return;
+                }
+                var heartbeat = await JsonSerializer.DeserializeAsync<WindowsNotificationCompanionHeartbeat>(
+                    context.Request.Body,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                await WriteWindowsNotificationJsonAsync(context, service.AcceptHeartbeat(heartbeat));
+            });
+            endpoints.MapPost("/api/windows-notifications/companion/events", async context =>
+            {
+                if (!await RequireLocalRequestAsync(context)) return;
+                var service = context.RequestServices.GetRequiredService<WindowsNotificationListenerService>();
+                if (!service.ValidateBridgeToken(context.Request.Headers[WindowsNotificationListenerService.BridgeHeaderName]))
+                {
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    return;
+                }
+                try
+                {
+                    var notification = await JsonSerializer.DeserializeAsync<WindowsNotificationCompanionEvent>(
+                        context.Request.Body,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    await WriteWindowsNotificationJsonAsync(context, service.AcceptEvent(notification));
+                }
+                catch (ArgumentException error)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    await WriteWindowsNotificationJsonAsync(context, new { error = error.Message });
+                }
+            });
         }
 
         private static async Task EnableWindowsNotificationsAsync(HttpContext context)

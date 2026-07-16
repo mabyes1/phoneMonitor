@@ -26,6 +26,7 @@ if (-not $InstallDir) {
 }
 
 $serviceName = "VibeDeckHost"
+$runValueName = "VibeDeckHost"
 
 $existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($existing) {
@@ -35,6 +36,13 @@ if ($existing) {
     }
     & sc.exe delete $serviceName | Out-Null
     Write-Host "Removed service $serviceName"
+}
+
+Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
+foreach ($processName in @("VibeDeck.Host.exe", "PhoneMonitor.Host.exe")) {
+    Get-CimInstance Win32_Process -Filter "Name='$processName'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDir, [StringComparison]::OrdinalIgnoreCase) } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
 & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null

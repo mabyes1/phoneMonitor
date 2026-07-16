@@ -2,10 +2,10 @@
 :: Change directory to the root directory where this script is located
 cd /d "%~dp0"
 
-title VibeDeck Host Launcher
+title VibeDeck Development Launcher
 
 echo ==========================================================
-echo            VibeDeck Host Service Launcher
+echo            VibeDeck Source Development Launcher
 echo ==========================================================
 echo.
 echo Checking environment...
@@ -33,7 +33,7 @@ if not exist "src\PhoneMonitor.Host\PhoneMonitor.Host.csproj" (
 
 echo Environment check passed.
 echo.
-echo Launching the service (this will setup HTTPS certificates if needed)...
+echo Launching the source Host (this will set up HTTPS certificates if needed)...
 echo.
 
 :: Run the dev-run.ps1 script using PowerShell
@@ -41,6 +41,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\dev-run.ps1"
 
 if %errorlevel% neq 0 (
     echo.
-    echo [ERROR] The service exited with error code: %errorlevel%.
+    echo [ERROR] The development Host exited with error code: %errorlevel%.
     pause
 )

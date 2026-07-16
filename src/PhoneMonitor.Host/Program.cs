@@ -1,10 +1,12 @@
 using System;
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using PhoneMonitor.Host.Security;
+using PhoneMonitor.Host.WindowsNotifications;
 
 namespace PhoneMonitor.Host
 {
@@ -12,6 +14,21 @@ namespace PhoneMonitor.Host
     {
         public static void Main(string[] args)
         {
+            if (WindowsNotificationCompanion.ShouldRun(args))
+            {
+                RunNotificationCompanionOnStaThread();
+                return;
+            }
+
+            if (!Environment.UserInteractive || Process.GetCurrentProcess().SessionId == 0)
+            {
+                Console.Error.WriteLine(
+                    "VibeDeck Host must run in the signed-in Windows desktop session. " +
+                    "Windows Service / Session 0 hosting cannot enumerate or capture the virtual display.");
+                Environment.ExitCode = 2;
+                return;
+            }
+
             AppPaths.EnsureDirectory(AppPaths.DataRoot);
             AppPaths.EnsureDirectory(AppPaths.LogsDirectory);
             var migrationMessage = AppPaths.TryMigrateLegacyData();
@@ -20,7 +37,7 @@ namespace PhoneMonitor.Host
                 Console.WriteLine(migrationMessage);
             }
 
-            using var singleInstance = new Mutex(true, "PhoneMonitor.Host.SingleInstance", out var ownsMutex);
+            using var singleInstance = new Mutex(true, "VibeDeck.Host.SingleInstance", out var ownsMutex);
             if (!ownsMutex)
             {
                 Console.Error.WriteLine("VibeDeck Host is already running; this launch was ignored.");
@@ -30,25 +47,33 @@ namespace PhoneMonitor.Host
             CreateHostBuilder(args).Build().Run();
         }
 
+        private static void RunNotificationCompanionOnStaThread()
+        {
+            Exception companionError = null;
+            var companionThread = new Thread(() =>
+            {
+                try
+                {
+                    WindowsNotificationCompanion.RunAsync().GetAwaiter().GetResult();
+                }
+                catch (Exception error)
+                {
+                    companionError = error;
+                }
+            });
+            companionThread.SetApartmentState(ApartmentState.STA);
+            companionThread.Start();
+            companionThread.Join();
+
+            if (companionError != null)
+            {
+                ExceptionDispatchInfo.Capture(companionError).Throw();
+            }
+        }
+
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             global::Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder(args)
-                .UseWindowsService(options =>
-                {
-                    options.ServiceName = AppPaths.ServiceName;
-                })
                 .UseContentRoot(ResolveContentRoot())
-                .ConfigureLogging((context, logging) =>
-                {
-                    if (AppPaths.IsWindowsService)
-                    {
-                        logging.AddEventLog(settings =>
-                        {
-                            // Source is created by Setup when possible; Application log is the fallback.
-                            settings.SourceName = AppPaths.ServiceDisplayName;
-                            settings.LogName = "Application";
-                        });
-                    }
-                })
                 .ConfigureWebHostDefaults(webBuilder =>
                 {
                     webBuilder.ConfigureKestrel(options =>

@@ -7,7 +7,6 @@ export function createStreamController({
   canUseProtectedConnection,
   loadPhoneDisplay,
   prefersWebRtcDisplay,
-  isNativeShell,
   isLoopbackHost,
   setStatus,
   applyRotation,
@@ -114,9 +113,9 @@ export function createStreamController({
     if (!getSelectedDisplayName()) await loadPhoneDisplay();
     if (generation !== connectGeneration || !getSelectedDisplayName()) return;
 
-    if (prefersWebRtcDisplay() && !isNativeShell() && !window.RTCPeerConnection) {
+    if (prefersWebRtcDisplay() && !window.RTCPeerConnection) {
       fallbackReason = "WebRTC API 不可用";
-    } else if (prefersWebRtcDisplay() && !isNativeShell() && window.RTCPeerConnection) {
+    } else if (prefersWebRtcDisplay() && window.RTCPeerConnection) {
       try {
         const connected = await connectRtcVideo(generation);
         if (connected && generation === connectGeneration) return;

@@ -343,21 +343,40 @@ namespace PhoneMonitor.Host.Quotas
 
         private IEnumerable<AiQuotaStatus> ReadCodexQuotas()
         {
-            var codexHome = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                ".codex");
+            var codexHomes = ResolveCodexHomes().ToList();
             var cacheDirectory = CodexQuotaCacheDirectory();
-            var identities = ReadCodexAuthIdentities(codexHome).ToList();
+            var identities = codexHomes
+                .SelectMany(ReadCodexAuthIdentities)
+                .GroupBy(identity => FirstNonEmpty(identity.AccountId, identity.Email, identity.Source), StringComparer.OrdinalIgnoreCase)
+                .Select(group => group
+                    .OrderByDescending(identity => string.Equals(Path.GetFileName(identity.Source), "auth.json", StringComparison.OrdinalIgnoreCase))
+                    .ThenByDescending(identity => File.GetLastWriteTimeUtc(identity.Source))
+                    .First())
+                .ToList();
             var activeIdentity = identities
                 .FirstOrDefault(identity => string.Equals(Path.GetFileName(identity.Source), "auth.json", StringComparison.OrdinalIgnoreCase))
                 ?? identities.FirstOrDefault()
                 ?? new CodexAccountIdentity
                 {
                     AccountId = "local",
-                    Source = codexHome
+                    Source = codexHomes.FirstOrDefault() ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex")
                 };
 
-            var activeQuota = ReadCodexQuota(codexHome);
+            var activeHome = Directory.Exists(activeIdentity.Source)
+                ? activeIdentity.Source
+                : Path.GetDirectoryName(activeIdentity.Source);
+            var activeQuota = !string.IsNullOrWhiteSpace(activeHome)
+                ? ReadCodexQuota(activeHome)
+                : Unavailable("codex", "Codex", "Codex session directory was not found.", activeHome);
+            if (!IsUsableQuota(activeQuota))
+            {
+                activeQuota = codexHomes
+                    .Select(ReadCodexQuota)
+                    .Where(IsUsableQuota)
+                    .OrderByDescending(status => status.ObservedAt ?? DateTimeOffset.MinValue)
+                    .FirstOrDefault()
+                    ?? activeQuota;
+            }
             if (IsUsableQuota(activeQuota) && IsCodexQuotaCompatibleWithIdentity(activeQuota, activeIdentity))
             {
                 ApplyCodexIdentity(activeQuota, activeIdentity);
@@ -395,6 +414,47 @@ namespace PhoneMonitor.Host.Quotas
             }
 
             return new[] { activeQuota };
+        }
+
+        private static IReadOnlyList<string> ResolveCodexHomes()
+        {
+            var homes = new List<string>();
+
+            void AddHome(string home)
+            {
+                if (string.IsNullOrWhiteSpace(home))
+                {
+                    return;
+                }
+
+                var fullPath = Path.GetFullPath(home);
+                if (Directory.Exists(fullPath) && !homes.Any(item => string.Equals(item, fullPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    homes.Add(fullPath);
+                }
+            }
+
+            AddHome(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex"));
+
+            try
+            {
+                var systemRoot = Path.GetPathRoot(Environment.SystemDirectory);
+                var usersRoot = string.IsNullOrWhiteSpace(systemRoot)
+                    ? null
+                    : Path.Combine(systemRoot, "Users");
+                if (Directory.Exists(usersRoot))
+                {
+                    foreach (var profile in Directory.EnumerateDirectories(usersRoot))
+                    {
+                        AddHome(Path.Combine(profile, ".codex"));
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is ArgumentException)
+            {
+            }
+
+            return homes;
         }
 
         private AiQuotaStatus ReadCodexQuota(string codexHome)
@@ -583,8 +643,9 @@ namespace PhoneMonitor.Host.Quotas
             }
 
             var identities = new List<CodexAccountIdentity>();
+            // Backups are retained for recovery, but they are not live Codex
+            // profiles and must not appear as extra quota accounts.
             foreach (var authFile in Directory.EnumerateFiles(codexHome, "auth*.json", SearchOption.TopDirectoryOnly)
-                .Concat(Directory.EnumerateFiles(codexHome, "auth.json.bak", SearchOption.TopDirectoryOnly))
                 .Distinct(StringComparer.OrdinalIgnoreCase))
             {
                 var identity = TryReadCodexIdentityFromAuthFile(authFile);

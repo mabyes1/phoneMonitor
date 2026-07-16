@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Publish VibeDeck Host and build a Windows Setup installer (service + web UI icon).
+  Publish VibeDeck Host and build the canonical Windows Setup installer.
 
 .DESCRIPTION
   1. dotnet publish self-contained win-x64 Host
@@ -12,7 +12,7 @@
   Build configuration (default Release).
 
 .PARAMETER Version
-  Product version stamped into the installer (default 0.1.0).
+  Product version stamped into Host and installer. Defaults to the csproj Version.
 
 .PARAMETER SkipInno
   Only publish payload; do not compile Setup.exe.
@@ -24,9 +24,10 @@
 param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
-    [string]$Version = "0.1.0",
+    [string]$Version,
     [switch]$SkipInno,
-    [switch]$InstallInno
+    [switch]$InstallInno,
+    [switch]$SkipTests
 )
 
 $ErrorActionPreference = "Stop"
@@ -125,13 +126,12 @@ function Ensure-Iscc {
 }
 
 function Normalize-Version([string]$value) {
-    if ($value -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+    if ($value -notmatch '^\d+\.\d+\.\d+$') {
         throw "Version must look like 0.1.0 (got '$value')"
     }
     return $value
 }
 
-$Version = Normalize-Version $Version
 if (-not (Test-Path -LiteralPath $project)) {
     throw "Host project not found: $project"
 }
@@ -141,6 +141,17 @@ if (-not (Test-Path -LiteralPath $issPath)) {
 
 Ensure-Icon
 
+if (-not $SkipTests) {
+    Write-Step "Running product source checks"
+    & (Join-Path $PSScriptRoot "test-product-flow.ps1") -Source
+    if ($LASTEXITCODE -ne 0) { throw "Product source checks failed." }
+}
+$projectXml = [xml][IO.File]::ReadAllText($project, [Text.Encoding]::UTF8)
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = [string]$projectXml.Project.PropertyGroup.Version
+}
+$Version = Normalize-Version $Version
+
 Write-Step "Publishing VibeDeck Host (self-contained win-x64)"
 Remove-DirectorySafely $payloadRoot
 New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
@@ -149,6 +160,9 @@ dotnet publish $project `
     -c $Configuration `
     -r win-x64 `
     --self-contained true `
+    -p:Version=$Version `
+    -p:DebugType=None `
+    -p:DebugSymbols=false `
     -p:PublishSingleFile=false `
     -p:IncludeNativeLibrariesForSelfExtract=true `
     -o $payloadRoot
@@ -164,19 +178,26 @@ $openVbs = Join-Path $packagingDir "Open-VibeDeck.vbs"
 if (Test-Path -LiteralPath $openVbs) {
     Copy-Item -LiteralPath $openVbs -Destination $payloadRoot -Force
 }
+$hostVbs = Join-Path $packagingDir "Start-VibeDeck-Host.vbs"
+if (Test-Path -LiteralPath $hostVbs) {
+    Copy-Item -LiteralPath $hostVbs -Destination $payloadRoot -Force
+}
 if (Test-Path -LiteralPath $iconPath) {
     Copy-Item -LiteralPath $iconPath -Destination $payloadRoot -Force
 }
 
-$hostExe = Join-Path $payloadRoot "PhoneMonitor.Host.exe"
+$hostExe = Join-Path $payloadRoot "VibeDeck.Host.exe"
 if (-not (Test-Path -LiteralPath $hostExe)) {
-    throw "Publish output missing PhoneMonitor.Host.exe"
+    throw "Publish output missing VibeDeck.Host.exe"
 }
 
 $wwwroot = Join-Path $payloadRoot "wwwroot"
 if (-not (Test-Path -LiteralPath $wwwroot)) {
     throw "Publish output missing wwwroot"
 }
+
+& (Join-Path $PSScriptRoot "test-product-flow.ps1") -Payload -PayloadPath $payloadRoot
+if ($LASTEXITCODE -ne 0) { throw "Published payload checks failed." }
 
 Write-Host "Payload ready: $payloadRoot"
 
@@ -227,5 +248,5 @@ Write-Host "  $($setup.FullName)"
 Write-Host ""
 Write-Host "After install:"
 Write-Host "  - Desktop / Start Menu icon opens the web PC UI (http://127.0.0.1:5000)"
-Write-Host "  - Windows Service 'VibeDeckHost' auto-starts the Host in the background"
+Write-Host "  - VibeDeck Host auto-starts in the signed-in desktop session"
 Write-Host "  - Data: $env:ProgramData\VibeDeck"

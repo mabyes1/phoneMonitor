@@ -6,12 +6,20 @@ export function createSideboardController({
   setText,
   setBar,
   formatters,
+  onConnectionChange,
+  onWorkPulse,
 }) {
   const {
     sideHeadline,
     sideSummary,
     sideError,
     sideLoad,
+    sideLoadNormal,
+    sideLoadStatus,
+    sideLoadStatusReason,
+    sideLoadAlert,
+    sideLoadAlertTitle,
+    sideLoadAlertReason,
     sideHost,
     sideUptime,
     sideHealth,
@@ -37,7 +45,6 @@ export function createSideboardController({
     sideWeather,
     sideWeatherSub,
     sideProcessList,
-    sideWorkList,
   } = elements;
   const {
     formatPercent,
@@ -49,6 +56,27 @@ export function createSideboardController({
     formatSeconds,
     averagePercent,
   } = formatters;
+
+  const warningThreshold = 90;
+  function renderLoadState(stats) {
+    const cpu = Number(stats?.cpu?.usagePercent);
+    const memory = Number(stats?.memory?.usagePercent);
+    const gpu = Number(stats?.gpu?.usagePercent);
+    const candidates = [
+      Number.isFinite(cpu) ? { label: "CPU", value: cpu } : null,
+      Number.isFinite(memory) ? { label: "記憶體", value: memory } : null,
+      Number.isFinite(gpu) && gpu > 0 ? { label: "GPU", value: gpu } : null,
+    ].filter(Boolean);
+    const maxValue = candidates.length ? Math.max(...candidates.map(item => item.value)) : 0;
+    const status = maxValue >= 97 ? "系統狀態極重度" : maxValue >= warningThreshold ? "系統狀態重度" : maxValue >= 75 ? "系統狀態中度" : maxValue >= 60 ? "系統狀態輕度" : "系統狀態良好";
+    const highest = candidates.filter(item => item.value >= 60).sort((a, b) => b.value - a.value);
+    sideLoadNormal.hidden = false;
+    sideLoadAlert.hidden = true;
+    sideLoadStatus.textContent = status;
+    sideLoadStatusReason.textContent = highest.length
+      ? highest.map(item => `${item.label} ${Math.round(item.value)}%`).join(" · ")
+      : "目前沒有明顯瓶頸";
+  }
 
   function renderProcesses(processes) {
     sideProcessList.replaceChildren();
@@ -71,25 +99,6 @@ export function createSideboardController({
     }
   }
 
-  function renderWorkPulse(workPulse) {
-    sideWorkList.replaceChildren();
-    const focus = workPulse?.focus || [];
-    const recent = workPulse?.recent || [];
-    const items = focus.length ? focus.map(item => item.text) : recent.map(item => item.text);
-
-    for (const text of items.slice(0, 4)) {
-      const li = document.createElement("li");
-      li.textContent = text;
-      sideWorkList.append(li);
-    }
-
-    if (!sideWorkList.children.length) {
-      const li = document.createElement("li");
-      li.textContent = workPulse?.summary?.headline || "目前沒有工作脈搏。";
-      sideWorkList.append(li);
-    }
-  }
-
   function renderStats(stats) {
     const cpu = stats.cpu || {};
     const memory = stats.memory || {};
@@ -108,6 +117,7 @@ export function createSideboardController({
     sideHeadline.textContent = system.hostname || "VibeDeck 資訊板";
     sideSummary.textContent = `${new Date(stats.generatedAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
     sideLoad.textContent = formatPercent(load);
+    renderLoadState(stats);
     sideHost.textContent = `主機 ${system.localIp || "--"}`;
     sideUptime.textContent = `已運行 ${formatSeconds(system.uptimeSeconds)}`;
     sideHealth.textContent = stats.error ? `收集器：${stats.error}` : "收集器正常";
@@ -161,20 +171,22 @@ export function createSideboardController({
 
       sideError.textContent = "";
       renderStats(stats);
-      renderWorkPulse(workPulse);
+      onWorkPulse?.(workPulse);
+      onConnectionChange?.("online");
     } catch (error) {
+      onConnectionChange?.("connecting");
       if (isTrustRequiredError(error)) {
         sideHeadline.textContent = "資訊板已鎖定";
         sideSummary.textContent = "請先配對手機。";
         sideError.textContent = "需要信任裝置。";
-        sideWorkList.replaceChildren();
+        onWorkPulse?.(null);
         return;
       }
 
       sideHeadline.textContent = "資訊板無法使用";
       sideSummary.textContent = "VibeDeck 無法讀取本機電腦資訊。";
       sideError.textContent = error.message || "資料收集器無法使用。";
-      sideWorkList.replaceChildren();
+      onWorkPulse?.(null);
     }
   }
 

@@ -25,4 +25,4 @@ The PWA provides the app-like parts that matter here:
 3. Tap 「提出配對申請」 on the phone, then approve the six-digit request on the PC.
 4. Add the page to the home screen if an app-like entry is wanted.
 
-The former Android native shell remains in `apps/android` as legacy source only. It is no longer linked from the Host UI, documented as a supported product path, or served as an APK by the Host.
+There is no native Android or iOS client in this repository. This is deliberate: keeping an unused shell created a second, untested product path and repeatedly caused debugging against the wrong client.

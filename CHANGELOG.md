@@ -1,5 +1,17 @@
 # 更新日誌
 
+## 0.1.1 - 2026-07-15
+
+### 正式安裝／更新路線收斂
+
+- 移除 Host Windows Service 架構；Host 改在登入使用者桌面 Session 背景自動啟動，修正 Session 0 無法枚舉及擷取虛擬顯示器。
+- Setup 成為唯一 Windows 產品發佈與覆蓋更新路線；更新時清除可替換程式／Web 資產，保留 `%ProgramData%\VibeDeck`。
+- 移除 portable ZIP 發佈腳本、Android 原生殼與 APK／Gradle／簽章工具，手機只保留 Safari／Chrome／PWA。
+- 通知 companion 程序改名為 `VibeDeck.Notifications.exe`，避免再與主 Host 混淆。
+- 通知 companion 可跨 Host 覆蓋更新自動重連，且啟動時只建立通知基準、不重播通知中心歷史。
+- 新增 `scripts\test-product-flow.ps1`，統一驗證來源、payload 與已安裝產品的 Session、連接埠、遺留 Service 和虛擬顯示器狀態。
+- 新增 `AGENTS.md` 工程護欄並重寫 README／release checklist，明確禁止回到淘汰路線。
+
 ## 2026-07-14
 
 ### 電子書版自動辨識 + 手動切換

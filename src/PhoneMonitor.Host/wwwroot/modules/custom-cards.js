@@ -14,6 +14,7 @@ export function createCustomCardsController({
   isLocalConsole,
   isTrustRequiredError,
   isEinkClient,
+  onWindowsNotifications,
 }) {
   // 直接用 id 取 DOM，避免上層傳入 null / 舊引用導致監聽器沒掛上
   const byId = id => document.getElementById(id);
@@ -62,11 +63,12 @@ export function createCustomCardsController({
   const windowsNotificationEnable = elements.windowsNotificationEnable || byId("windowsNotificationEnable");
   const windowsNotificationDisable = elements.windowsNotificationDisable || byId("windowsNotificationDisable");
 
-  let page = localStorage.getItem("phoneMonitorSideboardPage") || "system";
+  let page = "system";
   let latestSources = [];
   let latestCards = [];
   let settingsCardId = "";
   let credentialValue = "";
+  let companionLaunchAttempted = false;
   const streamStates = new Map();
 
   function setStatus(message, level = "") {
@@ -88,6 +90,10 @@ export function createCustomCardsController({
         running: false,
         streamEnabled: true,
         streamCharDelayMs: 28,
+        listNode: null,
+        scrollTop: 0,
+        autoFollow: true,
+        autoScrollPending: true,
       });
     }
     return streamStates.get(cardId);
@@ -100,10 +106,15 @@ export function createCustomCardsController({
   function prepareStream(card) {
     const state = getStreamState(card.cardId);
     const items = card.type === "message-feed" ? (card.content?.items || []) : [];
+    const hasNewItems = !state.initialized || items.some(item => !state.knownKeys.has(getItemKey(item)));
     const currentKeys = new Set();
     const itemsByKey = new Map();
     state.streamEnabled = card.streamEnabled !== false;
     state.streamCharDelayMs = Number(card.streamCharDelayMs) || 28;
+    if (hasNewItems) {
+      state.autoFollow = true;
+      state.autoScrollPending = true;
+    }
 
     for (const item of items) {
       const key = getItemKey(item);
@@ -141,6 +152,43 @@ export function createCustomCardsController({
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  function isFeedAtLatest(list) {
+    return list.scrollHeight - list.clientHeight - list.scrollTop <= 20;
+  }
+
+  function scrollFeedToLatest(state) {
+    const list = state.listNode;
+    if (!list) return;
+    list.scrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+    state.scrollTop = list.scrollTop;
+    state.autoFollow = true;
+    state.autoScrollPending = false;
+  }
+
+  function captureFeedScrollPositions() {
+    for (const state of streamStates.values()) {
+      const list = state.listNode;
+      if (!list?.isConnected) continue;
+      state.scrollTop = list.scrollTop;
+      state.autoFollow = isFeedAtLatest(list);
+    }
+  }
+
+  function settleFeedScroll(card) {
+    if (card.type !== "message-feed") return;
+    const state = getStreamState(card.cardId);
+    requestAnimationFrame(() => {
+      const list = state.listNode;
+      if (!list) return;
+      if (state.autoScrollPending || state.autoFollow) {
+        scrollFeedToLatest(state);
+        return;
+      }
+      const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+      list.scrollTop = Math.min(state.scrollTop, maxScrollTop);
+    });
+  }
+
   async function processStreamQueue(card) {
     const state = getStreamState(card.cardId);
     if (state.running) return;
@@ -170,6 +218,7 @@ export function createCustomCardsController({
             node.textContent = value;
             node.classList.add("is-streaming");
           }
+          if (state.autoFollow) scrollFeedToLatest(state);
           await delay(state.streamCharDelayMs);
         }
         state.displayTextByKey.set(job.key, rendered.join(""));
@@ -177,6 +226,12 @@ export function createCustomCardsController({
         if (node) {
           node.textContent = rendered.join("");
           node.classList.remove("is-streaming");
+        }
+        if (state.autoFollow) {
+          scrollFeedToLatest(state);
+          requestAnimationFrame(() => {
+            if (state.autoFollow) scrollFeedToLatest(state);
+          });
         }
         state.streamingKeys.delete(job.key);
       }
@@ -193,6 +248,10 @@ export function createCustomCardsController({
     state.displayTextByKey.clear();
     state.nodesByKey.clear();
     state.queue.length = 0;
+    state.listNode = null;
+    state.scrollTop = 0;
+    state.autoFollow = true;
+    state.autoScrollPending = true;
   }
 
   function renderWindowsNotificationStatus(status) {
@@ -210,7 +269,9 @@ export function createCustomCardsController({
     windowsNotificationStatus.textContent = listening ? "監聽中" : enabled ? "已設定但未連線" : "未啟用";
     windowsNotificationStatus.className = listening ? "windows-notification-ok" : enabled ? "windows-notification-warn" : "";
     windowsNotificationMessage.textContent = status.message || "把這台 PC 的新通知轉成「Windows 通知」訊息卡片。";
-    if (status.packaged === false && enabled && !listening) {
+    if (status.companionRequired && enabled && !listening) {
+      windowsNotificationMessage.textContent += " Companion 會在登入使用者的 Windows 工作階段取得通知權限。";
+    } else if (status.packaged === false && enabled && !listening) {
       windowsNotificationMessage.textContent += " 目前 Host 是非封裝模式，請使用含通知權限的 MSIX 版本。";
     }
     windowsNotificationEnable.hidden = listening;
@@ -223,7 +284,19 @@ export function createCustomCardsController({
       return;
     }
     try {
-      renderWindowsNotificationStatus(await fetchJsonOrThrow("/api/windows-notifications/status"));
+      const status = await fetchJsonOrThrow("/api/windows-notifications/status");
+      renderWindowsNotificationStatus(status);
+      if (status?.listening) companionLaunchAttempted = false;
+      if (status?.enabled && !status?.listening && status?.activationUri && !companionLaunchAttempted) {
+        companionLaunchAttempted = true;
+        const launcher = document.createElement("a");
+        launcher.href = status.activationUri;
+        launcher.hidden = true;
+        document.body.append(launcher);
+        launcher.click();
+        setTimeout(() => launcher.remove(), 1000);
+        setTimeout(() => loadWindowsNotificationStatus(), 1800);
+      }
     } catch (error) {
       renderWindowsNotificationStatus(null);
       if (error?.message) setStatus(error.message, "error");
@@ -235,7 +308,17 @@ export function createCustomCardsController({
     if (button) button.disabled = true;
     try {
       const path = nextEnabled ? "/api/windows-notifications/enable" : "/api/windows-notifications/disable";
-      renderWindowsNotificationStatus(await fetchJsonOrThrow(path, { method: "POST" }));
+      const status = await fetchJsonOrThrow(path, { method: "POST" });
+      renderWindowsNotificationStatus(status);
+      if (nextEnabled && status.activationUri) {
+        const launcher = document.createElement("a");
+        launcher.href = status.activationUri;
+        launcher.hidden = true;
+        document.body.append(launcher);
+        launcher.click();
+        setTimeout(() => launcher.remove(), 1000);
+        setTimeout(() => loadWindowsNotificationStatus(), 1800);
+      }
       await refresh();
     } catch (error) {
       setStatus(error.message || "Windows 通知設定失敗", "error");
@@ -247,8 +330,7 @@ export function createCustomCardsController({
 
   function setPage(nextPage, shouldRefresh = true) {
     page = nextPage === "custom" ? "custom" : "system";
-    localStorage.setItem("phoneMonitorSideboardPage", page);
-    systemSideboardPage.hidden = page !== "system";
+    systemSideboardPage.hidden = false;
     customSideboardPage.hidden = page !== "custom";
     customPageTabs?.querySelectorAll("button").forEach(button => {
       button.classList.toggle("active", button.dataset.sideboardPage === page);
@@ -282,7 +364,13 @@ export function createCustomCardsController({
     const state = getStreamState(card.cardId);
     state.nodesByKey.clear();
     const list = createText("ul", "custom-feed-list");
-    for (const item of (content?.items || [])) {
+    state.listNode = list;
+    list.addEventListener("scroll", () => {
+      state.scrollTop = list.scrollTop;
+      state.autoFollow = isFeedAtLatest(list);
+    }, { passive: true });
+    // The API is newest-first; a scrollable feed reads naturally oldest → latest.
+    for (const item of [...(content?.items || [])].reverse()) {
       const row = document.createElement("li");
       row.className = `custom-feed-item severity-${SEVERITIES.includes(item.severity) ? item.severity : "info"}`;
       const key = getItemKey(item);
@@ -338,6 +426,10 @@ export function createCustomCardsController({
 
   function renderCard(card) {
     const element = createText("article", `custom-card custom-card-${card.type || "unknown"} freshness-${card.freshness || "empty"}`);
+    element.dataset.dashboardKey = card.sourceKey === "windows-notifications"
+      ? "windows-notifications"
+      : `custom:${card.cardId}`;
+    element.dataset.dashboardTitle = card.title || "自訂卡片";
     const header = createText("header", "custom-card-header");
     const titleBlock = createText("div", "custom-card-title-block");
     titleBlock.append(
@@ -357,22 +449,28 @@ export function createCustomCardsController({
   }
 
   function renderSnapshot(snapshot) {
+    captureFeedScrollPositions();
     customCardsGrid.replaceChildren();
     const cards = snapshot?.cards || [];
     latestCards = cards;
+    const windowsCard = cards.find(card => card.sourceKey === "windows-notifications") || null;
+    onWindowsNotifications?.(windowsCard);
+    const displayCards = cards.filter(card => card.sourceKey !== "windows-notifications");
     if (!cards.length) {
-      customCardsGrid.append(createText("div", "custom-empty-state", "尚未建立自訂卡片，請先按「新增卡片」。"));
       setStatus("沒有自訂卡片", "muted");
       renderSettingsCardOptions();
+      document.dispatchEvent(new CustomEvent("dashboard:cards-changed"));
       return;
     }
-    cards.forEach(card => {
+    displayCards.forEach(card => {
       prepareStream(card);
       customCardsGrid.append(renderCard(card));
+      settleFeedScroll(card);
     });
-    cards.forEach(card => processStreamQueue(card));
+    displayCards.forEach(card => processStreamQueue(card));
     renderSettingsCardOptions();
     setStatus(`最後同步 ${formatTime(snapshot.generatedAt)}`, "ok");
+    document.dispatchEvent(new CustomEvent("dashboard:cards-changed"));
   }
 
   async function refresh() {
@@ -822,7 +920,7 @@ export function createCustomCardsController({
 
   syncAccess();
   if (isEinkClient()) customCardsGrid?.classList.add("custom-cards-eink");
-  setPage(page, false);
+  setPage("system", false);
 
   return {
     refresh,
@@ -833,5 +931,6 @@ export function createCustomCardsController({
     getPage: () => page,
     setSettingsPanelVisible,
     setManagerVisible,
+    showForm,
   };
 }

@@ -36,13 +36,31 @@ namespace PhoneMonitor.Host.CustomSources
             }
             catch (Exception error)
             {
-                initializationError = error;
-                available = false;
+                if (IsDatabaseCorruption(error))
+                {
+                    try
+                    {
+                        QuarantineCorruptDatabase();
+                        Initialize();
+                        available = true;
+                    }
+                    catch (Exception recoveryError)
+                    {
+                        initializationError = recoveryError;
+                        available = false;
+                    }
+                }
+                else
+                {
+                    initializationError = error;
+                    available = false;
+                }
             }
         }
 
         public string DatabasePath => databasePath;
         public bool IsAvailable => available;
+        public Exception InitializationError => initializationError;
 
         public IReadOnlyList<CustomSourceRecord> GetSources()
         {
@@ -723,6 +741,15 @@ ORDER BY c.position ASC, c.title COLLATE NOCASE ASC, c.id ASC;";
                 if (available) return;
                 Directory.CreateDirectory(databaseDirectory);
                 using var connection = OpenConnectionWithoutAvailabilityCheck();
+                using (var integrity = connection.CreateCommand())
+                {
+                    integrity.CommandText = "PRAGMA quick_check;";
+                    var result = Convert.ToString(integrity.ExecuteScalar(), CultureInfo.InvariantCulture);
+                    if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException($"Custom Sources database integrity check failed: {result}");
+                    }
+                }
                 using (var versionCommand = connection.CreateCommand())
                 {
                     versionCommand.CommandText = "PRAGMA user_version;";
@@ -804,14 +831,26 @@ PRAGMA user_version = 1;";
 
         private SqliteConnection OpenConnectionWithoutAvailabilityCheck()
         {
-            var connection = new SqliteConnection($"Data Source={databasePath};Mode=ReadWriteCreate;Cache=Shared;Default Timeout=5");
-            connection.Open();
-            using (var foreignKeys = connection.CreateCommand())
+            var connection = new SqliteConnection($"Data Source={databasePath};Mode=ReadWriteCreate;Cache=Shared;Default Timeout=5;Pooling=False");
+            try
             {
-                foreignKeys.CommandText = "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;";
-                foreignKeys.ExecuteNonQuery();
+                connection.Open();
+                using (var foreignKeys = connection.CreateCommand())
+                {
+                    // The Host can be terminated by Windows Setup after the SCM
+                    // shutdown timeout. This store is small and write-light, so a
+                    // rollback journal with FULL sync is safer than leaving a WAL
+                    // checkpoint in flight during a service upgrade.
+                    foreignKeys.CommandText = "PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA journal_mode = DELETE; PRAGMA synchronous = FULL;";
+                    foreignKeys.ExecuteNonQuery();
+                }
+                return connection;
             }
-            return connection;
+            catch
+            {
+                connection.Dispose();
+                throw;
+            }
         }
 
         private void EnsureAvailable()
@@ -821,6 +860,25 @@ PRAGMA user_version = 1;";
                 throw new CustomSourceStoreUnavailableException(
                     "Custom source storage is unavailable.",
                     initializationError);
+            }
+        }
+
+        private static bool IsDatabaseCorruption(Exception error)
+        {
+            if (error is InvalidDataException) return true;
+            if (error is SqliteException sqlite && (sqlite.SqliteErrorCode == 11 || sqlite.SqliteErrorCode == 26)) return true;
+            return error?.InnerException != null && IsDatabaseCorruption(error.InnerException);
+        }
+
+        private void QuarantineCorruptDatabase()
+        {
+            var stamp = DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss");
+            foreach (var suffix in new[] { string.Empty, "-wal", "-shm" })
+            {
+                var source = databasePath + suffix;
+                if (!File.Exists(source)) continue;
+                var destination = databasePath + $".corrupt-{stamp}{suffix}";
+                File.Move(source, destination, false);
             }
         }
 

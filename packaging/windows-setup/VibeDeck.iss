@@ -16,7 +16,7 @@
 #define MyAppName "VibeDeck"
 #define MyAppPublisher "VibeDeck"
 #define MyAppURL "http://127.0.0.1:5000"
-#define MyAppExeName "PhoneMonitor.Host.exe"
+#define MyAppExeName "VibeDeck.Host.exe"
 #define MyServiceName "VibeDeckHost"
 #define MyServiceDisplayName "VibeDeck Host"
 
@@ -55,32 +55,40 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop icon to open the VibeDeck web UI"; GroupDescription: "Additional icons:"; Flags: checkedonce
-Name: "autostart"; Description: "Install VibeDeck Host as a Windows Service and start it automatically"; GroupDescription: "Background service:"; Flags: checkedonce
+Name: "autostart"; Description: "Start VibeDeck automatically when a user signs in"; GroupDescription: "Background app:"; Flags: checkedonce
 
 [Files]
 Source: "{#MyPayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "Open-VibeDeck.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Open-VibeDeck.vbs"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Start-VibeDeck-Host.vbs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "product-install.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "vibedeck.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Stop-VibeDeck-Host.ps1"; Flags: dontcopy
+
+[Dirs]
+; Host runs in the signed-in desktop session and owns mutable product state.
+Name: "{commonappdata}\VibeDeck"; Permissions: users-modify
+
+[InstallDelete]
+; Remove replaceable web/runtime trees so deleted modules cannot survive an upgrade.
+Type: filesandordirs; Name: "{app}\wwwroot"
+Type: filesandordirs; Name: "{app}\Installers"
+Type: filesandordirs; Name: "{app}\runtimes"
+; Remove the pre-0.1.1 binary name after upgrading.
+Type: files; Name: "{app}\PhoneMonitor.Host.*"
 
 [Icons]
-; Primary product entry: opens the PC web UI (starts service if needed)
+; Primary product entry: starts the desktop Host if needed and opens the PC web UI.
 Name: "{group}\{#MyAppName}"; Filename: "{app}\Open-VibeDeck.vbs"; IconFilename: "{app}\vibedeck.ico"; Comment: "Open VibeDeck web UI on this PC"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Open-VibeDeck.vbs"; IconFilename: "{app}\vibedeck.ico"; Comment: "Open VibeDeck web UI on this PC"; Tasks: desktopicon
 
 [Run]
-; Register recovery + auto-start service
-Filename: "{sys}\sc.exe"; Parameters: "stop {#MyServiceName}"; Flags: runhidden; StatusMsg: "Stopping previous VibeDeck Host service..."; Tasks: autostart; Check: ServiceExists
-Filename: "{sys}\sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden; StatusMsg: "Removing previous VibeDeck Host service..."; Tasks: autostart; Check: ServiceExists
-Filename: "{sys}\sc.exe"; Parameters: "create {#MyServiceName} binPath= ""\""{app}\{#MyAppExeName}\"""" DisplayName= ""{#MyServiceDisplayName}"" start= auto obj= LocalSystem"; Flags: runhidden; StatusMsg: "Installing VibeDeck Host Windows Service..."; Tasks: autostart
-Filename: "{sys}\sc.exe"; Parameters: "description {#MyServiceName} ""VibeDeck phone sideboard, AI quotas, and virtual display host. Opens on {#MyAppURL}."""; Flags: runhidden; Tasks: autostart
-Filename: "{sys}\sc.exe"; Parameters: "failure {#MyServiceName} reset= 86400 actions= restart/5000/restart/10000/restart/30000"; Flags: runhidden; Tasks: autostart
-Filename: "{sys}\sc.exe"; Parameters: "start {#MyServiceName}"; Flags: runhidden; StatusMsg: "Starting VibeDeck Host..."; Tasks: autostart
 ; Allow LAN phones to reach Host HTTP/HTTPS
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden; Tasks: autostart
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VibeDeck Host"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden; StatusMsg: "Adding firewall rule..."; Tasks: autostart
+Filename: "{sys}\wscript.exe"; Parameters: """{app}\Start-VibeDeck-Host.vbs"""; Flags: runhidden nowait runasoriginaluser; StatusMsg: "Starting VibeDeck Host in your desktop session..."; Tasks: autostart
 ; Open web UI after install
 Filename: "{app}\Open-VibeDeck.vbs"; Description: "Open VibeDeck web UI now"; Flags: postinstall nowait skipifsilent shellexec
 
@@ -89,6 +97,10 @@ Filename: "{sys}\sc.exe"; Parameters: "stop {#MyServiceName}"; Flags: runhidden;
 Filename: "{sys}\sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden; RunOnceId: "DeleteVibeDeckHost"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden; RunOnceId: "RemoveVibeDeckFirewall"
 
+[Registry]
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VibeDeckHost"; ValueData: """{sys}\wscript.exe"" ""{app}\Start-VibeDeck-Host.vbs"""; Flags: uninsdeletevalue; Tasks: autostart
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VibeDeckHost"; Flags: deletevalue; Tasks: not autostart
+
 [Code]
 function ServiceExists(): Boolean;
 var
@@ -96,6 +108,32 @@ var
 begin
   Result := Exec(ExpandConstant('{sys}\sc.exe'), 'query {#MyServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode)
     and (ResultCode = 0);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+  StopScript: String;
+begin
+  Result := '';
+  ExtractTemporaryFile('Stop-VibeDeck-Host.ps1');
+  StopScript := ExpandConstant('{tmp}\Stop-VibeDeck-Host.ps1');
+  if not Exec(
+    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -ExecutionPolicy Bypass -File "' + StopScript + '" -InstallDir "' + ExpandConstant('{app}') + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+  begin
+    Result := 'VibeDeck Host could not be stopped for the update. Close VibeDeck and try again.';
+    exit;
+  end;
+  { A legacy service locks the executable before [Files] runs and also places
+    Host in Session 0. Remove it before the upgrade copies any product files. }
+  if ServiceExists() then
+  begin
+    Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#MyServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+    Sleep(1000);
+    Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#MyServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

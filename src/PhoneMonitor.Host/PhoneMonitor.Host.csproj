@@ -3,7 +3,9 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
+    <AssemblyName>VibeDeck.Host</AssemblyName>
+    <RootNamespace>PhoneMonitor.Host</RootNamespace>
     <Product>VibeDeck</Product>
     <Description>把閒置手機變成 Windows PC 的智慧副螢幕與資訊板。</Description>
   </PropertyGroup>
@@ -11,8 +13,6 @@
   <ItemGroup>
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.28" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Logging.EventLog" Version="8.0.1" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="SharpDX" Version="4.2.0" />
     <PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />

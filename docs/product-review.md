@@ -1,5 +1,7 @@
 # VibeDeck Product Review
 
+> Historical review only. Do not use old launch or release observations here as current operating instructions; README and AGENTS.md define the canonical product paths.
+
 Date: 2026-07-04
 
 ## Scope

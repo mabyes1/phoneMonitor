@@ -56,6 +56,7 @@ namespace PhoneMonitor.Host
             services.AddSingleton<GlanceBoardProxy>();
             services.AddSingleton<AiQuotaService>();
             services.AddSingleton<DashboardEventHub>();
+            services.AddSingleton<DashboardLayoutService>();
             services.AddHostedService<DashboardChangeMonitor>();
             services.AddSingleton(sp =>
             {
@@ -103,7 +104,10 @@ namespace PhoneMonitor.Host
                 {
                     var path = staticContext.Context.Request.Path.Value ?? string.Empty;
                     if (path.Equals("/index.html", StringComparison.OrdinalIgnoreCase) ||
-                        path.Equals("/service-worker.js", StringComparison.OrdinalIgnoreCase))
+                        path.Equals("/service-worker.js", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".js", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".css", StringComparison.OrdinalIgnoreCase) ||
+                        path.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                     {
                         staticContext.Context.Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
                         staticContext.Context.Response.Headers["Pragma"] = "no-cache";
@@ -115,6 +119,7 @@ namespace PhoneMonitor.Host
             app.UseEndpoints(endpoints =>
             {
                 MapCustomSourceEndpoints(endpoints);
+                MapDashboardLayoutEndpoints(endpoints);
                 MapWindowsNotificationEndpoints(endpoints);
 
                 endpoints.MapGet("/health", async context =>

@@ -5,17 +5,22 @@ export function createQuotaController({
   isTrustRequiredError,
   renderSnapshot,
   renderErrorHelp,
+  onConnectionChange,
 }) {
   let oauthPollTimer = null;
 
   async function refresh(options = {}) {
-    if (getActiveMode() !== "quota") return;
+    if (getActiveMode() !== "quota") return null;
 
     try {
       const endpoint = options.force ? "/api/quotas/refresh" : "/api/quotas";
       const init = options.force ? { method: "POST" } : undefined;
-      renderSnapshot(await fetchJsonOrThrow(endpoint, init));
+      const snapshot = await fetchJsonOrThrow(endpoint, init);
+      renderSnapshot(snapshot);
+      onConnectionChange?.("online");
+      return snapshot;
     } catch (error) {
+      onConnectionChange?.("connecting");
       const requiresTrust = isTrustRequiredError(error);
       elements.quotaSummary.textContent = requiresTrust
         ? "請先配對手機，才能查看 AI 額度。"
@@ -26,6 +31,8 @@ export function createQuotaController({
         elements.quotaHelp.append(renderErrorHelp(error, requiresTrust));
       }
       elements.quotaGrid.replaceChildren();
+      if (options.throwOnError) throw error;
+      return null;
     }
   }
 

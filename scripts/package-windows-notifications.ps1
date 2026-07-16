@@ -17,7 +17,8 @@ $manifestTemplate = Join-Path $repoRoot "packaging\windows-notifications\Package
 $artifactRoot = Join-Path $repoRoot "artifacts\windows-notifications"
 $publishRoot = Join-Path $artifactRoot "publish"
 $packageRoot = Join-Path $artifactRoot "package"
-$msixPath = Join-Path $artifactRoot "PhoneMonitor.WindowsNotifications.msix"
+$msixPath = Join-Path $artifactRoot "VibeDeck.WindowsNotifications.msix"
+$legacyMsixPath = Join-Path $artifactRoot "PhoneMonitor.WindowsNotifications.msix"
 $pfxPath = Join-Path $artifactRoot "PhoneMonitor.Dev.pfx"
 $cerPath = Join-Path $artifactRoot "PhoneMonitor.Dev.cer"
 $manifestPath = Join-Path $packageRoot "AppxManifest.xml"
@@ -101,10 +102,11 @@ if ($Uninstall) {
     $package = Get-AppxPackage -Name "PhoneMonitor.Dev" -ErrorAction SilentlyContinue
     if ($package) {
         Remove-AppxPackage -Package $package.PackageFullName
-        Write-Host "PhoneMonitor identity package removed."
+        Write-Host "VibeDeck Notifications identity package removed."
     } else {
-        Write-Host "PhoneMonitor identity package is not installed."
+        Write-Host "VibeDeck Notifications identity package is not installed."
     }
+    Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "VibeDeckNotifications" -ErrorAction SilentlyContinue
     exit 0
 }
 
@@ -112,9 +114,10 @@ New-Item -ItemType Directory -Force -Path $artifactRoot | Out-Null
 Remove-DirectorySafely $publishRoot
 Remove-DirectorySafely $packageRoot
 if (Test-Path -LiteralPath $msixPath) { Remove-Item -LiteralPath $msixPath -Force }
+if (Test-Path -LiteralPath $legacyMsixPath) { Remove-Item -LiteralPath $legacyMsixPath -Force }
 New-Item -ItemType Directory -Force -Path $publishRoot, $packageRoot, (Join-Path $packageRoot "Assets") | Out-Null
 
-& $dotnet publish $project -c $Configuration -r win-x64 --self-contained true -p:UseAppHost=true -o $publishRoot
+& $dotnet publish $project -c $Configuration -r win-x64 --self-contained true -p:UseAppHost=true -p:DebugType=None -p:DebugSymbols=false -o $publishRoot
 Copy-Item -LiteralPath $manifestTemplate -Destination $manifestPath -Force
 $resolvedPackageVersion = Resolve-PackageVersion
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
@@ -129,6 +132,20 @@ Copy-Item -LiteralPath (Join-Path $publishRoot "wwwroot\icons\icon-192.png") -De
 Get-ChildItem -LiteralPath $publishRoot -Force | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination $packageRoot -Recurse -Force
 }
+foreach ($relative in @("wwwroot", "Installers", "Sideboard")) {
+    $unused = Join-Path $packageRoot $relative
+    if (Test-Path -LiteralPath $unused) { Remove-Item -LiteralPath $unused -Recurse -Force }
+}
+foreach ($pattern in @("appsettings*.json", "web.config", "*.pdb")) {
+    Get-ChildItem -LiteralPath $packageRoot -File -Filter $pattern -ErrorAction SilentlyContinue | Remove-Item -Force
+}
+$packagedHostExe = Join-Path $packageRoot "VibeDeck.Host.exe"
+$companionExe = Join-Path $packageRoot "VibeDeck.Notifications.exe"
+if (-not (Test-Path -LiteralPath $packagedHostExe)) { throw "Published notification companion apphost is missing." }
+Move-Item -LiteralPath $packagedHostExe -Destination $companionExe -Force
+if (Test-Path -LiteralPath (Join-Path $packageRoot "wwwroot")) { throw "Notification package still contains the Host web application." }
+if (Test-Path -LiteralPath (Join-Path $packageRoot "Installers")) { throw "Notification package still contains product installers." }
+if (-not (Test-Path -LiteralPath $companionExe)) { throw "Notification companion executable is missing after packaging." }
 
 $makeAppx = Find-WindowsKitTool "makeappx.exe"
 $signtool = Find-WindowsKitTool "signtool.exe"
@@ -152,9 +169,17 @@ if ($RegisterOnly -or $Install) {
     }
     $package = Get-AppxPackage -Name "PhoneMonitor.Dev" | Select-Object -First 1
     if (-not $package) { throw "Package registration did not produce an installed package identity." }
-    Write-Host "PhoneMonitor MSIX installed."
+    Write-Host "VibeDeck Notifications MSIX installed."
     Write-Host "Package identity: $($package.PackageFullName)"
-    Write-Host "Launch PhoneMonitor from the Windows Start menu, then enable Windows notifications in the PC dashboard."
+    New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Force | Out-Null
+    Set-ItemProperty `
+        -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" `
+        -Name "VibeDeckNotifications" `
+        -Type String `
+        -Value 'explorer.exe "vibedeck-notifications://start"'
+    Write-Host "Notification Companion will start automatically at user sign-in."
+    Start-Process -FilePath "$env:WINDIR\explorer.exe" -ArgumentList '"vibedeck-notifications://start/"' -WindowStyle Hidden
+    Write-Host "VibeDeck Notifications companion launched. Enable Windows notifications in the PC dashboard if needed."
 } else {
     Write-Host "Created signed identity package (version $resolvedPackageVersion): $msixPath"
 }

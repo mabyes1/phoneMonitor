@@ -35,9 +35,10 @@ catch {
 Write-Host "Use the PC page's QR code or open the URL manually. Approve the phone's pairing request on the PC."
 Write-Host "Press Ctrl+C in this window to stop the Host."
 
-$installedHost = Get-Process -Name "PhoneMonitor.Host" -ErrorAction SilentlyContinue
-if ($installedHost) {
-    throw "Another PhoneMonitor.Host is already running (PID $($installedHost[0].Id)). Close the old MSIX/Host window before starting this source build."
+$listener = Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($listener) {
+    $activeHost = Get-Process -Id $listener.OwningProcess -ErrorAction SilentlyContinue
+    throw "Another VibeDeck Host already owns port 5000 (PID $($listener.OwningProcess), Session $($activeHost.SessionId)). Close the installed Host before starting this source build. The notification companion may remain open."
 }
 
 & $dotnet run `

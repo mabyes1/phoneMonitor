@@ -5,8 +5,8 @@
 
 .DESCRIPTION
   Copies artifacts/windows-setup/payload to Program Files\VibeDeck, registers the
-  VibeDeckHost Windows Service (auto-start), creates Start Menu + Desktop shortcuts
-  that open the web UI, and starts the service.
+  VibeDeck Host desktop-session auto-start, creates Start Menu + Desktop shortcuts
+  that open the web UI, and starts the Host in the signed-in session.
 
 .PARAMETER PayloadPath
   Path to published payload (default artifacts/windows-setup/payload).
@@ -17,15 +17,16 @@
 .PARAMETER SkipDesktopIcon
   Do not create a desktop shortcut.
 
-.PARAMETER SkipService
-  Copy files only; do not register the Windows Service.
+.PARAMETER SkipAutostart
+  Copy files only; do not register Host auto-start.
 #>
 [CmdletBinding()]
 param(
     [string]$PayloadPath,
     [string]$InstallDir,
     [switch]$SkipDesktopIcon,
-    [switch]$SkipService
+    [Alias("SkipService")]
+    [switch]$SkipAutostart
 )
 
 $ErrorActionPreference = "Stop"
@@ -48,9 +49,10 @@ if (-not $InstallDir) {
     $InstallDir = Join-Path ${env:ProgramFiles} "VibeDeck"
 }
 
-$hostExeName = "PhoneMonitor.Host.exe"
+$hostExeName = "VibeDeck.Host.exe"
+$legacyHostExeName = "PhoneMonitor.Host.exe"
 $serviceName = "VibeDeckHost"
-$serviceDisplay = "VibeDeck Host"
+$runValueName = "VibeDeckHost"
 $webUrl = "http://127.0.0.1:5000"
 
 if (-not (Test-Path -LiteralPath (Join-Path $PayloadPath $hostExeName))) {
@@ -64,17 +66,48 @@ $existing = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
 if ($existing) {
     if ($existing.Status -eq "Running") {
         Stop-Service -Name $serviceName -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 1
+        try {
+            $existing.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(12))
+        } catch {
+            $serviceProcess = Get-CimInstance Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+            if ($serviceProcess -and $serviceProcess.ProcessId -gt 0) {
+                Write-Host "Service did not stop in time; terminating VibeDeckHost PID $($serviceProcess.ProcessId)."
+                Stop-Process -Id $serviceProcess.ProcessId -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 1
+            }
+        }
     }
     & sc.exe delete $serviceName | Out-Null
-    Start-Sleep -Seconds 1
+    Write-Host "Removed legacy Session 0 service $serviceName."
 }
 
+# Stop an existing desktop-session Host from this install directory before
+# replacing files. The packaged Windows notification companion has a different
+# path and must remain running.
+foreach ($processName in @($hostExeName, $legacyHostExeName)) {
+    Get-CimInstance Win32_Process -Filter "Name='$processName'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDir, [StringComparison]::OrdinalIgnoreCase) } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
+Start-Sleep -Milliseconds 500
+
+if (Test-Path -LiteralPath $InstallDir) {
+    $hasKnownInstall = (Test-Path -LiteralPath (Join-Path $InstallDir $hostExeName)) -or
+        (Test-Path -LiteralPath (Join-Path $InstallDir $legacyHostExeName)) -or
+        (Test-Path -LiteralPath (Join-Path $InstallDir "product-install.json"))
+    $hasFiles = $null -ne (Get-ChildItem -LiteralPath $InstallDir -Force | Select-Object -First 1)
+    if ($hasFiles -and -not $hasKnownInstall) {
+        throw "Refusing to replace non-VibeDeck directory: $InstallDir"
+    }
+    # Product data lives in ProgramData. Clearing the replaceable app directory
+    # prevents removed web modules or old launchers from surviving an update.
+    Get-ChildItem -LiteralPath $InstallDir -Force | Remove-Item -Recurse -Force
+}
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Copy-Item -Path (Join-Path $PayloadPath "*") -Destination $InstallDir -Recurse -Force
 
 # Preserve existing browser/PWA pairings + HTTPS root from the old LocalAppData layout
-# before the service mints a brand-new ProgramData tree.
+# before the installed Host mints a brand-new ProgramData tree.
 $legacyData = Join-Path $env:LOCALAPPDATA "PhoneMonitor"
 $productData = Join-Path $env:ProgramData "VibeDeck"
 if (Test-Path -LiteralPath $legacyData) {
@@ -100,11 +133,20 @@ if (Test-Path -LiteralPath $legacyData) {
     }
 }
 
+# The Host runs as the signed-in desktop user, not as this elevated installer.
+# Product state is shared under ProgramData, so every interactive user must be
+# able to update pairing, certificate, quota and dashboard files.
+New-Item -ItemType Directory -Path $productData -Force | Out-Null
+& icacls.exe $productData /grant '*S-1-5-32-545:(OI)(CI)M' /T /C | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "Could not grant signed-in users modify access to $productData."
+}
+
 $openCmd = Join-Path $InstallDir "Open-VibeDeck.cmd"
 if (-not (Test-Path -LiteralPath $openCmd)) {
     $openCmdContent = @"
 @echo off
-sc query $serviceName | findstr /I "RUNNING" >nul || net start $serviceName >nul 2>&1
+start "" /b "%~dp0$hostExeName" >nul 2>&1
 timeout /t 2 /nobreak >nul
 start "" $webUrl
 "@
@@ -113,6 +155,7 @@ start "" $webUrl
 
 $iconPath = Join-Path $InstallDir "vibedeck.ico"
 $hostExe = Join-Path $InstallDir $hostExeName
+$hostVbs = Join-Path $InstallDir "Start-VibeDeck-Host.vbs"
 
 # Shortcuts
 $shell = New-Object -ComObject WScript.Shell
@@ -145,18 +188,25 @@ if (-not $SkipDesktopIcon) {
     $deskShortcut.Save()
 }
 
-if (-not $SkipService) {
-    $binPath = "`"$hostExe`""
-    & sc.exe create $serviceName binPath= $binPath DisplayName= $serviceDisplay start= auto obj= LocalSystem | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "sc create failed with exit code $LASTEXITCODE"
+if (-not $SkipAutostart) {
+    if (-not (Test-Path -LiteralPath $hostVbs)) {
+        throw "Payload missing Start-VibeDeck-Host.vbs. Re-package VibeDeck before installing."
     }
-    & sc.exe description $serviceName "VibeDeck phone sideboard, AI quotas, and virtual display host. Opens on $webUrl." | Out-Null
-    & sc.exe failure $serviceName reset= 86400 actions= restart/5000/restart/10000/restart/30000 | Out-Null
+    $runPath = "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run"
+    $runCommand = "`"$env:WINDIR\System32\wscript.exe`" `"$hostVbs`""
+    New-Item -Path $runPath -Force | Out-Null
+    New-ItemProperty -Path $runPath -Name $runValueName -Value $runCommand -PropertyType String -Force | Out-Null
     & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
     & netsh.exe advfirewall firewall add rule name="VibeDeck Host" dir=in action=allow program="$hostExe" enable=yes profile=any | Out-Null
-    Start-Service -Name $serviceName
-    Write-Host "Service $serviceName started (Automatic)."
+    # Route the launch through the signed-in Explorer shell. This keeps Host in
+    # the interactive desktop session and detaches it from an elevated installer
+    # that may be waiting for its entire child process tree to exit.
+    Start-Process -FilePath "$env:WINDIR\explorer.exe" -ArgumentList "`"$hostVbs`"" -WindowStyle Hidden
+    Start-Sleep -Seconds 2
+    Write-Host "VibeDeck Host started in desktop session $([System.Diagnostics.Process]::GetCurrentProcess().SessionId) (auto-start at sign-in)."
+} else {
+    Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
+    & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
 }
 
 Write-Host ""
@@ -164,6 +214,6 @@ Write-Host "VibeDeck installed." -ForegroundColor Green
 Write-Host "  Web UI:  $webUrl"
 Write-Host "  Files:   $InstallDir"
 Write-Host "  Data:    $env:ProgramData\VibeDeck"
-Write-Host "  Service: $serviceName (Automatic)"
+Write-Host "  Startup: $(if ($SkipAutostart) { 'Disabled' } else { 'Signed-in desktop session (Automatic)' })"
 Write-Host ""
 Start-Process $webUrl

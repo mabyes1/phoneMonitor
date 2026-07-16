@@ -10,9 +10,13 @@ import {
   formatWeatherLocation,
 } from "./modules/formatters.js?v=47";
 import { createDisplayInputController } from "./modules/display-input.js?v=47";
-import { createCustomCardsController } from "./modules/custom-cards.js?v=47";
-import { createQuotaController } from "./modules/quota-controller.js?v=47";
-import { createSideboardController } from "./modules/sideboard.js?v=47";
+import { createCustomCardsController } from "./modules/custom-cards.js?v=52";
+import { createActivityFeedController } from "./modules/activity-feed.js?v=53";
+import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=55";
+import { createQuotaController } from "./modules/quota-controller.js?v=49";
+import { createQuotaMiniCardController } from "./modules/quota-mini-card.js?v=53";
+import { createSideboardController } from "./modules/sideboard.js?v=49";
+import { createMobileOverviewController } from "./modules/mobile-overview.js?v=1";
 import { createStreamController } from "./modules/stream-controller.js?v=47";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
 import {
@@ -29,6 +33,9 @@ import {
     const dot = document.getElementById("dot");
     const rotation = document.getElementById("rotation");
     const orientation = document.getElementById("orientation");
+    let einkPhysicalOrientation = "unknown";
+    let einkOrientationCandidate = "";
+    let einkOrientationCandidateSince = 0;
     const displayMode = document.getElementById("displayMode");
     const sideboardMode = document.getElementById("sideboardMode");
     const quotaMode = document.getElementById("quotaMode");
@@ -128,6 +135,12 @@ import {
     const sideSummary = document.getElementById("sideSummary");
     const sideError = document.getElementById("sideError");
     const sideLoad = document.getElementById("sideLoad");
+    const sideLoadNormal = document.getElementById("sideLoadNormal");
+    const sideLoadStatus = document.getElementById("sideLoadStatus");
+    const sideLoadStatusReason = document.getElementById("sideLoadStatusReason");
+    const sideLoadAlert = document.getElementById("sideLoadAlert");
+    const sideLoadAlertTitle = document.getElementById("sideLoadAlertTitle");
+    const sideLoadAlertReason = document.getElementById("sideLoadAlertReason");
     const sideHost = document.getElementById("sideHost");
     const sideUptime = document.getElementById("sideUptime");
     const sideHealth = document.getElementById("sideHealth");
@@ -153,7 +166,14 @@ import {
     const sideWeather = document.getElementById("sideWeather");
     const sideWeatherSub = document.getElementById("sideWeatherSub");
     const sideProcessList = document.getElementById("sideProcessList");
-    const sideWorkList = document.getElementById("sideWorkList");
+    const activityFeedCard = document.getElementById("activityFeedCard");
+    const activityFeedList = document.getElementById("activityFeedList");
+    const activityFeedFilters = [...document.querySelectorAll("[data-activity-filter]")];
+    const quotaMiniSource = document.getElementById("quotaMiniSource");
+    const quotaMiniValue = document.getElementById("quotaMiniValue");
+    const quotaMiniBar = document.getElementById("quotaMiniBar");
+    const quotaMiniReset = document.getElementById("quotaMiniReset");
+    const quotaMiniState = document.getElementById("quotaMiniState");
     const quotaSummary = document.getElementById("quotaSummary");
     const quotaUpdated = document.getElementById("quotaUpdated");
     const quotaTabs = document.getElementById("quotaTabs");
@@ -175,9 +195,15 @@ import {
     let keepAwakeWatchTimer = null;
     let streamStats = null;
     let activeMode = "display";
+    let dashboardConnectionState = "connecting";
     let sideboardTimer = null;
     let quotaTimer = null;
+    let customCardsTimer = null;
+    let activityNotificationsTimer = null;
+    let dashboardConnectionTimer = null;
     let displayInstallTimer = null;
+    let deviceStatusTimer = null;
+    let deviceStatusInterval = 0;
     let dashboardEvents = null;
     const dashboardRefreshState = {
       sideboard: { last: 0, timer: null, dirty: false },
@@ -185,6 +211,7 @@ import {
       customCards: { last: 0, timer: null, dirty: false }
     };
     let customCardsController = null;
+    let quotaMiniController = null;
     let actionToken = "";
     let actionHeaderName = "X-PhoneMonitor-Action-Token";
     let hostAuthEnabled = false;
@@ -245,7 +272,6 @@ import {
         // Private mode / storage blocked: cookie may still work.
         if (nextToken) writeCookie(DEVICE_COOKIE, nextToken, 400);
       }
-      notifyNativeDeviceTrust();
     }
 
     const storedDevice = loadStoredDeviceCredentials();
@@ -256,7 +282,11 @@ import {
     let deviceLocalRequest = false;
     let pairingQrActive = false;
     let quotaSnapshotData = null;
-    let quotaActiveTab = localStorage.getItem("phoneMonitorQuotaTab") || "agy";
+    // Keep the initial quota view consistent across phone and E Ink clients.
+    // Users can still switch tabs; the versioned key prevents an old device
+    // preference from making one client open AGY while another opens Codex.
+    const QUOTA_TAB_STORAGE_KEY = "phoneMonitorQuotaTab.v2";
+    let quotaActiveTab = localStorage.getItem(QUOTA_TAB_STORAGE_KEY) || "codex";
     const quotaAccountIndexByTab = {};
     const quotaActionStatusByKey = new Map();
     let quotaSwipeStartX = null;
@@ -268,14 +298,6 @@ import {
 
     function isMobileClient() {
       return isIos() || /Android|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
-    }
-
-    function isNativeShell() {
-      try {
-        return !!(window.PhoneMonitorShell);
-      } catch {
-        return false;
-      }
     }
 
     const EINK_PREF_KEY = "phoneMonitorEink";
@@ -442,6 +464,7 @@ import {
         state.last = Date.now();
         if (topic === "sideboard") await refreshSideboard();
         else if (topic === "customCards") await customCardsController?.refresh();
+        else if (activeMode === "sideboard") await quotaMiniController?.refresh();
         else await refreshQuotas();
         if (state.dirty) scheduleDashboardRefresh(topic);
       }, delay);
@@ -450,6 +473,10 @@ import {
     function connectDashboardEvents() {
       if (dashboardEvents || typeof EventSource === "undefined") return;
       dashboardEvents = new EventSource("/api/dashboard/events");
+      dashboardEvents.onopen = () => {
+        const topic = activeMode === "quota" ? "quota" : "sideboard";
+        scheduleDashboardRefresh(topic, true);
+      };
       dashboardEvents.addEventListener("sideboard", () => scheduleDashboardRefresh("sideboard"));
       dashboardEvents.addEventListener("quota", () => scheduleDashboardRefresh("quota"));
       dashboardEvents.addEventListener("custom-card", () => scheduleDashboardRefresh("customCards"));
@@ -466,17 +493,15 @@ import {
     function defaultStreamPreset() {
       // iPhone Safari JPEG is heavier; prefer battery/balanced over 60fps.
       if (isIos()) return "battery";
-      return isMobileClient() || isNativeShell() ? "balanced" : "smooth";
+      return isMobileClient() ? "balanced" : "smooth";
     }
 
     function applyClientChrome() {
-      const nativeShell = isNativeShell();
       const localConsole = Boolean(deviceLocalRequest);
-      const phoneClient = !localConsole && (isMobileClient() || nativeShell);
+      const phoneClient = !localConsole && isMobileClient();
       const ios = isIos();
       const eink = isEinkClient();
 
-      document.body.classList.toggle("native-shell", nativeShell);
       document.body.classList.toggle("eink-client", eink);
       document.body.classList.toggle("phone-client", phoneClient);
       document.body.classList.toggle("ios-client", ios && !localConsole);
@@ -511,7 +536,7 @@ import {
       return orientation?.value === "landscape" &&
         !isDeckWindow() &&
         !deviceLocalRequest &&
-        (isMobileClient() || isNativeShell() || document.body.classList.contains("phone-client"));
+        (isMobileClient() || document.body.classList.contains("phone-client"));
     }
 
     function applyForcedLandscape() {
@@ -532,6 +557,62 @@ import {
       if (orientation?.value !== "auto" && screen.orientation && typeof screen.orientation.lock === "function") {
         screen.orientation.lock(orientation.value).catch(() => {});
       }
+    }
+
+    function getRawViewportSize() {
+      const viewport = window.visualViewport;
+      return {
+        width: viewport ? viewport.width : window.innerWidth,
+        height: viewport ? viewport.height : window.innerHeight,
+      };
+    }
+
+    function syncEinkSensorOrientationClasses(width, height) {
+      const forcePortrait = isEinkClient() &&
+        orientation?.value === "auto" &&
+        einkPhysicalOrientation.startsWith("portrait-") &&
+        width > height;
+      const primary = forcePortrait && einkPhysicalOrientation === "portrait-primary";
+      const secondary = forcePortrait && einkPhysicalOrientation === "portrait-secondary";
+      for (const root of [document.documentElement, document.body]) {
+        root.classList.toggle("eink-sensor-portrait", forcePortrait);
+        root.classList.toggle("eink-sensor-portrait-primary", primary);
+        root.classList.toggle("eink-sensor-portrait-secondary", secondary);
+      }
+      return forcePortrait;
+    }
+
+    function setEinkPhysicalOrientation(value) {
+      if (einkPhysicalOrientation === value) return;
+      einkPhysicalOrientation = value;
+      document.documentElement.dataset.einkPhysicalOrientation = value;
+      updateViewportSize();
+    }
+
+    function handleEinkDeviceMotion(event) {
+      if (!isEinkClient() || orientation?.value !== "auto") return;
+      const gravity = event.accelerationIncludingGravity;
+      const x = Number(gravity?.x);
+      const y = Number(gravity?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || Math.max(Math.abs(x), Math.abs(y)) < 3) return;
+
+      let candidate = "";
+      if (Math.abs(y) > Math.abs(x) * 1.2) {
+        candidate = y >= 0 ? "portrait-primary" : "portrait-secondary";
+      } else if (Math.abs(x) > Math.abs(y) * 1.2) {
+        candidate = x >= 0 ? "landscape-primary" : "landscape-secondary";
+      }
+      if (!candidate) return;
+
+      const now = performance.now();
+      if (candidate !== einkOrientationCandidate) {
+        einkOrientationCandidate = candidate;
+        einkOrientationCandidateSince = now;
+        return;
+      }
+      // E-ink readers report noisy gravity while being moved. Wait until the
+      // device has settled before changing the whole dashboard canvas.
+      if (now - einkOrientationCandidateSince >= 400) setEinkPhysicalOrientation(candidate);
     }
 
     function isIos() {
@@ -558,13 +639,23 @@ import {
     }
 
     function updateViewportSize() {
-      const viewport = window.visualViewport;
-      let width = viewport ? viewport.width : window.innerWidth;
-      let height = viewport ? viewport.height : window.innerHeight;
+      const rawViewport = getRawViewportSize();
+      let width = rawViewport.width;
+      let height = rawViewport.height;
       const forceLandscape = shouldForceLandscape() && height >= width;
+      const forceEinkPortrait = syncEinkSensorOrientationClasses(width, height);
 
       // When CSS rotates portrait → landscape, layout metrics are swapped.
       if (forceLandscape) {
+        const swapped = width;
+        width = height;
+        height = swapped;
+      }
+
+      // A stale installed BOOX PWA can keep Chrome's Activity locked to
+      // sensor-landscape. CSS rotates that canvas, so expose portrait metrics
+      // to the dashboard layout while the fallback is active.
+      if (forceEinkPortrait) {
         const swapped = width;
         width = height;
         height = swapped;
@@ -575,24 +666,6 @@ import {
       document.body.classList.toggle("viewport-portrait", !forceLandscape && height >= width);
       document.body.classList.toggle("viewport-landscape", forceLandscape || width > height);
       applyForcedLandscape();
-    }
-
-    function notifyNativeViewerMode(enabled) {
-      try {
-        if (window.PhoneMonitorShell) {
-          window.PhoneMonitorShell.setViewerMode(Boolean(enabled));
-        }
-      } catch {
-      }
-    }
-
-    function notifyNativeDeviceTrust() {
-      try {
-        if (window.PhoneMonitorShell) {
-          window.PhoneMonitorShell.setDeviceToken(deviceToken || "", deviceId || "");
-        }
-      } catch {
-      }
     }
 
     function describeClient() {
@@ -625,7 +698,7 @@ import {
 
     /** iPhone single path: never use HTTP for the app UI. */
     function enforceIosHttpsPath() {
-      if (!isIos() || isNativeShell() || isLoopbackHost()) {
+      if (!isIos() || isLoopbackHost()) {
         document.body.classList.remove("ios-http-blocked");
         return false;
       }
@@ -678,6 +751,11 @@ import {
       displayMode.classList.toggle("active", !isSideboard && !isQuota);
       sideboardMode.classList.toggle("active", isSideboard);
       quotaMode.classList.toggle("active", isQuota);
+      document.querySelectorAll("[data-dashboard-mode]").forEach(button => {
+        const active = button.dataset.dashboardMode === mode;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", active ? "true" : "false");
+      });
       localStorage.setItem("phoneMonitorViewMode", mode);
 
       if (isSideboard) {
@@ -871,6 +949,17 @@ import {
       });
     }
 
+    function syncDeviceStatusPolling() {
+      const nextInterval = deviceLocalRequest ? 3000 : deviceTrusted ? 10000 : 0;
+      if (nextInterval === deviceStatusInterval) return;
+      if (deviceStatusTimer) clearInterval(deviceStatusTimer);
+      deviceStatusTimer = null;
+      deviceStatusInterval = nextInterval;
+      if (nextInterval > 0) {
+        deviceStatusTimer = setInterval(() => loadDeviceTrustStatus(), nextInterval);
+      }
+    }
+
     function renderTrustedDevices(status) {
       const isLocal = Boolean(status?.LocalRequest ?? status?.localRequest);
       trustedDevicesPanel.hidden = !isLocal;
@@ -886,7 +975,7 @@ import {
       if (!devices.length) {
         const empty = document.createElement("span");
         empty.className = "trusted-devices-empty";
-        empty.textContent = "尚未配對手機。";
+        empty.textContent = "尚未配對裝置。";
         trustedDeviceList.append(empty);
         return;
       }
@@ -896,16 +985,18 @@ import {
         const name = readDeviceField(device, "Name", "name") || "Phone";
         const lastSeen = readDeviceField(device, "LastSeenAt", "lastSeenAt");
         const remote = readDeviceField(device, "LastRemoteAddress", "lastRemoteAddress") || "local";
+        const connected = Boolean(device?.Connected ?? device?.connected);
         const row = document.createElement("div");
-        row.className = "trusted-device-row";
+        row.className = `trusted-device-row${connected ? " is-connected" : ""}`;
         row.innerHTML = `
           <div class="trusted-device-main">
-            <strong></strong>
+            <div class="trusted-device-name-row"><strong></strong><b class="trusted-device-status"></b></div>
             <span></span>
           </div>
           <button type="button" data-device-revoke="">移除</button>
         `;
         row.querySelector("strong").textContent = name;
+        row.querySelector(".trusted-device-status").textContent = connected ? "連線中" : "未連線";
         row.querySelector("span").textContent = `${formatDeviceTime(lastSeen)} · ${remote}`;
         const button = row.querySelector("button");
         button.dataset.deviceRevoke = id;
@@ -968,8 +1059,20 @@ import {
             localStorage.removeItem(storageKey);
             clearInterval(approvalPollTimer);
             approvalPollTimer = null;
-            await loadDeviceTrustStatus();
+            const trust = await loadDeviceTrustStatus();
+            const trusted = Boolean(trust?.Trusted ?? trust?.trusted);
+            if (!trusted) {
+              setTrustState("配對 token 已取得，正在重新載入驗證。", true);
+            }
             showPairSuccessBanner(`裝置：${result.DeviceName || result.deviceName || pairingDeviceName()}`);
+            // Reload from the Host after approval so every controller starts
+            // from the newly trusted state. The cache-busting query also
+            // escapes stale installed-PWA module caches.
+            setTimeout(() => {
+              const url = new URL(location.href);
+              url.searchParams.set("paired", Date.now().toString());
+              location.replace(url.toString());
+            }, 250);
           } else if (status === "denied" || status === "expired") {
             localStorage.removeItem(storageKey);
             clearInterval(approvalPollTimer);
@@ -1018,7 +1121,7 @@ import {
 
     async function revokeTrustedDevice(deviceId, button) {
       if (!deviceId) return;
-      if (!window.confirm("要移除這支已配對手機嗎？")) return;
+      if (!window.confirm("要移除這個已配對裝置嗎？")) return;
 
       const originalText = button?.textContent || "";
       if (button) {
@@ -1045,7 +1148,7 @@ import {
     }
 
     async function clearAllTrustedDevices(button) {
-      if (!window.confirm("要清空所有已配對手機嗎？目前手機會需要重新掃 QR 配對。")) return;
+      if (!window.confirm("要清空所有已配對裝置嗎？目前裝置會需要重新配對。")) return;
 
       const originalText = button?.textContent || "";
       if (button) {
@@ -1059,7 +1162,7 @@ import {
           headers: { "Content-Type": "application/json" }
         });
         persistDeviceCredentials("", "");
-        setTrustState(result.Message || result.message || "已清空配對手機。", true);
+        setTrustState(result.Message || result.message || "已清空配對裝置。", true);
         await loadDeviceTrustStatus();
       } catch (error) {
         setTrustState(error.message || "清空配對手機失敗。", false);
@@ -1122,6 +1225,16 @@ import {
         const result = await fetchJsonOrThrow("/api/devices/status");
         deviceHeaderName = result.DeviceHeader || result.deviceHeader || deviceHeaderName;
         deviceTrusted = Boolean(result.Trusted ?? result.trusted);
+
+        // localStorage can outlive a re-pair (especially for an iOS PWA), while
+        // the cookie is refreshed by the approval response. If the two stores
+        // disagree, the stale localStorage value used to make every request
+        // look unpaired forever. Retry once with the cookie-backed credential.
+        const cookieToken = readCookie(DEVICE_COOKIE);
+        if (!deviceTrusted && deviceToken && cookieToken && cookieToken !== deviceToken) {
+          persistDeviceCredentials(cookieToken, deviceId);
+          return loadDeviceTrustStatus();
+        }
         deviceLocalRequest = Boolean(result.LocalRequest ?? result.localRequest) || isLoopbackHost();
         const currentDevice = result.CurrentDevice || result.currentDevice;
         setPairControlsVisible(deviceLocalRequest);
@@ -1158,6 +1271,7 @@ import {
         }
 
         applyClientChrome();
+        syncDeviceStatusPolling();
         return result;
       } catch (error) {
         // A transient /api/devices/status failure must not drop a phone that is
@@ -1169,6 +1283,7 @@ import {
         if (!deviceTrusted) renderTrustedDevices(null);
         setTrustState(error.message || "信任狀態暫時無法取得，沿用上次狀態。", deviceTrusted);
         applyClientChrome();
+        syncDeviceStatusPolling();
         return null;
       }
     }
@@ -1287,12 +1402,44 @@ import {
         /not paired|trust|token|login/i.test(error.message || "");
     }
 
+    const activityFeedController = createActivityFeedController({
+      elements: { card: activityFeedCard, list: activityFeedList, filters: activityFeedFilters },
+    });
+    // Keep the merged activity card independent from custom-card rendering.
+    // This guarantees the feed receives the Windows payload even when the
+    // custom-card page is hidden or its stream renderer is busy.
+    const refreshActivityNotifications = async () => {
+      try {
+        const snapshot = await fetchJsonOrThrow("/api/custom-cards");
+        const card = (snapshot?.cards || []).find(item => item.sourceKey === "windows-notifications") || null;
+        activityFeedController.setWindowsNotifications(card);
+      } catch (error) {
+        if (!isTrustRequiredError(error)) console.debug("activity notifications refresh failed", error);
+      }
+    };
+    quotaMiniController = createQuotaMiniCardController({
+      elements: {
+        select: quotaMiniSource,
+        value: quotaMiniValue,
+        bar: quotaMiniBar,
+        reset: quotaMiniReset,
+        state: quotaMiniState,
+      },
+      fetchJsonOrThrow,
+    });
+
     const sideboardController = createSideboardController({
       elements: {
         sideHeadline,
         sideSummary,
         sideError,
         sideLoad,
+        sideLoadNormal,
+        sideLoadStatus,
+        sideLoadStatusReason,
+        sideLoadAlert,
+        sideLoadAlertTitle,
+        sideLoadAlertReason,
         sideHost,
         sideUptime,
         sideHealth,
@@ -1318,7 +1465,6 @@ import {
         sideWeather,
         sideWeatherSub,
         sideProcessList,
-        sideWorkList,
       },
       fetchJsonOrThrow,
       isTrustRequiredError,
@@ -1335,8 +1481,14 @@ import {
         formatTemperature,
         formatWeatherLocation,
       },
+      onConnectionChange: state => setDashboardConnectionState(state),
+      onWorkPulse: workPulse => activityFeedController.setWorkPulse(workPulse),
     });
-    const refreshSideboard = () => sideboardController.refresh();
+    createMobileOverviewController();
+    const refreshSideboard = () => Promise.all([
+      sideboardController.refresh(),
+      quotaMiniController.refresh(),
+    ]);
 
     try {
       customCardsController = createCustomCardsController({
@@ -1391,11 +1543,35 @@ import {
         isLocalConsole: () => Boolean(deviceLocalRequest),
         isTrustRequiredError,
         isEinkClient,
+        onWindowsNotifications: card => activityFeedController.setWindowsNotifications(card),
       });
     } catch (error) {
       // 自訂卡片模組掛了也不能拖垮 iPhone 顯示器 / 配對主流程
       console.error("custom cards controller failed", error);
       customCardsController = null;
+    }
+
+    let dashboardLayoutController = null;
+    try {
+      const openDashboardConfig = action => {
+        customCardsController?.setPage("custom", false);
+        action?.();
+      };
+      const closeDashboardConfig = () => {
+        customCardsController?.setSettingsPanelVisible(false);
+        customCardsController?.setManagerVisible(false);
+        customCardsController?.setPage("system", false);
+      };
+      dashboardLayoutController = createDashboardLayoutController({
+        fetchJsonOrThrow,
+        isEinkClient,
+        openCardSettings: () => openDashboardConfig(() => customCardsController?.setSettingsPanelVisible(true)),
+        openSourceManager: () => openDashboardConfig(() => customCardsController?.setManagerVisible(true)),
+        openSourceForm: () => openDashboardConfig(() => customCardsController?.showForm()),
+        closeConfig: closeDashboardConfig,
+      });
+    } catch (error) {
+      console.error("dashboard layout controller failed", error);
     }
 
     const quotaController = createQuotaController({
@@ -1410,12 +1586,27 @@ import {
           ? ["手機需先與 PC 完成配對，才能查看本機 AI 額度。"]
           : [error.message || "額度 API 失敗。", "請確認 Host 在跑，並在 PC 本機操作額度來源。"]
       ),
+      onConnectionChange: state => setDashboardConnectionState(state),
     });
     const refreshQuotas = options => quotaController.refresh(options);
 
     function renderQuotas(snapshot) {
       quotaSnapshotData = snapshot || {};
+      quotaMiniController?.renderSnapshot(snapshot);
       renderQuotaContent();
+    }
+
+    function quotaDataFingerprint(snapshot) {
+      const providers = snapshot?.Providers || snapshot?.providers || [];
+      return JSON.stringify(providers.map(provider => ({
+        id: provider.Id || provider.id || "",
+        family: provider.Family || provider.family || "",
+        accountId: provider.AccountId || provider.accountId || "",
+        state: provider.State || provider.state || "",
+        observedAt: provider.ObservedAt || provider.observedAt || "",
+        primary: provider.Primary || provider.primary || null,
+        secondary: provider.Secondary || provider.secondary || null
+      })).sort((left, right) => `${left.family}:${left.accountId}:${left.id}`.localeCompare(`${right.family}:${right.accountId}:${right.id}`)));
     }
 
     function renderQuotaContent() {
@@ -1449,7 +1640,7 @@ import {
           : "AGY · 尚未導入帳號";
       } else if (quotaActiveTab === "codex") {
         quotaSummary.textContent = codexUsable
-          ? "Codex · 已讀到額度"
+          ? `Codex · ${codexProviders.length} 個帳號 · 已讀到額度`
           : "Codex · 等待本機 session";
       } else {
         quotaSummary.textContent = hasUsable
@@ -1709,7 +1900,7 @@ import {
         button.textContent = tab.label;
         button.addEventListener("click", () => {
           quotaActiveTab = tab.id;
-          localStorage.setItem("phoneMonitorQuotaTab", quotaActiveTab);
+          localStorage.setItem(QUOTA_TAB_STORAGE_KEY, quotaActiveTab);
           renderQuotaContent();
         });
         quotaTabs.append(button);
@@ -1770,7 +1961,16 @@ import {
     function wireQuotaToolbox(card) {
       const refreshButton = card.querySelector('[data-quota-action="refresh"]');
       if (refreshButton) refreshButton.addEventListener("click", async () => {
-        await runQuotaButton(refreshButton, () => refreshQuotas({ force: true }), {
+        await runQuotaButton(refreshButton, async () => {
+          const previous = quotaDataFingerprint(quotaSnapshotData);
+          const snapshot = await refreshQuotas({ force: true, throwOnError: true });
+          const unchanged = previous && previous === quotaDataFingerprint(snapshot);
+          return {
+            Message: unchanged
+              ? "已重新讀取，來源沒有新額度資料。"
+              : "額度已更新。"
+          };
+        }, {
           pending: "正在更新額度...",
           success: "額度已更新。"
         });
@@ -1905,6 +2105,16 @@ import {
       });
     }
 
+    function getCurrentQuotaStatusCard(previousCard) {
+      const statusKey = previousCard?.dataset?.statusKey;
+      if (statusKey) {
+        const matchingCard = Array.from(document.querySelectorAll(".quota-account-card"))
+          .find(item => item.dataset.statusKey === statusKey);
+        if (matchingCard) return matchingCard;
+      }
+      return document.querySelector(".quota-account-card") || previousCard;
+    }
+
     async function runQuotaButton(button, action, options = {}) {
       if (!button) return null;
       const card = button.closest(".quota-account-card");
@@ -1914,10 +2124,11 @@ import {
       button.textContent = "…";
       try {
         const result = await action();
-        setQuotaCardStatus(card, getQuotaActionMessage(result, options.success || "完成。"), "success");
+        const statusCard = getCurrentQuotaStatusCard(card);
+        setQuotaCardStatus(statusCard, getQuotaActionMessage(result, options.success || "完成。"), "success");
         return result;
       } catch (error) {
-        setQuotaCardStatus(card, error.message || options.error || "額度操作失敗。", "error");
+        setQuotaCardStatus(getCurrentQuotaStatusCard(card), error.message || options.error || "額度操作失敗。", "error");
         return null;
       } finally {
         button.textContent = originalText;
@@ -2026,6 +2237,9 @@ import {
           const leftActive = Boolean(left.IsActive ?? left.isActive);
           const rightActive = Boolean(right.IsActive ?? right.isActive);
           if (leftActive !== rightActive) return leftActive ? -1 : 1;
+          const leftObserved = Date.parse(left.ObservedAt || left.observedAt || "") || 0;
+          const rightObserved = Date.parse(right.ObservedAt || right.observedAt || "") || 0;
+          if (leftObserved !== rightObserved) return rightObserved - leftObserved;
           const leftLabel = left.AccountEmail || left.accountEmail || left.Label || left.label || left.Id || left.id || "";
           const rightLabel = right.AccountEmail || right.accountEmail || right.Label || right.label || right.Id || right.id || "";
           return String(leftLabel).localeCompare(String(rightLabel));
@@ -2104,6 +2318,17 @@ import {
     function setStatus(text, online) {
       statusText.textContent = text;
       dot.classList.toggle("online", online);
+    }
+
+    function setDashboardConnectionState(state) {
+      dashboardConnectionState = state === "online" ? "online" : "connecting";
+      document.querySelectorAll("[data-eink-connection-state]").forEach(element => {
+        const online = dashboardConnectionState === "online";
+        element.textContent = online ? "連線中" : "正在連線";
+        element.classList.toggle("online", online);
+        element.classList.toggle("connecting", !online);
+        element.classList.toggle("offline", !online);
+      });
     }
 
     function setWakeState(text, good) {
@@ -2304,13 +2529,14 @@ import {
       localStorage.setItem("phoneMonitorOrientation", value);
       applyForcedLandscape();
       updateViewportSize();
-      if (window.screen?.orientation?.lock) {
+      if (window.screen?.orientation) {
         if (value !== "auto") {
-          window.screen.orientation.lock(value).catch(() => {});
-        } else if (isEinkClient()) {
-          // Older installed BOOX PWAs may still carry the former landscape-only
-          // manifest. Override that stale install-time lock at runtime.
-          window.screen.orientation.lock("any").catch(() => {});
+          window.screen.orientation.lock?.(value).catch(() => {});
+        } else {
+          window.screen.orientation.unlock?.();
+          if (document.fullscreenElement && isEinkClient()) {
+            window.screen.orientation.lock?.("any").catch(() => {});
+          }
         }
       }
     }
@@ -2421,7 +2647,6 @@ import {
       } else {
         document.body.classList.remove("viewer-immersive");
       }
-      notifyNativeViewerMode(true);
       window.scrollTo(0, 1);
       setTimeout(() => {
         updateViewportSize();
@@ -2481,7 +2706,6 @@ import {
       document.body.classList.remove("viewer-fullscreen");
       document.body.classList.remove("dashboard-viewer");
       document.body.classList.remove("viewer-immersive");
-      notifyNativeViewerMode(false);
       try {
         if (document.exitFullscreen && (document.fullscreenElement || document.webkitFullscreenElement)) {
           await document.exitFullscreen();
@@ -2810,7 +3034,6 @@ import {
         canUseProtectedConnection,
         loadPhoneDisplay,
         prefersWebRtcDisplay,
-        isNativeShell,
         isLoopbackHost,
         setStatus,
         applyRotation,
@@ -2942,6 +3165,9 @@ import {
       });
     }
     quotaMode.addEventListener("click", () => setMode("quota"));
+    document.querySelectorAll("[data-dashboard-mode]").forEach(button => {
+      button.addEventListener("click", () => setMode(button.dataset.dashboardMode));
+    });
     for (const button of document.querySelectorAll("[data-side-skin]")) {
       button.addEventListener("click", () => setSideSkin(button.dataset.sideSkin));
     }
@@ -2963,11 +3189,6 @@ import {
           document.body.classList.remove("viewer-fullscreen");
         }
       }
-      notifyNativeViewerMode(
-        document.body.classList.contains("viewer-fullscreen") ||
-        document.body.classList.contains("dashboard-viewer") ||
-        document.body.classList.contains("viewer-immersive")
-      );
       updateViewportSize();
       applyRotation();
     }
@@ -3046,6 +3267,12 @@ import {
         applyRotation();
       }, 120);
     });
+    window.addEventListener("offline", () => setDashboardConnectionState("connecting"));
+    window.addEventListener("online", () => {
+      setDashboardConnectionState("connecting");
+      scheduleDashboardRefresh(activeMode === "quota" ? "quota" : "sideboard", true);
+    });
+    window.addEventListener("devicemotion", handleEinkDeviceMotion, { passive: true });
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", () => {
         updateViewportSize();
@@ -3110,6 +3337,8 @@ import {
         connectDashboardEvents();
         sideboardTimer = setInterval(() => scheduleDashboardRefresh("sideboard"), 60000);
         quotaTimer = setInterval(() => scheduleDashboardRefresh("quota"), 120000);
+        customCardsTimer = setInterval(() => scheduleDashboardRefresh("customCards"), 5000);
+        activityNotificationsTimer = setInterval(refreshActivityNotifications, 5000);
         return;
       }
 
@@ -3120,7 +3349,6 @@ import {
       if (!deviceToken && again.token) {
         persistDeviceCredentials(again.token, again.id);
       }
-      notifyNativeDeviceTrust();
       applyClientChrome();
       await loadDeviceTrustStatus();
       applyClientChrome();
@@ -3131,15 +3359,29 @@ import {
       connectDashboardEvents();
       sideboardTimer = setInterval(() => scheduleDashboardRefresh("sideboard"), 60000);
       quotaTimer = setInterval(() => scheduleDashboardRefresh("quota"), 120000);
-      await loadModePresets().catch(error => {
-        setStatus(error.message || "解析度預設讀取失敗", false);
-      });
+      customCardsTimer = setInterval(() => scheduleDashboardRefresh("customCards"), 5000);
+      activityNotificationsTimer = setInterval(refreshActivityNotifications, 5000);
+      dashboardConnectionTimer = setInterval(() => {
+        scheduleDashboardRefresh(activeMode === "quota" ? "quota" : "sideboard", true);
+      }, 15000);
+      if (isEinkClient()) {
+        // Electronic readers are dashboards, not remote displays. Do not run
+        // display discovery or let its errors overwrite the connection state.
+        setDisplayAvailability(true);
+        driverState.textContent = "";
+        setStatus("正在連線", false);
+        setDashboardConnectionState("connecting");
+      } else {
+        await loadModePresets().catch(error => {
+          setStatus(error.message || "解析度預設讀取失敗", false);
+        });
+      }
       loadConnectInfo().catch(error => {
         setTrustState(error.message || "連線資訊讀取失敗。", false);
         setStatus(error.message || "連線資訊讀取失敗", false);
       });
-      loadStreamCapabilities();
       if (!isEinkClient()) {
+        loadStreamCapabilities();
         loadPhoneDisplay().then(loadDisplayStatus).finally(connectVideo);
         connectInput();
       }

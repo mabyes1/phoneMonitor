@@ -152,6 +152,7 @@ namespace PhoneMonitor.Host.Security
         {
             lock (sync)
             {
+                var now = DateTimeOffset.UtcNow;
                 var device = FindTrustedDevice(deviceToken);
                 if (device != null)
                 {
@@ -164,9 +165,9 @@ namespace PhoneMonitor.Host.Security
                     LocalRequest = isLocalRequest,
                     DeviceHeader = HeaderName,
                     PairedDeviceCount = isLocalRequest || hostAuthenticated ? devices.Count : device == null ? 0 : 1,
-                    CurrentDevice = device == null ? null : DeviceSummary.From(device),
+                    CurrentDevice = device == null ? null : DeviceSummary.From(device, now),
                     Devices = isLocalRequest || hostAuthenticated
-                        ? devices.Select(DeviceSummary.From).ToList()
+                        ? devices.Select(item => DeviceSummary.From(item, now)).ToList()
                         : new List<DeviceSummary>()
                 };
             }
@@ -263,7 +264,21 @@ namespace PhoneMonitor.Host.Security
             device.LastRemoteAddress = remoteAddress;
             device.LastUserAgent = userAgent;
             devicesDirty = true;
-            SaveDevices(force: false);
+            try
+            {
+                // Last-seen persistence is telemetry, not authorization. A
+                // damaged ProgramData ACL must never turn a valid device-token
+                // check into HTTP 500 and lock every paired phone out.
+                SaveDevices(force: false);
+            }
+            catch (IOException)
+            {
+                // Keep devicesDirty=true so a later request can retry.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Setup repairs the ACL; trust remains valid in the meantime.
+            }
         }
 
         private void SaveDevices(bool force)
@@ -459,21 +474,26 @@ namespace PhoneMonitor.Host.Security
 
     public sealed class DeviceSummary
     {
+        private static readonly TimeSpan ConnectedWindow = TimeSpan.FromSeconds(25);
+
         public string DeviceId { get; set; }
         public string Name { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset LastSeenAt { get; set; }
         public string LastRemoteAddress { get; set; }
+        public bool Connected { get; set; }
 
-        public static DeviceSummary From(TrustedDeviceRecord device)
+        public static DeviceSummary From(TrustedDeviceRecord device, DateTimeOffset? now = null)
         {
+            var observedAt = now ?? DateTimeOffset.UtcNow;
             return new DeviceSummary
             {
                 DeviceId = device.DeviceId,
                 Name = device.Name,
                 CreatedAt = device.CreatedAt,
                 LastSeenAt = device.LastSeenAt,
-                LastRemoteAddress = device.LastRemoteAddress
+                LastRemoteAddress = device.LastRemoteAddress,
+                Connected = observedAt - device.LastSeenAt <= ConnectedWindow
             };
         }
     }
