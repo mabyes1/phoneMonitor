@@ -29,6 +29,20 @@ The Host must not run as a Windows Service. A service runs in Session 0 and cann
 - Local device approval and pairing without a third-party backend.
 - Windows Setup, in-place updates, autostart, and persistent product data.
 
+## Showcase
+
+### Wireless second-screen mode
+
+VibeDeck streams a live Windows virtual display to the browser client over the local network.
+
+![VibeDeck wireless second-screen mode](.codex-media/vibedeck-monitor.png)
+
+### Information Board
+
+The same device can become a focused desktop sideboard with live system telemetry, process insights, and AI-usage information.
+
+![VibeDeck Information Board](.codex-media/vibedeck-board.png)
+
 ## Requirements
 
 For an installed build:
