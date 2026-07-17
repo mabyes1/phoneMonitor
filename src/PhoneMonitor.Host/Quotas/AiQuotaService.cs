@@ -70,5 +70,27 @@ namespace PhoneMonitor.Host.Quotas
         {
             return agy.DeleteCodexAccount(accountId, email);
         }
+
+        // Codex multi-account (capture/swap ~/.codex/auth.json). Internal because the
+        // result types live on the internal CodexAccountStore; Startup is same-assembly.
+        internal IReadOnlyList<CodexAccountStore.CodexProfile> ListCodexProfiles()
+        {
+            return CodexAccountStore.ListProfiles();
+        }
+
+        internal CodexAccountStore.CodexActionResult SwitchCodexAccount(string accountId, string email)
+        {
+            return CodexAccountStore.SwitchTo(accountId, email);
+        }
+
+        internal CodexAccountStore.CodexActionResult ReAuthCodex()
+        {
+            return CodexAccountStore.ReAuth();
+        }
+
+        internal CodexAccountStore.CodexActionResult DeleteCodexProfile(string accountId, string email)
+        {
+            return CodexAccountStore.DeleteProfile(accountId, email);
+        }
     }
 }

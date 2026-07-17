@@ -44,6 +44,23 @@ namespace PhoneMonitor.Host.Quotas
             return Path.Combine(PhoneMonitorQuotaRoot(), "codex", "accounts");
         }
 
+        internal static string CodexProfileDirectory()
+        {
+            return Path.Combine(PhoneMonitorQuotaRoot(), "codex", "profiles");
+        }
+
+        internal static string CodexHome()
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                ".codex");
+        }
+
+        internal static string CodexAuthFile()
+        {
+            return Path.Combine(CodexHome(), "auth.json");
+        }
+
         internal static string AgyLauncherDirectory()
         {
             return Path.Combine(PhoneMonitorQuotaRoot(), "agy", "launch");

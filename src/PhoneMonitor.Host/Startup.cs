@@ -635,6 +635,70 @@ namespace PhoneMonitor.Host
                     await context.Response.WriteAsync(JsonSerializer.Serialize(result));
                 });
 
+                endpoints.MapGet("/api/quotas/codex/profiles", async context =>
+                {
+                    if (!await RequireTrustedDeviceAsync(context))
+                    {
+                        return;
+                    }
+
+                    var quotas = context.RequestServices.GetRequiredService<AiQuotaService>();
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(quotas.ListCodexProfiles()));
+                });
+
+                endpoints.MapPost("/api/quotas/codex/switch", async context =>
+                {
+                    if (!await RequireProtectedActionAsync(context))
+                    {
+                        return;
+                    }
+
+                    var quotas = context.RequestServices.GetRequiredService<AiQuotaService>();
+                    var request = await JsonSerializer.DeserializeAsync<AgyAccountRequest>(context.Request.Body, SocketJsonOptions)
+                        ?? new AgyAccountRequest();
+                    var result = quotas.SwitchCodexAccount(request.AccountId, request.Email);
+                    context.Response.StatusCode = result.Success
+                        ? StatusCodes.Status200OK
+                        : StatusCodes.Status404NotFound;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(result));
+                });
+
+                endpoints.MapPost("/api/quotas/codex/reauth", async context =>
+                {
+                    if (!await RequireProtectedActionAsync(context))
+                    {
+                        return;
+                    }
+
+                    var quotas = context.RequestServices.GetRequiredService<AiQuotaService>();
+                    var result = quotas.ReAuthCodex();
+                    context.Response.StatusCode = result.Success
+                        ? StatusCodes.Status200OK
+                        : StatusCodes.Status500InternalServerError;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(result));
+                });
+
+                endpoints.MapPost("/api/quotas/codex/profile/delete", async context =>
+                {
+                    if (!await RequireProtectedActionAsync(context))
+                    {
+                        return;
+                    }
+
+                    var quotas = context.RequestServices.GetRequiredService<AiQuotaService>();
+                    var request = await JsonSerializer.DeserializeAsync<AgyAccountRequest>(context.Request.Body, SocketJsonOptions)
+                        ?? new AgyAccountRequest();
+                    var result = quotas.DeleteCodexProfile(request.AccountId, request.Email);
+                    context.Response.StatusCode = result.Success
+                        ? StatusCodes.Status200OK
+                        : StatusCodes.Status404NotFound;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(result));
+                });
+
                 endpoints.MapPost("/api/devices/pairing/poll", async context =>
                 {
                     if (!await RequirePrivateLanRequestAsync(context)) return;

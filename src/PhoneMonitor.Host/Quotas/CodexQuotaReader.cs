@@ -76,6 +76,19 @@ namespace PhoneMonitor.Host.Quotas
             return new[] { activeQuota };
         }
 
+        /// <summary>
+        /// Reads the account identity (id/email/tier) from a single Codex auth.json.
+        /// Used by CodexAccountStore to label captured profiles. Returns nulls if the
+        /// file is missing or not a logged-in account.
+        /// </summary>
+        internal static (string AccountId, string Email, string Tier) ReadAuthFileIdentity(string authFile)
+        {
+            var identity = TryReadCodexIdentityFromAuthFile(authFile);
+            return identity == null
+                ? (null, null, null)
+                : (identity.AccountId, identity.Email, identity.Tier);
+        }
+
         private static AiQuotaStatus ReadCodexQuota(string codexHome)
         {
             var sessionsRoot = Path.Combine(codexHome, "sessions");
