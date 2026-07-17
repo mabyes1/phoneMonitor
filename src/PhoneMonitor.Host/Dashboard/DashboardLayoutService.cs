@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using PhoneMonitor.Host.Diagnostics;
 
 namespace PhoneMonitor.Host.Dashboard
 {
@@ -11,6 +12,8 @@ namespace PhoneMonitor.Host.Dashboard
         private const int ColumnCount = 12;
         private readonly object gate = new object();
         private readonly string storePath;
+        private readonly string backupPath;
+        private readonly AuditTrailService audit;
         private readonly JsonSerializerOptions jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -19,16 +22,29 @@ namespace PhoneMonitor.Host.Dashboard
         };
         private DashboardLayoutStore store;
 
-        public DashboardLayoutService() : this(null)
+        public DashboardLayoutService()
+            : this(null, null)
+        {
+        }
+
+        public DashboardLayoutService(AuditTrailService audit)
+            : this(null, audit)
         {
         }
 
         public DashboardLayoutService(string storePathOverride)
+            : this(storePathOverride, null)
+        {
+        }
+
+        public DashboardLayoutService(string storePathOverride, AuditTrailService audit)
         {
             var directory = AppPaths.EnsureDirectory(AppPaths.DashboardDirectory);
             storePath = string.IsNullOrWhiteSpace(storePathOverride)
                 ? Path.Combine(directory, "layouts.json")
                 : storePathOverride;
+            backupPath = storePath + ".bak";
+            this.audit = audit;
             store = Load();
         }
 
@@ -54,7 +70,8 @@ namespace PhoneMonitor.Host.Dashboard
 
             lock (gate)
             {
-                var revision = store.Profiles.TryGetValue(profile, out var previous)
+                var hadPrevious = store.Profiles.TryGetValue(profile, out var previous);
+                var revision = hadPrevious
                     ? previous.Revision + 1
                     : 1;
                 var response = new DashboardLayoutResponse
@@ -65,7 +82,16 @@ namespace PhoneMonitor.Host.Dashboard
                     Items = items
                 };
                 store.Profiles[profile] = response;
-                Persist();
+                try
+                {
+                    Persist();
+                }
+                catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+                {
+                    RestoreProfile(profile, hadPrevious, previous);
+                    audit?.RecordException("dashboard-layout", "save", error, subject: profile);
+                    throw new DashboardLayoutException("版面無法寫入磁碟，已保留上一版。請確認 VibeDeck 資料夾權限後再試。");
+                }
                 return Clone(response);
             }
         }
@@ -76,12 +102,22 @@ namespace PhoneMonitor.Host.Dashboard
             lock (gate)
             {
                 var response = CreateDefault(normalized);
-                response.Revision = store.Profiles.TryGetValue(normalized, out var previous)
+                var hadPrevious = store.Profiles.TryGetValue(normalized, out var previous);
+                response.Revision = hadPrevious
                     ? previous.Revision + 1
                     : 1;
                 response.UpdatedAt = DateTimeOffset.UtcNow.ToString("O");
                 store.Profiles[normalized] = response;
-                Persist();
+                try
+                {
+                    Persist();
+                }
+                catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+                {
+                    RestoreProfile(normalized, hadPrevious, previous);
+                    audit?.RecordException("dashboard-layout", "reset", error, subject: normalized);
+                    throw new DashboardLayoutException("預設版面無法寫入磁碟，已保留上一版。請確認 VibeDeck 資料夾權限後再試。");
+                }
                 return Clone(response);
             }
         }
@@ -100,25 +136,141 @@ namespace PhoneMonitor.Host.Dashboard
 
         private DashboardLayoutStore Load()
         {
-            try
+            var primary = ReadStore(storePath, out var primaryError);
+            if (primary != null)
             {
-                if (!File.Exists(storePath)) return new DashboardLayoutStore();
-                var loaded = JsonSerializer.Deserialize<DashboardLayoutStore>(File.ReadAllText(storePath), jsonOptions);
-                return loaded ?? new DashboardLayoutStore();
+                return primary;
             }
-            catch
+
+            var backup = ReadStore(backupPath, out var backupError);
+            if (backup != null)
             {
-                return new DashboardLayoutStore();
+                TryRestoreBackup();
+                audit?.Record(
+                    "warning",
+                    "dashboard-layout",
+                    "load",
+                    "recovered-from-backup",
+                    details: new Dictionary<string, string>
+                    {
+                        ["primaryError"] = primaryError ?? "primary-missing"
+                    });
+                return backup;
             }
+
+            if (!string.IsNullOrWhiteSpace(primaryError))
+            {
+                audit?.Record(
+                    "error",
+                    "dashboard-layout",
+                    "load",
+                    "unreadable",
+                    details: new Dictionary<string, string>
+                    {
+                        ["primaryError"] = primaryError,
+                        ["backupError"] = backupError ?? "backup-missing"
+                    });
+            }
+
+            return new DashboardLayoutStore();
         }
 
         private void Persist()
         {
             var directory = Path.GetDirectoryName(storePath);
             if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
-            var tempPath = storePath + ".tmp";
-            File.WriteAllText(tempPath, JsonSerializer.Serialize(store, jsonOptions));
-            File.Move(tempPath, storePath, true);
+            var tempPath = storePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(tempPath, JsonSerializer.Serialize(store, jsonOptions));
+                if (File.Exists(storePath))
+                {
+                    File.Copy(storePath, backupPath, true);
+                    File.Move(tempPath, storePath, true);
+                }
+                else
+                {
+                    File.Move(tempPath, storePath);
+                    File.Copy(storePath, backupPath, true);
+                }
+            }
+            finally
+            {
+                try
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        File.Delete(tempPath);
+                    }
+                }
+                catch (IOException)
+                {
+                }
+                catch (UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+
+        private DashboardLayoutStore ReadStore(string path, out string error)
+        {
+            error = null;
+            try
+            {
+                if (!File.Exists(path)) return null;
+                var text = File.ReadAllText(path);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    error = "layout file is empty";
+                    return null;
+                }
+
+                var loaded = JsonSerializer.Deserialize<DashboardLayoutStore>(text, jsonOptions);
+                if (loaded == null)
+                {
+                    error = "layout file contains no data";
+                    return null;
+                }
+
+                loaded.Profiles ??= new Dictionary<string, DashboardLayoutResponse>(StringComparer.OrdinalIgnoreCase);
+                return loaded;
+            }
+            catch (Exception exception) when (exception is IOException || exception is UnauthorizedAccessException || exception is JsonException)
+            {
+                error = exception.Message;
+                return null;
+            }
+        }
+
+        private void TryRestoreBackup()
+        {
+            try
+            {
+                if (File.Exists(storePath))
+                {
+                    var corruptPath = storePath + ".corrupt-" + DateTimeOffset.UtcNow.ToString("yyyyMMddHHmmss") + "-" + Guid.NewGuid().ToString("N") + ".json";
+                    File.Copy(storePath, corruptPath, false);
+                }
+                File.Copy(backupPath, storePath, true);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        private void RestoreProfile(string profile, bool hadPrevious, DashboardLayoutResponse previous)
+        {
+            if (hadPrevious)
+            {
+                store.Profiles[profile] = previous;
+            }
+            else
+            {
+                store.Profiles.Remove(profile);
+            }
         }
 
         private static IReadOnlyList<DashboardLayoutItem> ValidateAndClone(IReadOnlyList<DashboardLayoutItem> items)

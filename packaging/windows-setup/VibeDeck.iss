@@ -15,7 +15,7 @@
 
 #define MyAppName "VibeDeck"
 #define MyAppPublisher "VibeDeck"
-#define MyAppURL "http://127.0.0.1:5000"
+#define MyAppURL "https://github.com/mabyes1/phoneMonitor"
 #define MyAppExeName "VibeDeck.Host.exe"
 #define MyServiceName "VibeDeckHost"
 #define MyServiceDisplayName "VibeDeck Host"
@@ -39,6 +39,11 @@ UninstallDisplayIcon={app}\vibedeck.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+LanguageDetectionMethod=uilanguage
+ShowLanguageDialog=auto
+DisableWelcomePage=no
+DisableDirPage=yes
+DisableReadyPage=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -52,18 +57,34 @@ VersionInfoDescription={#MyAppName} Setup
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
+Name: "chinesetraditional"; MessagesFile: "ChineseTraditional.isl"
+Name: "japanese"; MessagesFile: "compiler:Languages\Japanese.isl"
 
-[Tasks]
-Name: "desktopicon"; Description: "Create a desktop icon to open the VibeDeck web UI"; GroupDescription: "Additional icons:"; Flags: checkedonce
+[CustomMessages]
+english.ProductIntroCaption=Ready for a calmer desktop
+english.ProductIntroDescription=VibeDeck turns an idle phone into a secure second screen and information board.
+english.ProductIntroBody=Setup will install VibeDeck, add its firewall permission, create Start Menu and desktop shortcuts, and start it automatically when you sign in. Your paired devices and layouts are kept during future updates.
+english.AddingFirewallRule=Allowing VibeDeck on your local network...
+english.EnablingAutostart=Enabling VibeDeck at Windows sign-in...
+english.StartingHost=Starting VibeDeck in your desktop session...
+english.OpenVibeDeck=Open VibeDeck now
+chinesetraditional.ProductIntroCaption=讓桌面多一個自在的空間
+chinesetraditional.ProductIntroDescription=VibeDeck 可把閒置手機變成安全的副螢幕與資訊板。
+chinesetraditional.ProductIntroBody=安裝程式會完成 VibeDeck 安裝、允許本機網路連線、建立開始功能表與桌面捷徑，並在登入 Windows 時自動啟動。日後更新會保留已配對裝置與版面配置。
+chinesetraditional.AddingFirewallRule=正在允許 VibeDeck 使用本機網路…
+chinesetraditional.EnablingAutostart=正在設定 Windows 登入時啟動 VibeDeck…
+chinesetraditional.StartingHost=正在於你的桌面工作階段啟動 VibeDeck…
+chinesetraditional.OpenVibeDeck=立即開啟 VibeDeck
+japanese.ProductIntroCaption=デスクトップに、もっと心地よい余白を
+japanese.ProductIntroDescription=VibeDeck は、使っていないスマートフォンを安全なセカンド スクリーンと情報ボードに変えます。
+japanese.ProductIntroBody=セットアップは VibeDeck のインストール、ローカル ネットワークの許可、スタート メニューとデスクトップのショートカット作成、Windows サインイン時の自動起動を行います。以後の更新でも、ペアリング済みのデバイスとレイアウトは保持されます。
+japanese.AddingFirewallRule=ローカル ネットワークで VibeDeck を許可しています…
+japanese.EnablingAutostart=Windows サインイン時の VibeDeck 起動を設定しています…
+japanese.StartingHost=デスクトップ セッションで VibeDeck を起動しています…
+japanese.OpenVibeDeck=VibeDeck を今すぐ開く
 
 [Files]
 Source: "{#MyPayloadDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "Open-VibeDeck.cmd"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Open-VibeDeck.vbs"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Start-VibeDeck-Host.vbs"; DestDir: "{app}"; Flags: ignoreversion
-Source: "product-install.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "vibedeck.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "Stop-VibeDeck-Host.ps1"; Flags: dontcopy
 
 [Dirs]
 ; Host runs in the signed-in desktop session and owns mutable product state.
@@ -76,32 +97,48 @@ Type: filesandordirs; Name: "{app}\Installers"
 Type: filesandordirs; Name: "{app}\runtimes"
 ; Remove the pre-0.1.1 binary name after upgrading.
 Type: files; Name: "{app}\PhoneMonitor.Host.*"
+; Remove the pre-0.1.18 script launchers after upgrading.
+Type: files; Name: "{app}\Open-VibeDeck.cmd"
+Type: files; Name: "{app}\Open-VibeDeck.vbs"
+Type: files; Name: "{app}\Start-VibeDeck-Host.vbs"
 
 [Icons]
-; Primary product entry: starts the desktop Host if needed and opens the PC web UI.
-Name: "{group}\{#MyAppName}"; Filename: "{app}\Open-VibeDeck.vbs"; IconFilename: "{app}\vibedeck.ico"; Comment: "Open VibeDeck web UI on this PC"
+; Primary product entry: native Host opens the PC web UI and stays background-only afterwards.
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--open"; WorkingDir: "{app}"; IconFilename: "{app}\vibedeck.ico"; Comment: "Open VibeDeck on this PC"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\Open-VibeDeck.vbs"; IconFilename: "{app}\vibedeck.ico"; Comment: "Open VibeDeck web UI on this PC"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--open"; WorkingDir: "{app}"; IconFilename: "{app}\vibedeck.ico"; Comment: "Open VibeDeck on this PC"
 
 [Run]
 ; Allow LAN phones to reach Host HTTP/HTTPS
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VibeDeck Host"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden; StatusMsg: "Adding firewall rule..."
-Filename: "{sys}\wscript.exe"; Parameters: """{app}\Start-VibeDeck-Host.vbs"""; Flags: runhidden nowait runasoriginaluser; StatusMsg: "Starting VibeDeck Host in your desktop session..."
-; Open web UI after install
-Filename: "{app}\Open-VibeDeck.vbs"; Description: "Open VibeDeck web UI now"; Flags: postinstall nowait skipifsilent shellexec
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VibeDeck Host"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden; StatusMsg: "{cm:AddingFirewallRule}"
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--register-autostart"; WorkingDir: "{app}"; Flags: runhidden runasoriginaluser; StatusMsg: "{cm:EnablingAutostart}"
+Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Flags: runhidden nowait runasoriginaluser; StatusMsg: "{cm:StartingHost}"
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--open"; WorkingDir: "{app}"; Description: "{cm:OpenVibeDeck}"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{sys}\sc.exe"; Parameters: "stop {#MyServiceName}"; Flags: runhidden; RunOnceId: "StopVibeDeckHost"
 Filename: "{sys}\sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden; RunOnceId: "DeleteVibeDeckHost"
 Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden; RunOnceId: "RemoveVibeDeckFirewall"
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister-autostart"; WorkingDir: "{app}"; Flags: runhidden; RunOnceId: "RemoveVibeDeckAutostart"
 
 [Registry]
 ; Autostart belongs to the signed-in desktop user whose display Host captures.
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VibeDeckHost"; Flags: deletevalue
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "VibeDeckHost"; ValueData: """{sys}\wscript.exe"" ""{app}\Start-VibeDeck-Host.vbs"""; Flags: uninsdeletevalue
 
 [Code]
+var
+  ProductIntroPage: TOutputMsgWizardPage;
+
+procedure InitializeWizard;
+begin
+  ProductIntroPage := CreateOutputMsgPage(
+    wpWelcome,
+    CustomMessage('ProductIntroCaption'),
+    CustomMessage('ProductIntroDescription'),
+    CustomMessage('ProductIntroBody'));
+end;
+
 function ServiceExists(): Boolean;
 var
   ResultCode: Integer;
@@ -113,19 +150,8 @@ end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   ResultCode: Integer;
-  StopScript: String;
 begin
   Result := '';
-  ExtractTemporaryFile('Stop-VibeDeck-Host.ps1');
-  StopScript := ExpandConstant('{tmp}\Stop-VibeDeck-Host.ps1');
-  if not Exec(
-    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
-    '-NoProfile -ExecutionPolicy Bypass -File "' + StopScript + '" -InstallDir "' + ExpandConstant('{app}') + '"',
-    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-  begin
-    Result := 'VibeDeck Host could not be stopped for the update. Close VibeDeck and try again.';
-    exit;
-  end;
   { A legacy service locks the executable before [Files] runs and also places
     Host in Session 0. Remove it before the upgrade copies any product files. }
   if ServiceExists() then

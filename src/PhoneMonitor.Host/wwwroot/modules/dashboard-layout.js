@@ -11,7 +11,7 @@ const SYSTEM_CARD_TITLES = {
   "weather-io": "天氣與 IO",
   processes: "記憶體排行",
   "activity-feed": "活動動態",
-  "quota-mini": "5 小時額度",
+  "quota-mini": "AI 額度",
 };
 
 export function createDashboardLayoutController({
@@ -40,8 +40,12 @@ export function createDashboardLayoutController({
 
   let profile = getProfile();
   let items = [];
+  let revision = 0;
   let editing = false;
   let saving = false;
+  let autoSaveTimer = 0;
+  let autoSaveQueued = false;
+  let lastSavedSignature = "";
   let resizeTimer = 0;
   let selectedKey = "";
 
@@ -73,7 +77,14 @@ export function createDashboardLayoutController({
     };
   }
 
+  function layoutSignature(source = items) {
+    return JSON.stringify(source
+      .map(cloneItem)
+      .sort((left, right) => left.key.localeCompare(right.key)));
+  }
+
   function addMissingCards() {
+    let added = false;
     for (const node of cardNodes()) {
       const key = node.dataset.dashboardKey;
       if (itemFor(key)) continue;
@@ -85,7 +96,9 @@ export function createDashboardLayoutController({
         width: key === "activity-feed" ? 8 : 4,
         height: 2,
       });
+      added = true;
     }
+    return added;
   }
 
   function titleFor(key, node = null) {
@@ -189,7 +202,7 @@ export function createDashboardLayoutController({
           if (slot) Object.assign(item, slot);
           else Object.assign(item, original);
         }
-        apply();
+        commitLayoutChange(tLegacy("正在自動儲存版面…"));
       };
 
       const cancel = () => {
@@ -255,7 +268,7 @@ export function createDashboardLayoutController({
       Object.assign(item, previous);
       setStatus(tLegacy("這個尺寸放不下；請先隱藏或移動相鄰卡片。"), "error");
     }
-    apply();
+    commitLayoutChange(tLegacy("正在自動儲存版面…"));
   }
 
   function renderSelectionControls(nodes) {
@@ -287,7 +300,7 @@ export function createDashboardLayoutController({
         item.visible = false;
         selectedKey = "";
         compactLayout();
-        apply();
+        commitLayoutChange(tLegacy("正在自動儲存版面…"));
       }),
     );
   }
@@ -300,7 +313,7 @@ export function createDashboardLayoutController({
   }
 
   function apply() {
-    addMissingCards();
+    const addedMissingCards = addMissingCards();
     const nodes = new Map(cardNodes().map(node => [node.dataset.dashboardKey, node]));
     for (const [key, node] of nodes) {
       const item = itemFor(key);
@@ -318,6 +331,7 @@ export function createDashboardLayoutController({
     renderSelectionControls(nodes);
     renderLibrary(nodes);
     updateStatus();
+    return addedMissingCards;
   }
 
   function renderLibrary(nodes = new Map(cardNodes().map(node => [node.dataset.dashboardKey, node]))) {
@@ -339,7 +353,7 @@ export function createDashboardLayoutController({
         }
         Object.assign(item, slot, { visible: true });
         cardLibrary.hidden = true;
-        apply();
+        commitLayoutChange(tLegacy("正在自動儲存版面…"));
       });
       cardLibrary.append(button);
     }
@@ -348,6 +362,22 @@ export function createDashboardLayoutController({
   function setStatus(message, level = "") {
     editStatus.textContent = message;
     editStatus.className = level ? `dashboard-edit-status ${level}` : "dashboard-edit-status";
+  }
+
+  function scheduleAutoSave(reason = "", force = false) {
+    if (saving) {
+      autoSaveQueued = true;
+      return;
+    }
+    if (!force && layoutSignature() === lastSavedSignature) return;
+    clearTimeout(autoSaveTimer);
+    setStatus(reason || tLegacy("正在自動儲存版面…"));
+    autoSaveTimer = setTimeout(() => save({ automatic: true }), 450);
+  }
+
+  function commitLayoutChange(reason) {
+    apply();
+    scheduleAutoSave(reason || tLegacy("正在自動儲存版面…"));
   }
 
   function updateStatus() {
@@ -374,38 +404,66 @@ export function createDashboardLayoutController({
   async function load() {
     profile = getProfile();
     try {
-      let result = await fetchJsonOrThrow(`/api/dashboard/layout?profile=${encodeURIComponent(profile)}`);
-      const loadedItems = result.items || result.Items || [];
-      const legacyActivityLayout = loadedItems.some(item => item.key === "work-pulse" || item.Key === "work-pulse" || item.key === "windows-notifications" || item.Key === "windows-notifications");
-      const crampedCombinedLayout = loadedItems.some(item => (item.key === "activity-feed" || item.Key === "activity-feed") && Number(item.height ?? item.Height) === 3) &&
-        loadedItems.some(item => (item.key === "quota-mini" || item.Key === "quota-mini") && Number(item.height ?? item.Height) === 1);
-      if ((legacyActivityLayout && !loadedItems.some(item => item.key === "activity-feed" || item.Key === "activity-feed")) || crampedCombinedLayout) {
-        result = await fetchJsonOrThrow(`/api/dashboard/layout/reset?profile=${encodeURIComponent(profile)}`, { method: "POST" });
-      }
+      const result = await fetchJsonOrThrow(`/api/dashboard/layout?profile=${encodeURIComponent(profile)}`);
       items = (result.items || result.Items || []).map(cloneItem);
-      apply();
+      revision = Number(result.revision ?? result.Revision) || 0;
+      const addedMissingCards = apply();
+      lastSavedSignature = addedMissingCards || revision === 0 ? "" : layoutSignature();
+      if (addedMissingCards || revision === 0) {
+        scheduleAutoSave(tLegacy("正在建立可保存的版面…"), true);
+      }
     } catch (error) {
       setStatus(error.message || tLegacy("版面讀取失敗"), "error");
     }
   }
 
-  async function save() {
-    if (saving) return;
+  async function save(options = {}) {
+    const automatic = options.automatic === true;
+    const currentSignature = layoutSignature();
+    if (saving) {
+      autoSaveQueued = true;
+      return;
+    }
+    if (currentSignature === lastSavedSignature) {
+      if (!automatic) {
+        setStatus(tLegacy("版面已儲存"));
+        setEditing(false);
+      }
+      return;
+    }
+
+    const payloadItems = items.map(cloneItem);
+    const payloadSignature = layoutSignature(payloadItems);
     saving = true;
-    saveButton.disabled = true;
+    if (!automatic) saveButton.disabled = true;
     try {
       const result = await fetchJsonOrThrow("/api/dashboard/layout", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ profile, items }),
+        body: JSON.stringify({ profile, items: payloadItems }),
       });
-      items = (result.items || result.Items || []).map(cloneItem);
-      setEditing(false);
+      revision = Number(result.revision ?? result.Revision) || revision;
+      if (layoutSignature() === payloadSignature) {
+        items = (result.items || result.Items || []).map(cloneItem);
+        lastSavedSignature = layoutSignature();
+      } else {
+        lastSavedSignature = payloadSignature;
+        autoSaveQueued = true;
+      }
+      if (automatic) {
+        setStatus(tLegacy("版面已自動儲存"));
+      } else {
+        setEditing(false);
+      }
     } catch (error) {
       setStatus(error.message || tLegacy("版面儲存失敗"), "error");
     } finally {
       saving = false;
-      saveButton.disabled = false;
+      if (!automatic) saveButton.disabled = false;
+      if (autoSaveQueued || layoutSignature() !== lastSavedSignature) {
+        autoSaveQueued = false;
+        scheduleAutoSave(tLegacy("正在自動儲存最新調整…"), true);
+      }
     }
   }
 
@@ -414,7 +472,10 @@ export function createDashboardLayoutController({
     try {
       const result = await fetchJsonOrThrow(`/api/dashboard/layout/reset?profile=${encodeURIComponent(profile)}`, { method: "POST" });
       items = (result.items || result.Items || []).map(cloneItem);
-      apply();
+      revision = Number(result.revision ?? result.Revision) || revision;
+      const addedMissingCards = apply();
+      lastSavedSignature = addedMissingCards ? "" : layoutSignature();
+      if (addedMissingCards) scheduleAutoSave(tLegacy("正在保存新增卡片…"), true);
     } catch (error) {
       setStatus(error.message || tLegacy("版面重設失敗"), "error");
     }
@@ -425,12 +486,15 @@ export function createDashboardLayoutController({
     cardLibrary.hidden = !cardLibrary.hidden;
     if (!cardLibrary.hidden) renderLibrary();
   });
-  saveButton?.addEventListener("click", save);
+  saveButton?.addEventListener("click", () => save({ automatic: false }));
   resetButton?.addEventListener("click", reset);
   compactButton?.addEventListener("click", () => {
     const moved = compactLayout();
-    apply();
-    if (!moved) setStatus(tLegacy("版面已經沒有可向上收合的空白。"), "");
+    if (moved) commitLayoutChange(tLegacy("正在自動儲存版面…"));
+    else {
+      apply();
+      setStatus(tLegacy("版面已經沒有可向上收合的空白。"), "");
+    }
   });
   settingsButton?.addEventListener("click", () => openCardSettings?.());
   managerButton?.addEventListener("click", () => openSourceManager?.());
@@ -460,7 +524,10 @@ export function createDashboardLayoutController({
     selectedKey = node.dataset.dashboardKey || "";
     apply();
   });
-  document.addEventListener("dashboard:cards-changed", apply);
+  document.addEventListener("dashboard:cards-changed", () => {
+    const addedMissingCards = apply();
+    if (addedMissingCards) scheduleAutoSave(tLegacy("正在保存新增卡片…"), true);
+  });
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {

@@ -165,34 +165,20 @@ if ($LASTEXITCODE -ne 0) {
     throw "Could not grant signed-in users modify access to $productData."
 }
 
-$openCmd = Join-Path $InstallDir "Open-VibeDeck.cmd"
-if (-not (Test-Path -LiteralPath $openCmd)) {
-    $openCmdContent = @"
-@echo off
-start "" /b "%~dp0$hostExeName" >nul 2>&1
-timeout /t 2 /nobreak >nul
-start "" $webUrl
-"@
-    Set-Content -LiteralPath $openCmd -Value $openCmdContent -Encoding ASCII
-}
-
 $iconPath = Join-Path $InstallDir "vibedeck.ico"
 $hostExe = Join-Path $InstallDir $hostExeName
-$hostVbs = Join-Path $InstallDir "Start-VibeDeck-Host.vbs"
 
 # Shortcuts
 $shell = New-Object -ComObject WScript.Shell
 $startMenu = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\VibeDeck"
 New-Item -ItemType Directory -Path $startMenu -Force | Out-Null
 
-$openVbs = Join-Path $InstallDir "Open-VibeDeck.vbs"
-$launchTarget = if (Test-Path -LiteralPath $openVbs) { $openVbs } else { $openCmd }
-
 $startShortcut = $shell.CreateShortcut((Join-Path $startMenu "VibeDeck.lnk"))
-$startShortcut.TargetPath = $launchTarget
+$startShortcut.TargetPath = $hostExe
+$startShortcut.Arguments = "--open"
 $startShortcut.WorkingDirectory = $InstallDir
 $startShortcut.WindowStyle = 7
-$startShortcut.Description = "Open VibeDeck web UI on this PC"
+$startShortcut.Description = "Open VibeDeck on this PC"
 if (Test-Path -LiteralPath $iconPath) {
     $startShortcut.IconLocation = "$iconPath,0"
 }
@@ -201,10 +187,11 @@ $startShortcut.Save()
 if (-not $SkipDesktopIcon) {
     $desktop = [Environment]::GetFolderPath("CommonDesktopDirectory")
     $deskShortcut = $shell.CreateShortcut((Join-Path $desktop "VibeDeck.lnk"))
-    $deskShortcut.TargetPath = $launchTarget
+    $deskShortcut.TargetPath = $hostExe
+    $deskShortcut.Arguments = "--open"
     $deskShortcut.WorkingDirectory = $InstallDir
     $deskShortcut.WindowStyle = 7
-    $deskShortcut.Description = "Open VibeDeck web UI on this PC"
+    $deskShortcut.Description = "Open VibeDeck on this PC"
     if (Test-Path -LiteralPath $iconPath) {
         $deskShortcut.IconLocation = "$iconPath,0"
     }
@@ -212,22 +199,13 @@ if (-not $SkipDesktopIcon) {
 }
 
 if (-not $SkipAutostart) {
-    if (-not (Test-Path -LiteralPath $hostVbs)) {
-        throw "Payload missing Start-VibeDeck-Host.vbs. Re-package VibeDeck before installing."
-    }
     $runPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
-    $runCommand = "`"$env:WINDIR\System32\wscript.exe`" `"$hostVbs`""
+    $runCommand = "`"$hostExe`""
     New-Item -Path $runPath -Force | Out-Null
     New-ItemProperty -Path $runPath -Name $runValueName -Value $runCommand -PropertyType String -Force | Out-Null
     Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
     & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
     & netsh.exe advfirewall firewall add rule name="VibeDeck Host" dir=in action=allow program="$hostExe" enable=yes profile=any | Out-Null
-    # Route the launch through the signed-in Explorer shell. This keeps Host in
-    # the interactive desktop session and detaches it from an elevated installer
-    # that may be waiting for its entire child process tree to exit.
-    Start-Process -FilePath "$env:WINDIR\explorer.exe" -ArgumentList "`"$hostVbs`"" -WindowStyle Hidden
-    Start-Sleep -Seconds 2
-    Write-Host "VibeDeck Host started in desktop session $([System.Diagnostics.Process]::GetCurrentProcess().SessionId) (auto-start at sign-in)."
 } else {
     Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
     & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
@@ -240,4 +218,11 @@ Write-Host "  Files:   $InstallDir"
 Write-Host "  Data:    $env:ProgramData\VibeDeck"
 Write-Host "  Startup: $(if ($SkipAutostart) { 'Disabled' } else { 'Signed-in desktop session (Automatic)' })"
 Write-Host ""
-Start-Process $webUrl
+$startInfo = New-Object System.Diagnostics.ProcessStartInfo
+$startInfo.FileName = $hostExe
+$startInfo.Arguments = "--open"
+$startInfo.WorkingDirectory = $InstallDir
+$startInfo.UseShellExecute = $false
+$startInfo.CreateNoWindow = $true
+$startInfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+[System.Diagnostics.Process]::Start($startInfo) | Out-Null

@@ -5,8 +5,8 @@ Product installer assets for the one-click Windows install path.
 ## What the user gets
 
 1. **Setup.exe** — the only supported Windows product release and update path.
-2. **VibeDeck Host** desktop-session background app — starts automatically after Windows sign-in so display capture sees the interactive desktop.
-3. **Desktop / Start Menu icon** — opens `http://127.0.0.1:5000` (starts the Host if needed).
+2. **VibeDeck Host** native desktop-session background app — starts automatically after Windows sign-in so display capture sees the interactive desktop; no CMD or VBS launcher is exposed.
+3. **Desktop / Start Menu icon** — runs `VibeDeck.Host.exe --open`, waits for the local Host, then opens the PC UI in the default browser.
 4. **Firewall rule** — inbound allow for `VibeDeck.Host.exe` (LAN phone access).
 5. **Data** — `%ProgramData%\VibeDeck` (certs, devices, quotas, custom sources).
 
@@ -48,8 +48,7 @@ This fallback is for local development/deployment only. Public distribution must
 | File | Role |
 |------|------|
 | `VibeDeck.iss` | Inno Setup script |
-| `Start-VibeDeck-Host.vbs` | Hidden desktop-session Host launcher |
-| `Open-VibeDeck.vbs` / `.cmd` | Icon entry → ensure Host → open Web UI |
+| `VibeDeck.Host.exe --open` | Native icon entry → ensure Host → open Web UI |
 | `product-install.json` | Marker so Host uses installed data paths |
 | `vibedeck.ico` | Setup + shortcut icon |
 

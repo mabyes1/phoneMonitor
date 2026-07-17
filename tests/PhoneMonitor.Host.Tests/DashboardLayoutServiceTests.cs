@@ -62,6 +62,44 @@ namespace PhoneMonitor.Host.Tests
             }));
         }
 
+        [Fact]
+        public void CorruptPrimaryLayoutRecoversThePreviousSavedLayout()
+        {
+            var path = Path.Combine(directory, "layouts.json");
+            Directory.CreateDirectory(directory);
+            var service = new DashboardLayoutService(path);
+            var initial = service.Get("default");
+            var first = initial.Items.Select(item => new DashboardLayoutItem
+            {
+                Key = item.Key,
+                Visible = item.Key != "activity-feed",
+                Column = item.Column,
+                Row = item.Row,
+                Width = item.Width,
+                Height = item.Height
+            }).ToArray();
+            service.Save(new DashboardLayoutUpdateRequest { Profile = "default", Items = first });
+
+            var second = first.Select(item => new DashboardLayoutItem
+            {
+                Key = item.Key,
+                Visible = item.Visible,
+                Column = item.Key == "system-load" ? 2 : item.Column,
+                Row = item.Row,
+                Width = item.Width,
+                Height = item.Height
+            }).ToArray();
+            service.Save(new DashboardLayoutUpdateRequest { Profile = "default", Items = second });
+
+            File.WriteAllText(path, "{ broken json");
+            var recovered = new DashboardLayoutService(path).Get("default");
+
+            Assert.Equal(1, recovered.Revision);
+            Assert.False(recovered.Items.Single(item => item.Key == "activity-feed").Visible);
+            Assert.Equal(0, recovered.Items.Single(item => item.Key == "system-load").Column);
+            Assert.NotEmpty(Directory.GetFiles(directory, "layouts.json.corrupt-*.json"));
+        }
+
         private DashboardLayoutService CreateService()
         {
             Directory.CreateDirectory(directory);

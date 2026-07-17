@@ -12,22 +12,24 @@ import {
 import { createDisplayInputController } from "./modules/display-input.js?v=48";
 import { createCustomCardsController } from "./modules/custom-cards.js?v=53";
 import { createActivityFeedController } from "./modules/activity-feed.js?v=54";
-import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=57";
+import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=59";
 import { createQuotaController } from "./modules/quota-controller.js?v=50";
-import { createQuotaMiniCardController } from "./modules/quota-mini-card.js?v=54";
+import { createQuotaMiniCardController } from "./modules/quota-mini-card.js?v=56";
 import { createSideboardController } from "./modules/sideboard.js?v=50";
-import { createMobileOverviewController } from "./modules/mobile-overview.js?v=2";
+import { createMobileOverviewController } from "./modules/mobile-overview.js?v=3";
 import { createStreamController } from "./modules/stream-controller.js?v=48";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
 import {
   escapeHtml,
   extractQuotaEmail,
   extractQuotaTier,
+  formatQuotaWindowLabel,
   normalizeTierLabel,
   renderQuotaWindow,
   summarizeQuotaWindow,
-} from "./modules/quota-formatters.js?v=49";
-import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText } from "./modules/i18n.js?v=3";
+} from "./modules/quota-formatters.js?v=51";
+import { getIntlLocale, initLocale, onLocaleChange, t, tApi, tLegacy, translateText } from "./modules/i18n.js?v=3";
+import { createEnergyWave } from "./modules/energy-wave.js?v=2";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -42,6 +44,8 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
     const sideboardMode = document.getElementById("sideboardMode");
     const quotaMode = document.getElementById("quotaMode");
     const refresh = document.getElementById("refresh");
+    const productUpdate = document.getElementById("productUpdate");
+    const productUpdateStatus = document.getElementById("productUpdateStatus");
     const fullscreen = document.getElementById("fullscreen");
     const displaySettingsToggle = document.getElementById("displaySettingsToggle");
     const displayEmptyState = document.getElementById("displayEmptyState");
@@ -80,11 +84,21 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
     const trustState = document.getElementById("trustState");
     const streamCapabilityState = document.getElementById("streamCapabilityState");
     const trustedDevicesPanel = document.getElementById("trustedDevicesPanel");
+    const newDeviceConnectPanel = document.getElementById("newDeviceConnectPanel");
+    const openNewDevicePanel = document.getElementById("openNewDevicePanel");
     const pendingPairingPanel = document.getElementById("pendingPairingPanel");
     const pendingPairingList = document.getElementById("pendingPairingList");
     const trustedDeviceList = document.getElementById("trustedDeviceList");
     const clearTrustedDevices = document.getElementById("clearTrustedDevices");
     const refreshTrustedDevices = document.getElementById("refreshTrustedDevices");
+    const diagnosticsPanel = document.getElementById("diagnosticsPanel");
+    const diagnosticsToggle = document.getElementById("diagnosticsToggle");
+    const diagnosticsPanelContent = document.getElementById("diagnosticsPanelContent");
+    const diagnosticsSummary = document.getElementById("diagnosticsSummary");
+    const diagnosticsList = document.getElementById("diagnosticsList");
+    const refreshDiagnostics = document.getElementById("refreshDiagnostics");
+    const markDiagnostics = document.getElementById("markDiagnostics");
+    const copyDiagnostics = document.getElementById("copyDiagnostics");
     const wakeState = document.getElementById("wakeState");
     const appState = document.getElementById("appState");
     const deviceState = document.getElementById("deviceState");
@@ -180,6 +194,7 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
     const quotaMiniBar = document.getElementById("quotaMiniBar");
     const quotaMiniReset = document.getElementById("quotaMiniReset");
     const quotaMiniState = document.getElementById("quotaMiniState");
+    const quotaMiniCredits = document.getElementById("quotaMiniCredits");
     const quotaSummary = document.getElementById("quotaSummary");
     const quotaUpdated = document.getElementById("quotaUpdated");
     const quotaTabs = document.getElementById("quotaTabs");
@@ -224,6 +239,8 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
     let hostAuthenticated = false;
     let hostAuthRequired = false;
     let hostVersionLabel = "";
+    let productUpdateSnapshot = null;
+    let productUpdatePollTimer = null;
     const DEVICE_TOKEN_KEY = "vibeDeckDeviceToken";
     const LEGACY_DEVICE_TOKEN_KEY = "phoneMonitorDeviceToken";
     const DEVICE_ID_KEY = "vibeDeckDeviceId";
@@ -356,6 +373,9 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
     let installPromptEvent = null;
     let approvalPollTimer = null;
     let pendingApprovalTimer = null;
+    let deviceManagementDefaultApplied = false;
+    let diagnosticsLoading = false;
+    let latestAuditTrail = { entries: [], retentionDays: 30, generatedAt: "" };
     const touchLongPressMs = 460;
     const touchDragThresholdPx = 12;
 
@@ -1057,8 +1077,25 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       }
     }
 
+    function syncDeviceManagementPanels(isLocal, deviceCount) {
+      if (newDeviceConnectPanel) {
+        newDeviceConnectPanel.hidden = !isLocal;
+        if (!isLocal) {
+          deviceManagementDefaultApplied = false;
+        } else if (!deviceManagementDefaultApplied) {
+          newDeviceConnectPanel.open = deviceCount === 0;
+          deviceManagementDefaultApplied = true;
+        }
+      }
+      if (diagnosticsPanel) diagnosticsPanel.hidden = !isLocal;
+    }
+
     function renderTrustedDevices(status) {
-      const isLocal = Boolean(status?.LocalRequest ?? status?.localRequest);
+      const isLocal = status
+        ? Boolean(status.LocalRequest ?? status.localRequest)
+        : deviceLocalRequest;
+      const devices = status?.Devices || status?.devices || [];
+      syncDeviceManagementPanels(isLocal, devices.length);
       trustedDevicesPanel.hidden = !isLocal;
       if (!isLocal) {
         clearTrustedDevices.disabled = true;
@@ -1066,7 +1103,6 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
         return;
       }
 
-      const devices = status?.Devices || status?.devices || [];
       clearTrustedDevices.disabled = !devices.length;
       trustedDeviceList.textContent = "";
       if (!devices.length) {
@@ -1098,6 +1134,193 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
         const button = row.querySelector("button");
         button.dataset.deviceRevoke = id;
         trustedDeviceList.append(row);
+      }
+    }
+
+    function readAuditField(entry, pascalName, camelName) {
+      return entry?.[camelName] ?? entry?.[pascalName] ?? "";
+    }
+
+    function formatAuditTime(value) {
+      if (!value) return "--";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return value;
+      return date.toLocaleString(getIntlLocale(), {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    function auditSeverityLabel(value) {
+      const labels = {
+        error: "錯誤",
+        warning: "警告",
+        information: "資訊",
+      };
+      return tLegacy(labels[String(value || "").toLowerCase()] || String(value || "資訊"));
+    }
+
+    function renderAuditTrail(result) {
+      const entries = result?.entries || result?.Entries || [];
+      const retentionDays = Number(result?.retentionDays ?? result?.RetentionDays) || 30;
+      const generatedAt = result?.generatedAt || result?.GeneratedAt || "";
+      const storageError = result?.storageError || result?.StorageError || "";
+      latestAuditTrail = { entries, retentionDays, generatedAt };
+
+      if (diagnosticsSummary) {
+        diagnosticsSummary.textContent = tLegacy(`最近 ${entries.length} 筆操作 · 保留 ${retentionDays} 天`);
+      }
+      if (!diagnosticsList) return;
+
+      diagnosticsList.replaceChildren();
+      if (storageError) {
+        const warning = document.createElement("span");
+        warning.className = "diagnostics-storage-error";
+        warning.textContent = `${tLegacy("診斷紀錄寫入失敗")}：${storageError}`;
+        diagnosticsList.append(warning);
+      }
+      if (!entries.length) {
+        const empty = document.createElement("span");
+        empty.className = "diagnostics-empty";
+        empty.textContent = tLegacy("尚無可顯示的診斷軌跡。");
+        diagnosticsList.append(empty);
+        return;
+      }
+
+      for (const entry of entries) {
+        const row = document.createElement("article");
+        row.className = `diagnostics-entry is-${String(readAuditField(entry, "Severity", "severity") || "information").toLowerCase()}`;
+        const title = document.createElement("strong");
+        const category = readAuditField(entry, "Category", "category");
+        const action = readAuditField(entry, "Action", "action");
+        const outcome = readAuditField(entry, "Outcome", "outcome");
+        title.textContent = [
+          auditSeverityLabel(readAuditField(entry, "Severity", "severity")),
+          [category, action].filter(Boolean).join("/"),
+          outcome
+        ].filter(Boolean).join(" · ");
+
+        const meta = document.createElement("span");
+        const traceId = readAuditField(entry, "TraceId", "traceId");
+        meta.className = "diagnostics-entry-meta";
+        meta.textContent = [
+          formatAuditTime(readAuditField(entry, "Timestamp", "timestamp")),
+          traceId ? `${tLegacy("追蹤碼")} ${traceId}` : ""
+        ].filter(Boolean).join(" · ");
+        row.append(title, meta);
+
+        const subject = readAuditField(entry, "Subject", "subject");
+        if (subject) {
+          const subjectElement = document.createElement("span");
+          subjectElement.className = "diagnostics-entry-subject";
+          subjectElement.textContent = subject;
+          row.append(subjectElement);
+        }
+
+        const details = readAuditField(entry, "Details", "details") || {};
+        const detailText = Object.entries(details)
+          .filter(([key, value]) => key && value != null && value !== "")
+          .map(([key, value]) => `${key}: ${value}`)
+          .join(" · ");
+        if (detailText) {
+          const detailsElement = document.createElement("span");
+          detailsElement.className = "diagnostics-entry-details";
+          detailsElement.textContent = detailText;
+          row.append(detailsElement);
+        }
+        diagnosticsList.append(row);
+      }
+    }
+
+    async function loadAuditTrail() {
+      if (!deviceLocalRequest || !diagnosticsPanel || diagnosticsLoading) return;
+      diagnosticsLoading = true;
+      if (diagnosticsSummary) diagnosticsSummary.textContent = tLegacy("正在讀取診斷軌跡…");
+      try {
+        renderAuditTrail(await fetchJsonOrThrow("/api/diagnostics/audit?limit=80"));
+      } catch (error) {
+        if (diagnosticsSummary) diagnosticsSummary.textContent = error.message || tLegacy("無法載入診斷軌跡。");
+        if (diagnosticsList && !diagnosticsList.childElementCount) {
+          const empty = document.createElement("span");
+          empty.className = "diagnostics-empty";
+          empty.textContent = tLegacy("無法載入診斷軌跡。");
+          diagnosticsList.append(empty);
+        }
+      } finally {
+        diagnosticsLoading = false;
+      }
+    }
+
+    function diagnosticsText() {
+      const entries = latestAuditTrail.entries || [];
+      const header = [
+        `VibeDeck ${tLegacy("診斷軌跡")}`,
+        `${tLegacy("產生時間")}：${latestAuditTrail.generatedAt || new Date().toISOString()}`,
+        tLegacy(`最近 ${entries.length} 筆操作 · 保留 ${latestAuditTrail.retentionDays || 30} 天`)
+      ];
+      const lines = entries.map(entry => {
+        const details = readAuditField(entry, "Details", "details") || {};
+        return [
+          formatAuditTime(readAuditField(entry, "Timestamp", "timestamp")),
+          `[${readAuditField(entry, "Severity", "severity") || "information"}]`,
+          `${readAuditField(entry, "Category", "category") || "--"}/${readAuditField(entry, "Action", "action") || "--"}`,
+          readAuditField(entry, "Outcome", "outcome") || "--",
+          `${tLegacy("追蹤碼")}: ${readAuditField(entry, "TraceId", "traceId") || "--"}`,
+          readAuditField(entry, "Subject", "subject"),
+          Object.entries(details).map(([key, value]) => `${key}: ${value}`).join("; ")
+        ].filter(Boolean).join(" · ");
+      });
+      return [...header, "", ...lines].join("\n");
+    }
+
+    async function copyDiagnosticsText() {
+      const value = diagnosticsText();
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      } catch {
+        const textArea = document.createElement("textarea");
+        textArea.value = value;
+        textArea.setAttribute("readonly", "");
+        textArea.style.position = "fixed";
+        textArea.style.opacity = "0";
+        document.body.append(textArea);
+        textArea.select();
+        try {
+          copied = document.execCommand("copy");
+        } catch {
+          copied = false;
+        }
+        textArea.remove();
+      }
+      if (diagnosticsSummary) {
+        diagnosticsSummary.textContent = copied
+          ? tLegacy("診斷摘要已複製")
+          : tLegacy("無法複製診斷摘要。");
+      }
+    }
+
+    async function markDiagnosticsState() {
+      if (!deviceLocalRequest || !markDiagnostics) return;
+      const originalText = markDiagnostics.textContent;
+      markDiagnostics.disabled = true;
+      markDiagnostics.textContent = tLegacy("正在標記…");
+      try {
+        await fetchJsonOrThrow("/api/diagnostics/audit/mark", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label: `PC checkpoint ${new Date().toISOString()}` })
+        });
+        await loadAuditTrail();
+      } catch (error) {
+        if (diagnosticsSummary) diagnosticsSummary.textContent = error.message || tLegacy("無法標記目前狀態。");
+      } finally {
+        markDiagnostics.disabled = false;
+        markDiagnostics.textContent = originalText;
       }
     }
 
@@ -1377,6 +1600,106 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
         if (localConsole) launchDeckWindow.removeAttribute("hidden");
         else launchDeckWindow.setAttribute("hidden", "");
       }
+      if (productUpdate) {
+        productUpdate.hidden = !localConsole;
+        if (localConsole) productUpdate.removeAttribute("hidden");
+        else productUpdate.setAttribute("hidden", "");
+      }
+      if (!localConsole && productUpdateStatus) {
+        productUpdateStatus.hidden = true;
+      }
+      if (!localConsole && productUpdatePollTimer) {
+        clearTimeout(productUpdatePollTimer);
+        productUpdatePollTimer = null;
+      }
+      if (localConsole) renderProductUpdate(productUpdateSnapshot);
+    }
+
+    function productUpdateMessage(code, latestVersion, downloadPercent) {
+      switch (code) {
+        case "checking": return t("updates.checking");
+        case "current": return t("updates.current");
+        case "available": return t("updates.available", { version: latestVersion || "?" });
+        case "downloading": return t("updates.downloading", { percent: downloadPercent || 0 });
+        case "verified": return t("updates.verified");
+        case "installer_started": return t("updates.installerStarted");
+        case "not_published": return t("updates.notPublished");
+        case "installed_product_required": return t("updates.installedOnly");
+        case "idle": return "";
+        default: return t("updates.failed");
+      }
+    }
+
+    function renderProductUpdate(result) {
+      if (!productUpdate) return;
+      productUpdateSnapshot = result || null;
+      const state = String(result?.State || result?.state || "idle").toLowerCase();
+      const code = String(result?.Code || result?.code || state).toLowerCase();
+      const latestVersion = String(result?.LatestVersion || result?.latestVersion || "");
+      const downloadPercent = Number(result?.DownloadPercent ?? result?.downloadPercent ?? 0);
+      const canStart = Boolean(result?.CanStart ?? result?.canStart);
+      const busy = ["checking", "downloading", "ready", "launching"].includes(state);
+      const message = productUpdateMessage(code, latestVersion, downloadPercent);
+
+      productUpdate.dataset.updateState = state;
+      productUpdate.disabled = busy;
+      productUpdate.title = message;
+      if (state === "available" && canStart) {
+        productUpdate.textContent = t("updates.install", { version: latestVersion || "?" });
+      } else if (busy) {
+        productUpdate.textContent = t("updates.updateInProgress");
+      } else if (state === "current") {
+        productUpdate.textContent = t("updates.checkAgain");
+      } else if (state === "failed") {
+        productUpdate.textContent = t("updates.tryAgain");
+      } else {
+        productUpdate.textContent = t("updates.check");
+      }
+
+      if (productUpdateStatus) {
+        productUpdateStatus.textContent = message;
+        productUpdateStatus.hidden = !deviceLocalRequest || !message;
+      }
+    }
+
+    function scheduleProductUpdateStatusPoll() {
+      if (productUpdatePollTimer) clearTimeout(productUpdatePollTimer);
+      const poll = async () => {
+        if (!deviceLocalRequest) return;
+        try {
+          const result = await fetchJsonOrThrow("/api/product-update/status");
+          renderProductUpdate(result);
+          const state = String(result?.State || result?.state || "").toLowerCase();
+          if (["checking", "downloading", "ready"].includes(state)) {
+            productUpdatePollTimer = setTimeout(poll, 700);
+          }
+        } catch {
+        }
+      };
+      productUpdatePollTimer = setTimeout(poll, 350);
+    }
+
+    async function checkOrInstallProductUpdate() {
+      if (!deviceLocalRequest || !productUpdate) return;
+      const state = String(productUpdateSnapshot?.State || productUpdateSnapshot?.state || "idle").toLowerCase();
+      const canStart = Boolean(productUpdateSnapshot?.CanStart ?? productUpdateSnapshot?.canStart);
+      if (state === "available" && canStart) {
+        const latestVersion = productUpdateSnapshot?.LatestVersion || productUpdateSnapshot?.latestVersion || "";
+        if (!window.confirm(t("updates.confirm", { version: latestVersion || "?" }))) return;
+        const result = await fetchJsonOrThrow("/api/product-update/start", { method: "POST" });
+        renderProductUpdate(result);
+        scheduleProductUpdateStatusPoll();
+        return;
+      }
+
+      renderProductUpdate({ state: "checking", code: "checking" });
+      try {
+        const result = await fetchJsonOrThrow("/api/product-update/check", { method: "POST" });
+        renderProductUpdate(result);
+      } catch (error) {
+        renderProductUpdate({ state: "failed", code: "update_failed" });
+        if (productUpdateStatus) productUpdateStatus.textContent = error.message || t("updates.failed");
+      }
     }
 
     async function loadDeviceTrustStatus() {
@@ -1488,6 +1811,10 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
 
     function setPairingUiActive(active) {
       document.body.classList.toggle("pairing-active", Boolean(active));
+      if (active && newDeviceConnectPanel) {
+        newDeviceConnectPanel.hidden = false;
+        newDeviceConnectPanel.open = true;
+      }
       // PC 本機預設藏 QR 區；配對時強制打開進階連線區顯示連結
       const links = document.querySelector(".connect-links");
       if (links && active) {
@@ -1566,9 +1893,33 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       el.title = `VibeDeck Host ${hostVersionLabel}`;
     }
 
+    function createAuditTraceId() {
+      const generated = window.crypto?.randomUUID?.()
+        || `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+      return generated.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 16).padEnd(8, "0");
+    }
+
+    function reportBrowserFault(kind, message, source = "", line = 0, column = 0, traceId = "") {
+      if (!deviceLocalRequest || !actionToken || navigator.onLine === false) return;
+      const headers = new Headers({
+        "Content-Type": "application/json",
+        "X-VibeDeck-Trace-Id": traceId || createAuditTraceId()
+      });
+      if (deviceToken) headers.set(deviceHeaderName, deviceToken);
+      headers.set(actionHeaderName, actionToken);
+      fetch("/api/diagnostics/audit/browser-error", {
+        method: "POST",
+        cache: "no-store",
+        headers,
+        body: JSON.stringify({ kind, message, source, line, column })
+      }).catch(() => {});
+    }
+
     async function fetchJsonOrThrow(url, init = {}, retryOnTokenRefresh = true) {
       const method = String(init.method || "GET").toUpperCase();
       const headers = new Headers(init.headers || {});
+      const traceId = headers.get("X-VibeDeck-Trace-Id") || createAuditTraceId();
+      headers.set("X-VibeDeck-Trace-Id", traceId);
       if (deviceToken) {
         headers.set(deviceHeaderName, deviceToken);
       }
@@ -1580,9 +1931,14 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       let response;
       try {
         response = await fetch(url, { cache: "no-store", ...init, headers });
-      } catch (error) {
-        throw new Error(`連線失敗：${url}（${error.message || "network error"}）`);
+      } catch (networkError) {
+        const failure = new Error(`${tLegacy(`連線失敗：${url}（${networkError.message || "network error"}）`)} · ${tLegacy("追蹤碼")} ${traceId}`);
+        failure.traceId = traceId;
+        failure.requestUrl = url;
+        reportBrowserFault("network", failure.message, "", 0, 0, traceId);
+        throw failure;
       }
+      const responseTraceId = response.headers.get("X-VibeDeck-Trace-Id") || traceId;
       const text = await response.text();
       const data = parseJsonResponse(text, url);
       if (response.status === 401) {
@@ -1601,9 +1957,11 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
           (typeof data.error === "string" ? data.error : null) ||
           `HTTP ${response.status}`;
         const code = errorPayload?.code || data.code || data.Code || "";
-        const error = new Error(tApi(code, rawMessage));
+        const error = new Error(`${tApi(code, rawMessage)} · ${tLegacy("追蹤碼")} ${responseTraceId}`);
         error.code = code;
         error.status = response.status;
+        error.traceId = responseTraceId;
+        error.requestUrl = url;
         throw error;
       }
       return data;
@@ -1636,6 +1994,7 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
         bar: quotaMiniBar,
         reset: quotaMiniReset,
         state: quotaMiniState,
+        credits: quotaMiniCredits,
       },
       fetchJsonOrThrow,
     });
@@ -1813,6 +2172,7 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       updatePairingGuide(deviceTrusted ? "paired" : "pair");
       updateEinkToggle();
       updateKeepAwakeButton();
+      renderProductUpdate(productUpdateSnapshot);
     });
 
     function renderQuotas(snapshot) {
@@ -2425,6 +2785,7 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       const updatedText = updated
         ? new Date(updated).toLocaleString(getIntlLocale(), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
         : "--";
+      const creditBalance = family === "codex" ? formatCodexCreditBalance(provider) : "";
       card.innerHTML = `
         <div class="quota-account-head">
           <span class="quota-check"></span>
@@ -2436,6 +2797,7 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
         <div class="quota-pair single">
           ${renderQuotaProvider(provider.Label || provider.label || label, provider)}
         </div>
+        ${creditBalance ? `<div class="quota-credit-row"><span>${escapeHtml(tLegacy("剩餘 ChatGPT Credits："))}</span><strong>${escapeHtml(creditBalance)}</strong></div>` : ""}
         <div class="quota-footer">
           <span class="quota-time"></span>
           <span></span>
@@ -2453,6 +2815,15 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       wireQuotaSwitcher(card);
       wireQuotaToolbox(card);
       return card;
+    }
+
+    function formatCodexCreditBalance(provider) {
+      const unlimited = provider.CreditUnlimited ?? provider.creditUnlimited;
+      if (unlimited === true || String(unlimited).toLowerCase() === "true") return "∞";
+      const balance = Number(provider.CreditBalance ?? provider.creditBalance);
+      return Number.isFinite(balance)
+        ? new Intl.NumberFormat(getIntlLocale(), { maximumFractionDigits: 2 }).format(balance)
+        : "";
     }
 
     function groupSingleProviderAccounts(providers, tabId) {
@@ -2513,8 +2884,8 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       return `
         <section class="quota-provider">
           <strong class="quota-provider-title">${escapeHtml(title)}</strong>
-          ${renderQuotaWindow("5h", primary)}
-          ${renderQuotaWindow("週額度", secondary)}
+          ${renderQuotaWindow(formatQuotaWindowLabel(primary, tLegacy("5 小時額度")), primary)}
+          ${renderQuotaWindow(formatQuotaWindowLabel(secondary, tLegacy("週額度")), secondary)}
         </section>
       `;
     }
@@ -2535,8 +2906,8 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       card.querySelector("strong").textContent = label;
       card.querySelector("b").textContent = state;
       const spans = card.querySelectorAll("span");
-      spans[0].textContent = `5h ${primaryText}`;
-      spans[1].textContent = `週額度 ${secondaryText}`;
+      spans[0].textContent = `${formatQuotaWindowLabel(primary, tLegacy("5 小時額度"))} ${primaryText}`;
+      spans[1].textContent = `${formatQuotaWindowLabel(secondary, tLegacy("週額度"))} ${secondaryText}`;
       return card;
     }
 
@@ -3326,6 +3697,14 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
     pairPhone?.addEventListener("click", () => {
       startPhonePairing();
     });
+    openNewDevicePanel?.addEventListener("click", () => {
+      if (newDeviceConnectPanel) {
+        newDeviceConnectPanel.hidden = false;
+        newDeviceConnectPanel.open = true;
+      }
+      setPairControlsVisible(true);
+      startPhonePairing();
+    });
     // 流程圖第 2 步也可點，避免按鈕被藏時完全沒入口
     document.getElementById("pairingStepPair")?.addEventListener("click", () => {
       if (pairPhone?.hidden && !isLoopbackHost() && !deviceLocalRequest) return;
@@ -3362,6 +3741,22 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
     });
     refreshTrustedDevices.addEventListener("click", () => {
       loadDeviceTrustStatus();
+    });
+    diagnosticsToggle?.addEventListener("click", () => {
+      if (!diagnosticsPanel || !diagnosticsPanelContent) return;
+      const isOpen = diagnosticsPanel.classList.toggle("is-open");
+      diagnosticsToggle.setAttribute("aria-expanded", String(isOpen));
+      diagnosticsPanelContent.hidden = !isOpen;
+      if (isOpen) loadAuditTrail();
+    });
+    refreshDiagnostics?.addEventListener("click", () => {
+      loadAuditTrail();
+    });
+    markDiagnostics?.addEventListener("click", () => {
+      markDiagnosticsState();
+    });
+    copyDiagnostics?.addEventListener("click", () => {
+      copyDiagnosticsText();
     });
     clearTrustedDevices.addEventListener("click", () => {
       clearAllTrustedDevices(clearTrustedDevices);
@@ -3510,6 +3905,22 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       setDashboardConnectionState("connecting");
       scheduleDashboardRefresh(activeMode === "quota" ? "quota" : "sideboard", true);
     });
+    productUpdate?.addEventListener("click", () => {
+      checkOrInstallProductUpdate().catch(error => {
+        renderProductUpdate({ state: "failed", code: "update_failed" });
+        if (productUpdateStatus) productUpdateStatus.textContent = error.message || t("updates.failed");
+      });
+    });
+    window.addEventListener("error", event => {
+      const message = event.error?.message || event.message || "";
+      if (!message) return;
+      reportBrowserFault("runtime", message, event.filename || "", event.lineno || 0, event.colno || 0);
+    });
+    window.addEventListener("unhandledrejection", event => {
+      const message = event.reason?.message || String(event.reason || "");
+      if (!message) return;
+      reportBrowserFault("unhandled-rejection", message);
+    });
     window.addEventListener("devicemotion", handleEinkDeviceMotion, { passive: true });
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", () => {
@@ -3639,4 +4050,5 @@ import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText
       }
     }
 
+    createEnergyWave();
     boot();

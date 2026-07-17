@@ -3,11 +3,12 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>0.1.5</Version>
+    <Version>0.1.21</Version>
     <AssemblyName>VibeDeck.Host</AssemblyName>
     <RootNamespace>PhoneMonitor.Host</RootNamespace>
     <Product>VibeDeck</Product>
     <Description>把閒置手機變成 Windows PC 的智慧副螢幕與資訊板。</Description>
+    <OutputType>WinExe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>

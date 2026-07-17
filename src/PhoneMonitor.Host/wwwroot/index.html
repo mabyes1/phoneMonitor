@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=86">
+  <link rel="stylesheet" href="/index.css?v=94">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -79,7 +79,10 @@
         }
         if (navigator.serviceWorker.controller && !sessionStorage.getItem("phoneMonitorSwRemovedV47")) {
           sessionStorage.setItem("phoneMonitorSwRemovedV47", "1");
-          location.replace("/index.html?sw-removed=47");
+          const reloadUrl = new URL(location.href);
+          reloadUrl.pathname = "/index.html";
+          reloadUrl.searchParams.set("sw-removed", "47");
+          location.replace(reloadUrl.toString());
           await new Promise(function () {});
         }
       } catch (_) {
@@ -144,6 +147,8 @@
         <button id="keepAwake" type="button">長亮 ON</button>
         <button id="fullscreen" type="button">全螢幕</button>
         <button id="refresh" type="button">重新整理</button>
+        <button id="productUpdate" type="button" hidden>檢查更新</button>
+        <span id="productUpdateStatus" class="product-update-status" role="status" aria-live="polite" hidden></span>
         <button id="displaySettingsToggle" type="button" aria-expanded="false">顯示設定</button>
         <span class="status" role="status" aria-live="polite"><span id="dot" class="dot"></span><span id="status">正在連線</span></span>
       </div>
@@ -212,12 +217,31 @@
         </div>
       </details>
     </div>
-    <div class="connect-panel">
-      <div class="connect-qr">
+    <div id="trustedDevicesPanel" class="trusted-devices device-management-panel" hidden>
+      <div id="pendingPairingPanel" class="pending-pairings" hidden>
+        <strong>等待你的允許</strong>
+        <div id="pendingPairingList"></div>
+      </div>
+      <div class="trusted-devices-head">
+        <strong>已配對裝置</strong>
+        <button id="openNewDevicePanel" type="button" title="連接新裝置">＋ 新增</button>
+        <button id="clearTrustedDevices" type="button" data-clear-trusted-devices title="清空所有配對">清空</button>
+        <button id="refreshTrustedDevices" type="button" title="重新整理裝置">↻</button>
+      </div>
+      <div id="trustedDeviceList" class="trusted-device-list"></div>
+    </div>
+    <details id="newDeviceConnectPanel" class="new-device-panel" open>
+      <summary>
+        <span>連接新裝置</span>
+        <small>第一次使用或要加入另一台手機時開啟</small>
+      </summary>
+      <div class="new-device-panel-content">
+        <div class="connect-panel">
+          <div class="connect-qr">
         <img id="qrCode" alt="手機連線 QR Code">
         <span id="qrCaption">用手機相機掃描網址，或按下配對後掃描一次性配對 QR。</span>
-      </div>
-      <div class="connect-copy">
+          </div>
+          <div class="connect-copy">
         <p id="iosHomeTip" class="ios-home-tip">
           iPhone：開啟 HTTPS → 首次警告按進階繼續 → 配對 → 分享加入主畫面。
         </p>
@@ -269,20 +293,25 @@
             <p id="androidCertHelp" class="certificate-install-help" hidden>只有進階使用者需要：Android / BOOX 下載後請選「CA 憑證」；一般使用者直接在警告頁按「進階」→「繼續前往」即可。</p>
           </div>
         </details>
-        <div id="trustedDevicesPanel" class="trusted-devices" hidden>
-          <div id="pendingPairingPanel" class="pending-pairings" hidden>
-            <strong>等待你的允許</strong>
-            <div id="pendingPairingList"></div>
           </div>
-          <div class="trusted-devices-head">
-            <strong>已配對裝置</strong>
-            <button id="clearTrustedDevices" type="button" data-clear-trusted-devices title="清空所有配對">清空</button>
-            <button id="refreshTrustedDevices" type="button" title="重新整理裝置">↻</button>
-          </div>
-          <div id="trustedDeviceList" class="trusted-device-list"></div>
         </div>
       </div>
-    </div>
+    </details>
+    <section id="diagnosticsPanel" class="diagnostics-panel" hidden>
+      <button id="diagnosticsToggle" class="diagnostics-toggle" type="button" aria-expanded="false">
+        <span>診斷軌跡</span>
+        <small id="diagnosticsSummary">最近操作與錯誤會保留 30 天</small>
+      </button>
+      <div id="diagnosticsPanelContent" class="diagnostics-panel-content" hidden>
+        <p>每次重要操作都會記錄追蹤碼。遇到問題時複製摘要即可快速定位。</p>
+        <div class="diagnostics-actions">
+          <button id="refreshDiagnostics" type="button">更新軌跡</button>
+          <button id="markDiagnostics" type="button">標記目前狀態</button>
+          <button id="copyDiagnostics" type="button">複製診斷摘要</button>
+        </div>
+        <div id="diagnosticsList" class="diagnostics-list" role="log" aria-live="polite" data-i18n-ignore></div>
+      </div>
+    </section>
     <div id="driverState" class="driver-state"></div>
   </header>
   <main>
@@ -313,6 +342,11 @@
     </section>
     <section id="sideboardView" class="app-view sideboard-view">
       <div id="sideboardShell" class="sideboard-shell skin-command">
+        <div id="energyWaveBackdrop" class="energy-wave-backdrop" aria-hidden="true" hidden>
+          <canvas id="energyWaveCanvas" class="energy-wave-canvas"></canvas>
+          <div id="energyWaveStrips" class="energy-wave-strips"></div>
+          <div class="energy-wave-vignette"></div>
+        </div>
         <section id="dashboardEditBar" class="dashboard-edit-bar" hidden>
           <div id="dashboardSelectionControls" class="dashboard-selection-controls" hidden></div>
           <div class="dashboard-edit-copy">
@@ -404,7 +438,7 @@
 
           <button id="mobileQuotaOpen" class="mobile-overview-section mobile-quota-strip" data-mobile-section="quota" type="button">
             <span>
-              <small id="mobileQuotaSource">5 小時額度</small>
+              <small id="mobileQuotaSource">AI 額度</small>
               <strong id="mobileQuotaValue">--</strong>
             </span>
             <span>
@@ -552,9 +586,9 @@
           </div>
           <ul id="activityFeedList" class="activity-feed-list"></ul>
         </section>
-        <section class="side-panel quota-mini-card" data-dashboard-key="quota-mini" data-dashboard-title="5 小時額度">
+        <section class="side-panel quota-mini-card" data-dashboard-key="quota-mini" data-dashboard-title="AI 額度">
           <div class="quota-mini-head">
-            <strong>5 小時額度</strong>
+            <strong>AI 額度</strong>
             <span id="quotaMiniState">等待來源</span>
           </div>
           <select id="quotaMiniSource" aria-label="切換額度來源" disabled></select>
@@ -562,6 +596,7 @@
             <strong id="quotaMiniValue">--</strong>
             <span id="quotaMiniReset">尚無額度來源</span>
           </div>
+          <div id="quotaMiniCredits" class="quota-mini-credit" hidden></div>
           <div class="quota-mini-bar" aria-hidden="true"><span id="quotaMiniBar"></span></div>
         </section>
         <div id="customCardsGrid" class="custom-cards-grid" aria-live="polite"></div>
@@ -695,6 +730,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=92"></script>
+  <script type="module" src="/index.js?v=102"></script>
 </body>
 </html>

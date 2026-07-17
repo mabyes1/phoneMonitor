@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -510,6 +511,10 @@ namespace PhoneMonitor.Host.Quotas
                 }
 
                 var observedAt = TryGetDateTimeOffset(root, "timestamp");
+                var credits = TryGetProperty(limits, "credits", out var creditInfo) &&
+                    creditInfo.ValueKind == JsonValueKind.Object
+                    ? creditInfo
+                    : default;
                 return new AiQuotaStatus
                 {
                     Id = "codex",
@@ -521,6 +526,8 @@ namespace PhoneMonitor.Host.Quotas
                     Detail = TryGetString(limits, "limit_name") ?? TryGetString(limits, "limit_id") ?? "Latest Codex rate limit event.",
                     ObservedAt = observedAt,
                     AccountTier = TryGetString(limits, "plan_type"),
+                    CreditBalance = credits.ValueKind == JsonValueKind.Object ? TryGetDouble(credits, "balance") : null,
+                    CreditUnlimited = credits.ValueKind == JsonValueKind.Object ? TryGetBoolean(credits, "unlimited") : null,
                     Primary = ReadWindow(limits, "primary", "5h"),
                     Secondary = ReadWindow(limits, "secondary", "Weekly")
                 };
@@ -1763,7 +1770,24 @@ namespace PhoneMonitor.Host.Quotas
                 return parsed;
             }
 
+            if (value.ValueKind == JsonValueKind.String &&
+                double.TryParse(value.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out parsed))
+            {
+                return parsed;
+            }
+
             return null;
+        }
+
+        private static bool? TryGetBoolean(JsonElement element, string name)
+        {
+            if (!TryGetProperty(element, name, out var value) ||
+                (value.ValueKind != JsonValueKind.True && value.ValueKind != JsonValueKind.False))
+            {
+                return null;
+            }
+
+            return value.GetBoolean();
         }
 
         private static int? TryGetInt(JsonElement element, string name)

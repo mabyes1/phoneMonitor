@@ -106,7 +106,9 @@ The packaging script normally runs tests, JavaScript syntax checks, product-path
 
 ## Update an Existing Installation
 
-From this repository, double-click `update.bat`. The update uses the same Setup AppId and performs this sequence automatically: stop the running Host, replace the app files, preserve `%ProgramData%\VibeDeck`, start the Host hidden, and run the installed-product checks. Do not uninstall first.
+Installed users update from the local PC UI: press **Check for updates**, then **Install vX.Y.Z**. VibeDeck verifies the published Setup file before handing it to the normal Windows installer; paired devices and layouts remain in `%ProgramData%\VibeDeck`. See `docs/product-updates.md` for the user and publisher flow.
+
+For repository development only, double-click `update.bat`. It builds a local Setup and performs the same in-place replacement and installed-product checks. Do not distribute `update.bat` to users.
 
 1. Build or download a newer Setup version.
 2. Run it without uninstalling the existing version.

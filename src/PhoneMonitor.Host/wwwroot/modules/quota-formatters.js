@@ -1,4 +1,8 @@
-import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+import { getIntlLocale, t, tLegacy } from "./i18n.js?v=3";
+
+const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
+const MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY;
 
 export function escapeHtml(value) {
   return String(value ?? "")
@@ -7,6 +11,23 @@ export function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+export function formatQuotaWindowLabel(windowData = {}, fallbackLabel = "") {
+  const minutes = Number(windowData?.WindowMinutes ?? windowData?.windowMinutes);
+  if (!Number.isFinite(minutes) || minutes <= 0) return fallbackLabel;
+
+  const roundedMinutes = Math.round(minutes);
+  if (roundedMinutes % MINUTES_PER_WEEK === 0) {
+    return t("ui.quotaWindowWeeks", { count: roundedMinutes / MINUTES_PER_WEEK });
+  }
+  if (roundedMinutes % MINUTES_PER_DAY === 0) {
+    return t("ui.quotaWindowDays", { count: roundedMinutes / MINUTES_PER_DAY });
+  }
+  if (roundedMinutes % MINUTES_PER_HOUR === 0) {
+    return t("ui.quotaWindowHours", { count: roundedMinutes / MINUTES_PER_HOUR });
+  }
+  return t("ui.quotaWindowMinutes", { count: roundedMinutes });
 }
 
 export function renderQuotaWindow(label, windowData = {}) {

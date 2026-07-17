@@ -147,7 +147,7 @@ export function createMobileOverviewController() {
   function syncQuota() {
     const select = byId("quotaMiniSource");
     const selected = select?.selectedOptions?.[0]?.textContent?.trim();
-    setText("mobileQuotaSource", selected || tLegacy("5 小時額度"));
+    setText("mobileQuotaSource", selected || tLegacy("AI 額度"));
     setText("mobileQuotaValue", textOf("quotaMiniValue"));
     setText("mobileQuotaState", textOf("quotaMiniState", tLegacy("等待來源")));
     setText("mobileQuotaReset", `${textOf("quotaMiniReset", tLegacy("查看額度"))} ›`);

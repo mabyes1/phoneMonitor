@@ -1,10 +1,14 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Globalization;
+using System.Linq;
+using System.Net.Http;
 using System.Runtime.ExceptionServices;
 using System.Threading;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Win32;
 using PhoneMonitor.Host.Security;
 using PhoneMonitor.Host.WindowsNotifications;
 
@@ -12,8 +16,24 @@ namespace PhoneMonitor.Host
 {
     public class Program
     {
+        private const string OpenUiArgument = "--open";
+        private const string RegisterAutostartArgument = "--register-autostart";
+        private const string UnregisterAutostartArgument = "--unregister-autostart";
+        private const string HealthUrl = "http://127.0.0.1:5000/health";
+        private static readonly HttpClient HealthClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(2)
+        };
+
+        [STAThread]
         public static void Main(string[] args)
         {
+            if (HandleAutostartCommand(args))
+            {
+                return;
+            }
+
+            var openUi = args?.Any(value => string.Equals(value, OpenUiArgument, StringComparison.OrdinalIgnoreCase)) == true;
             if (WindowsNotificationCompanion.ShouldRun(args))
             {
                 RunNotificationCompanionOnStaThread();
@@ -22,9 +42,13 @@ namespace PhoneMonitor.Host
 
             if (!Environment.UserInteractive || Process.GetCurrentProcess().SessionId == 0)
             {
-                Console.Error.WriteLine(
-                    "VibeDeck Host must run in the signed-in Windows desktop session. " +
-                    "Windows Service / Session 0 hosting cannot enumerate or capture the virtual display.");
+                if (openUi)
+                {
+                    ShowLaunchError(GetLocalizedText(
+                        "VibeDeck 必須在已登入的 Windows 桌面工作階段執行。請登入 Windows 後再開啟。",
+                        "VibeDeck must run in the signed-in Windows desktop session. Sign in to Windows, then open it again.",
+                        "VibeDeck はサインインしている Windows デスクトップ セッションで実行する必要があります。Windows にサインインしてから、もう一度開いてください。"));
+                }
                 Environment.ExitCode = 2;
                 return;
             }
@@ -40,11 +64,135 @@ namespace PhoneMonitor.Host
             using var singleInstance = new Mutex(true, "VibeDeck.Host.SingleInstance", out var ownsMutex);
             if (!ownsMutex)
             {
-                Console.Error.WriteLine("VibeDeck Host is already running; this launch was ignored.");
+                if (openUi)
+                {
+                    OpenBrowserWhenReady();
+                }
                 return;
             }
 
-            CreateHostBuilder(args).Build().Run();
+            try
+            {
+                var host = CreateHostBuilder(args).Build();
+                if (openUi)
+                {
+                    if (host.Services.GetService(typeof(IHostApplicationLifetime)) is IHostApplicationLifetime lifetime)
+                    {
+                        lifetime.ApplicationStarted.Register(() =>
+                            ThreadPool.QueueUserWorkItem(_ => OpenBrowserWhenReady()));
+                    }
+                }
+                host.Run();
+            }
+            catch (Exception error)
+            {
+                Trace.TraceError($"VibeDeck Host startup failed: {error}");
+                if (openUi)
+                {
+                    ShowLaunchError(GetLocalizedText(
+                        "VibeDeck 無法啟動。請確認沒有其他程式佔用連接埠 5000，然後再試一次。",
+                        "VibeDeck could not start. Check that another app is not using port 5000, then try again.",
+                        "VibeDeck を起動できませんでした。別のアプリがポート 5000 を使用していないことを確認して、もう一度お試しください。"));
+                }
+                Environment.ExitCode = 1;
+            }
+        }
+
+        private static void OpenBrowserWhenReady()
+        {
+            for (var attempt = 0; attempt < 40; attempt++)
+            {
+                try
+                {
+                    using var response = HealthClient.GetAsync(HealthUrl).GetAwaiter().GetResult();
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = AppPaths.WebUiUrl,
+                            UseShellExecute = true
+                        });
+                        return;
+                    }
+                }
+                catch
+                {
+                }
+
+                Thread.Sleep(500);
+            }
+
+            ShowLaunchError(GetLocalizedText(
+                "VibeDeck Host 尚未就緒。請確認沒有其他程式佔用連接埠 5000，然後再試一次。",
+                "VibeDeck Host did not become ready. Check that another app is not using port 5000, then try again.",
+                "VibeDeck Host の準備が完了しませんでした。別のアプリがポート 5000 を使用していないことを確認して、もう一度お試しください。"));
+        }
+
+        private static bool HandleAutostartCommand(string[] args)
+        {
+            var register = args?.Any(value => string.Equals(value, RegisterAutostartArgument, StringComparison.OrdinalIgnoreCase)) == true;
+            var unregister = args?.Any(value => string.Equals(value, UnregisterAutostartArgument, StringComparison.OrdinalIgnoreCase)) == true;
+            if (!register && !unregister)
+            {
+                return false;
+            }
+
+            try
+            {
+                using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+                if (register)
+                {
+                    var executable = Path.Combine(AppContext.BaseDirectory, "VibeDeck.Host.exe");
+                    if (!File.Exists(executable))
+                    {
+                        Environment.ExitCode = 1;
+                        return true;
+                    }
+
+                    runKey.SetValue("VibeDeckHost", $"\"{executable}\"", RegistryValueKind.String);
+                }
+                else
+                {
+                    runKey.DeleteValue("VibeDeckHost", throwOnMissingValue: false);
+                }
+            }
+            catch
+            {
+                Environment.ExitCode = 1;
+            }
+
+            return true;
+        }
+
+        private static void ShowLaunchError(string message)
+        {
+            try
+            {
+                System.Windows.Forms.MessageBox.Show(
+                    message,
+                    "VibeDeck",
+                    System.Windows.Forms.MessageBoxButtons.OK,
+                    System.Windows.Forms.MessageBoxIcon.Error);
+            }
+            catch
+            {
+            }
+        }
+
+        private static string GetLocalizedText(string traditionalChinese, string english, string japanese)
+        {
+            var language = CultureInfo.CurrentUICulture?.Name ?? "";
+            if (language.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+            {
+                return japanese;
+            }
+
+            if (language.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
+            {
+                return traditionalChinese;
+            }
+
+            return english;
         }
 
         private static void RunNotificationCompanionOnStaThread()

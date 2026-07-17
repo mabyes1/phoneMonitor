@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -18,12 +19,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using PhoneMonitor.Host.Connect;
 using PhoneMonitor.Host.CustomSources;
+using PhoneMonitor.Host.Diagnostics;
 using PhoneMonitor.Host.Display;
 using PhoneMonitor.Host.Dashboard;
 using PhoneMonitor.Host.Quotas;
 using PhoneMonitor.Host.Security;
 using PhoneMonitor.Host.Sideboard;
 using PhoneMonitor.Host.Streaming;
+using PhoneMonitor.Host.Updates;
 using PhoneMonitor.Host.Windows;
 using PhoneMonitor.Host.WindowsNotifications;
 using QRCoder;
@@ -57,6 +60,7 @@ namespace PhoneMonitor.Host
             services.AddSingleton<AiQuotaService>();
             services.AddSingleton<DashboardEventHub>();
             services.AddSingleton<DashboardLayoutService>();
+            services.AddSingleton<AuditTrailService>();
             services.AddHostedService<DashboardChangeMonitor>();
             services.AddSingleton(sp =>
             {
@@ -73,6 +77,7 @@ namespace PhoneMonitor.Host
             services.AddSingleton<ActionTokenService>();
             services.AddSingleton<DeviceTrustService>();
             services.AddSingleton<HostAccessAuthService>();
+            services.AddSingleton<ProductUpdateService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -82,6 +87,67 @@ namespace PhoneMonitor.Host
             {
                 app.UseDeveloperExceptionPage();
             }
+
+            app.ApplicationServices.GetRequiredService<AuditTrailService>().Record(
+                "information",
+                "host",
+                "startup",
+                "ready",
+                details: new Dictionary<string, string>
+                {
+                    ["version"] = ProductVersion.Current,
+                    ["installed"] = AppPaths.IsInstalledLayout ? "true" : "false",
+                    ["dataRoot"] = AppPaths.DataRoot
+                });
+
+            app.Use(async (context, next) =>
+            {
+                var audit = context.RequestServices.GetRequiredService<AuditTrailService>();
+                var traceId = AuditTrailService.CreateTraceId(context.Request.Headers["X-VibeDeck-Trace-Id"].FirstOrDefault());
+                context.Items[AuditTrailService.TraceIdItemKey] = traceId;
+                context.Response.Headers["X-VibeDeck-Trace-Id"] = traceId;
+                var stopwatch = Stopwatch.StartNew();
+                try
+                {
+                    await next();
+                }
+                catch (Exception error)
+                {
+                    audit.RecordException(
+                        "http",
+                        $"{context.Request.Method} {context.Request.Path}",
+                        error,
+                        traceId,
+                        GetRemoteAddress(context),
+                        details: new Dictionary<string, string>
+                        {
+                            ["method"] = context.Request.Method,
+                            ["path"] = context.Request.Path.Value ?? "",
+                            ["local"] = IsLocalRequest(context) ? "true" : "false"
+                        });
+                    throw;
+                }
+                finally
+                {
+                    stopwatch.Stop();
+                    if (ShouldAuditHttpRequest(context, stopwatch.ElapsedMilliseconds))
+                    {
+                        audit.Record(
+                            context.Response.StatusCode >= 400 ? "warning" : "information",
+                            "http",
+                            $"{context.Request.Method} {context.Request.Path}",
+                            context.Response.StatusCode >= 400 ? "failed" : "completed",
+                            traceId,
+                            GetRemoteAddress(context),
+                            details: new Dictionary<string, string>
+                            {
+                                ["status"] = context.Response.StatusCode.ToString(),
+                                ["durationMs"] = stopwatch.ElapsedMilliseconds.ToString(),
+                                ["local"] = IsLocalRequest(context) ? "true" : "false"
+                            });
+                    }
+                }
+            });
 
             app.Use(async (context, next) =>
             {
@@ -120,6 +186,8 @@ namespace PhoneMonitor.Host
             {
                 MapCustomSourceEndpoints(endpoints);
                 MapDashboardLayoutEndpoints(endpoints);
+                MapDiagnosticsEndpoints(endpoints);
+                MapProductUpdateEndpoints(endpoints);
                 MapWindowsNotificationEndpoints(endpoints);
 
                 endpoints.MapGet("/health", async context =>
@@ -131,7 +199,7 @@ namespace PhoneMonitor.Host
                         status = "ok",
                         app = "VibeDeck.Host",
                         product = AppPaths.ProductName,
-                        version = GetProductVersion(),
+                        version = ProductVersion.Current,
                         installed = AppPaths.IsInstalledLayout,
                         transport = "webrtc-h264+jpeg-fallback"
                     }));
@@ -242,7 +310,7 @@ namespace PhoneMonitor.Host
                         actionHeader = ActionTokenService.HeaderName,
                         deviceHeader = DeviceTrustService.HeaderName,
                         product = AppPaths.ProductName,
-                        version = GetProductVersion(),
+                        version = ProductVersion.Current,
                         installed = AppPaths.IsInstalledLayout
                     }));
                 });
@@ -275,6 +343,16 @@ namespace PhoneMonitor.Host
                         ?? new DeviceRevokeRequest();
                     var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
                     var result = devices.RevokeDevice(request.DeviceId);
+                    WriteAudit(
+                        context,
+                        result.Success ? "information" : "warning",
+                        "pairing",
+                        "revoke",
+                        result.Success ? "completed" : "not-found",
+                        details: new Dictionary<string, string>
+                        {
+                            ["message"] = result.Message
+                        });
                     context.Response.StatusCode = result.Success
                         ? StatusCodes.Status200OK
                         : StatusCodes.Status404NotFound;
@@ -291,6 +369,16 @@ namespace PhoneMonitor.Host
 
                     var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
                     var result = devices.ClearDevices();
+                    WriteAudit(
+                        context,
+                        result.Success ? "warning" : "error",
+                        "pairing",
+                        "clear-all",
+                        result.Success ? "completed" : "failed",
+                        details: new Dictionary<string, string>
+                        {
+                            ["message"] = result.Message
+                        });
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(result));
                 });
@@ -658,6 +746,18 @@ namespace PhoneMonitor.Host
                         request.ClientInstanceId,
                         context.Request.Headers["User-Agent"].FirstOrDefault(),
                         GetRemoteAddress(context));
+                    WriteAudit(
+                        context,
+                        "information",
+                        "pairing",
+                        "request",
+                        "pending",
+                        request.Name,
+                        new Dictionary<string, string>
+                        {
+                            ["platform"] = request.Platform,
+                            ["model"] = request.Model
+                        });
                     context.Response.ContentType = "application/json";
                     context.Response.Headers["Cache-Control"] = "no-store";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(result));
@@ -699,6 +799,21 @@ namespace PhoneMonitor.Host
                         context.Response.Cookies.Append(DeviceTrustService.CookieName, result.DeviceToken, deviceCookie);
                         context.Response.Cookies.Append(DeviceTrustService.LegacyCookieName, result.DeviceToken, deviceCookie);
                     }
+                    if (!result.Success || result.Status == "approved" || result.Status == "denied")
+                    {
+                        WriteAudit(
+                            context,
+                            result.Success ? "information" : "warning",
+                            "pairing",
+                            "poll",
+                            result.Status ?? "unknown",
+                            result.DeviceName,
+                            new Dictionary<string, string>
+                            {
+                                ["continued"] = result.Continued ? "true" : "false",
+                                ["message"] = result.Message
+                            });
+                    }
                     context.Response.StatusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status400BadRequest;
                     context.Response.ContentType = "application/json";
                     context.Response.Headers["Cache-Control"] = "no-store";
@@ -720,6 +835,16 @@ namespace PhoneMonitor.Host
                     var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalActionRequest>(context)
                         ?? new PairingApprovalActionRequest();
                     var result = context.RequestServices.GetRequiredService<DeviceTrustService>().ApproveRequest(request.RequestId);
+                    WriteAudit(
+                        context,
+                        result.Success ? "information" : "warning",
+                        "pairing",
+                        "approve",
+                        result.Success ? "approved" : "not-found",
+                        details: new Dictionary<string, string>
+                        {
+                            ["message"] = result.Message
+                        });
                     context.Response.StatusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status404NotFound;
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(result));
@@ -731,6 +856,16 @@ namespace PhoneMonitor.Host
                     var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalActionRequest>(context)
                         ?? new PairingApprovalActionRequest();
                     var result = context.RequestServices.GetRequiredService<DeviceTrustService>().DenyRequest(request.RequestId);
+                    WriteAudit(
+                        context,
+                        result.Success ? "information" : "warning",
+                        "pairing",
+                        "deny",
+                        result.Success ? "denied" : "not-found",
+                        details: new Dictionary<string, string>
+                        {
+                            ["message"] = result.Message
+                        });
                     context.Response.StatusCode = result.Success ? StatusCodes.Status200OK : StatusCodes.Status404NotFound;
                     context.Response.ContentType = "application/json";
                     await context.Response.WriteAsync(JsonSerializer.Serialize(result));
@@ -1208,25 +1343,6 @@ namespace PhoneMonitor.Host
             }
 
             return context.Request.Cookies[DeviceTrustService.LegacyCookieName];
-        }
-
-        private static string GetProductVersion()
-        {
-            try
-            {
-                var version = typeof(Startup).Assembly.GetName().Version;
-                if (version == null)
-                {
-                    return "0.0.0";
-                }
-
-                // Assembly version is Major.Minor.Build.Revision; product stamps three-part.
-                return $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}";
-            }
-            catch
-            {
-                return "0.0.0";
-            }
         }
 
         private static string GetRemoteAddress(HttpContext context)

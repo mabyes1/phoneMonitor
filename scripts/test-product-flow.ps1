@@ -45,7 +45,6 @@ if ($Source) {
         "scripts\uninstall-windows-product.ps1",
         "scripts\package-windows-setup.ps1",
         "scripts\package-windows-notifications.ps1",
-        "packaging\windows-setup\Stop-VibeDeck-Host.ps1",
         "scripts\test-product-flow.ps1"
     )) {
         $path = Join-Path $repoRoot $relative
@@ -77,23 +76,18 @@ if ($Payload) {
     foreach ($relative in @(
         "VibeDeck.Host.exe",
         "product-install.json",
-        "Open-VibeDeck.cmd",
-        "Open-VibeDeck.vbs",
-        "Start-VibeDeck-Host.vbs",
+        "vibedeck.ico",
         "wwwroot\index.html",
         "wwwroot\index.js",
         "Installers\install-virtual-display.ps1"
     )) {
         Assert-Product (Test-Path -LiteralPath (Join-Path $PayloadPath $relative)) "Payload is missing $relative."
     }
-    $launcher = Get-Content (Join-Path $PayloadPath "Open-VibeDeck.cmd") -Raw
-    Assert-Product ($launcher -notmatch "sc\s+(query|start)|net\s+start") "Payload launcher still starts the legacy Windows Service."
-    $openLauncher = Get-Content (Join-Path $PayloadPath "Open-VibeDeck.vbs") -Raw
-    Assert-Product ($openLauncher -notmatch "Open-VibeDeck\.cmd") "Product launcher still routes through a visible Command Prompt path."
-    Assert-Product ($openLauncher -match "WinHttp\.WinHttpRequest\.5\.1") "Product launcher does not wait for the Host without a console window."
-    $cscript = Join-Path $env:WINDIR "System32\cscript.exe"
-    & $cscript //nologo (Join-Path $PayloadPath "Open-VibeDeck.vbs") /check
-    Assert-Product ($LASTEXITCODE -eq 0) "Product launcher VBScript syntax check failed."
+    foreach ($legacyLauncher in @("Open-VibeDeck.cmd", "Open-VibeDeck.vbs", "Start-VibeDeck-Host.vbs")) {
+        Assert-Product (-not (Test-Path -LiteralPath (Join-Path $PayloadPath $legacyLauncher))) "Payload still contains legacy launcher: $legacyLauncher"
+    }
+    $projectText = Get-Content $project -Raw
+    Assert-Product ($projectText -match "<OutputType>WinExe</OutputType>") "Host must be a native Windows background application."
     Assert-Product (-not (Get-ChildItem (Join-Path $PayloadPath "wwwroot") -Recurse -File -Include "*.apk","*.ipa" -ErrorAction SilentlyContinue)) "Payload contains a native mobile package."
 }
 

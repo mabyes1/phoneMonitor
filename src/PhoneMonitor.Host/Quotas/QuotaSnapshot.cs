@@ -22,6 +22,8 @@ namespace PhoneMonitor.Host.Quotas
         public string Source { get; set; }
         public string Detail { get; set; }
         public DateTimeOffset? ObservedAt { get; set; }
+        public double? CreditBalance { get; set; }
+        public bool? CreditUnlimited { get; set; }
         public QuotaWindow Primary { get; set; }
         public QuotaWindow Secondary { get; set; }
     }

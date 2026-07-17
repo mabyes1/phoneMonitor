@@ -173,15 +173,6 @@ if ($LASTEXITCODE -ne 0) {
 
 # Product marker forces ProgramData data paths + installed layout detection
 Copy-Item -LiteralPath (Join-Path $packagingDir "product-install.json") -Destination $payloadRoot -Force
-Copy-Item -LiteralPath (Join-Path $packagingDir "Open-VibeDeck.cmd") -Destination $payloadRoot -Force
-$openVbs = Join-Path $packagingDir "Open-VibeDeck.vbs"
-if (Test-Path -LiteralPath $openVbs) {
-    Copy-Item -LiteralPath $openVbs -Destination $payloadRoot -Force
-}
-$hostVbs = Join-Path $packagingDir "Start-VibeDeck-Host.vbs"
-if (Test-Path -LiteralPath $hostVbs) {
-    Copy-Item -LiteralPath $hostVbs -Destination $payloadRoot -Force
-}
 if (Test-Path -LiteralPath $iconPath) {
     Copy-Item -LiteralPath $iconPath -Destination $payloadRoot -Force
 }

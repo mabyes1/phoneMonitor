@@ -50,8 +50,12 @@ Known fields:
 - `secondary.used_percent`
 - `secondary.window_minutes`
 - `secondary.resets_at`
+- `credits.balance`
+- `credits.unlimited`
 
 This is not a direct account API call, but it is independent and good enough for the first quota page because it reflects the latest quota snapshot Codex itself received.
+
+When present, VibeDeck shows the latest `credits.balance` on the Codex quota card, rounded to two decimals. This is a locally observed Codex session snapshot, not a billing API; the timestamp on the card identifies when it was last received.
 
 Codex multi-account discovery does not read `.cockpit_codex_auth*`. PhoneMonitor only trusts Codex-owned session/auth data and its own normalized quota cache.
 
