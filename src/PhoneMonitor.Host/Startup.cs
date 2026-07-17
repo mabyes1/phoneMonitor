@@ -1203,7 +1203,7 @@ namespace PhoneMonitor.Host
             await context.Response.WriteAsync(BuildAgyOAuthCallbackHtml(result));
         }
 
-        private static string BuildAgyOAuthCallbackHtml(AiQuotaService.AgyOAuthCallbackResult result)
+        private static string BuildAgyOAuthCallbackHtml(AgyQuotaService.AgyOAuthCallbackResult result)
         {
             var title = result.Success ? "AGY sign-in complete" : "AGY sign-in failed";
             var message = WebUtility.HtmlEncode(result.Message ?? title);
