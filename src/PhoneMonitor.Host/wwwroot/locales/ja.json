@@ -45,12 +45,48 @@
     "updateInProgress": "更新を準備しています…",
     "tryAgain": "再試行"
   },
+  "secureEndpoint": {
+    "title": "VibeDeck の安全な URL",
+    "localScanTitle": "スマートフォンで QR コードを読み取る",
+    "localScanHint": "スマホのカメラで左の QR コードを読み取り、この PC の HTTPS ページを開きます。",
+    "localWarningTitle": "初回警告を許可する",
+    "localWarningHint": "「危険なページ」または「接続はプライベートではありません」と表示されたら、「詳細設定」→「続行」を選びます。",
+    "statusPending": "まだ有効ではありません。Cloudflare Tunnel を作成した後、{url} を入力してください。",
+    "statusEnabled": "信頼済み HTTPS が有効です。QR コードを読み取ってもブラウザー警告は表示されません。",
+    "installationId": "インストール ID",
+    "urlLabel": "この PC の安全な URL",
+    "urlPlaceholder": "https://vd-…vibedeck.pp.ua/",
+    "save": "安全な URL を保存",
+    "clear": "安全な URL を無効化",
+    "manualHint": "最初の Tunnel 設定時だけ使用します。将来の VibeDeck では自動設定されます。",
+    "connectHint": "VibeDeck の安全な URL を使用しています。直接読み取ってペアリングでき、ブラウザー警告や証明書のインストールは不要です。",
+    "scanHint": "左の QR コードを読み取り、安全なページを直接開きます。",
+    "pairTitle": "この PC に接続",
+    "pairHint": "スマホで「この PC に接続」を押し、PC で確認コードを照合します。",
+    "qrScan": "スマホで読み取って安全なページを開き、「この PC に接続」を押します。",
+    "pairPrompt": "スマホで QR コードを読み取り、「この PC に接続」を押してから PC で確認コードを照合します。",
+    "iosPair": "安全な URL の準備ができました。PC でペアリングした後、このページをホーム画面に追加してください。",
+    "phoneUrl": "スマホ用の安全な URL：{url}",
+    "linkUrl": "VibeDeck の安全な URL：{url}",
+    "saveBusy": "保存中…",
+    "saved": "安全な URL を保存しました。QR コードを読み取り直すと信頼済み HTTPS を使用できます。",
+    "cleared": "安全な URL を無効化しました。QR コードはローカル接続に戻りました。",
+    "saveFailed": "安全な URL を保存できません。",
+    "clearFailed": "安全な URL を無効化できません。"
+  },
   "api": {
     "auth": {
       "https_required": "リモートログインには HTTPS が必要です。",
       "password_not_configured": "リモートパスワードログインは有効になっていません。",
       "rate_limited": "ログイン試行が多すぎます。しばらくしてから再試行してください。",
       "invalid_password": "パスワードが正しくありません。"
+    },
+    "public_endpoint": {
+      "invalid_url": "完全な HTTPS の安全な URL を入力してください。",
+      "https_required": "安全な URL には HTTPS が必要です。",
+      "invalid_shape": "安全な URL にアカウント、ポート、パス、クエリ、フラグメントは指定できません。",
+      "unexpected_host": "安全な URL はこの PC に表示されている URL と完全に一致する必要があります。",
+      "persistence_failed": "安全な URL を保存できません。VibeDeck データフォルダーの権限を確認してもう一度お試しください。"
     },
     "display": {
       "ready": "作成を押すと Windows が管理者の確認を一度表示します。",

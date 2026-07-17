@@ -19,6 +19,10 @@ namespace PhoneMonitor.Host.Connect
         public string RootCertificateUrl { get; set; }
         public string HostCertificateUrl { get; set; }
         public string HttpsSetupHint { get; set; }
+        public string PublicUrl { get; set; }
+        public string InstallationId { get; set; }
+        public string PublicBaseDomain { get; set; }
+        public bool UsesTrustedPublicUrl { get; set; }
         public bool IsHttpsRequest { get; set; }
         public bool WakeLockNeedsHttps { get; set; }
         public IReadOnlyList<string> Addresses { get; set; }

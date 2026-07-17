@@ -13,7 +13,25 @@ namespace PhoneMonitor.Host.Connect
     {
         private const int HttpPort = 5000;
         private const int HttpsPort = 5443;
+
+        private readonly PublicEndpointService publicEndpoint;
+
+        public ConnectInfoProvider(PublicEndpointService publicEndpoint)
+        {
+            this.publicEndpoint = publicEndpoint;
+        }
+
         public ConnectInfo Get(HttpRequest request)
+        {
+            return Get(request, false);
+        }
+
+        public ConnectInfo Get(HttpContext context)
+        {
+            return Get(context.Request, publicEndpoint?.IsTrustedPublicRequest(context) == true);
+        }
+
+        private ConnectInfo Get(HttpRequest request, bool hideLanAddresses)
         {
             var addresses = GetLanAddresses().ToList();
             var primaryAddress = addresses.FirstOrDefault() ?? "127.0.0.1";
@@ -24,30 +42,42 @@ namespace PhoneMonitor.Host.Connect
             var localNameHttpUrl = $"http://{localNameHost}:{HttpPort}/";
             var rootCertificateUrl = new Uri(new Uri(httpUrl), "cert/vibedeck-root.cer").ToString();
             var hostCertificateUrl = new Uri(new Uri(httpUrl), "cert/vibedeck-host.cer").ToString();
-            var httpsAvailable = LocalHttpsCertificate.IsConfigured;
-            var preferredUrl = httpsAvailable ? httpsUrl : httpUrl;
+            var endpoint = publicEndpoint?.GetConfiguration() ?? new PublicEndpointConfiguration();
+            var usesTrustedPublicUrl = endpoint.IsConfigured;
+            var localHttpsAvailable = LocalHttpsCertificate.IsConfigured;
+            var httpsAvailable = usesTrustedPublicUrl || localHttpsAvailable;
+            var preferredUrl = usesTrustedPublicUrl
+                ? endpoint.PublicUrl
+                : localHttpsAvailable ? httpsUrl : httpUrl;
+            var canonicalHttpsUrl = usesTrustedPublicUrl ? endpoint.PublicUrl : httpsUrl;
             return new ConnectInfo
             {
                 HostName = Dns.GetHostName(),
-                PrimaryAddress = primaryAddress,
+                PrimaryAddress = hideLanAddresses ? string.Empty : primaryAddress,
                 PrettyHostName = localNameHost,
                 PrettyHttpsUrl = localNameHttpsUrl,
                 PrettyHttpUrl = localNameHttpUrl,
                 LocalNameHost = localNameHost,
                 LocalNameHttpsUrl = localNameHttpsUrl,
                 LocalNameHttpUrl = localNameHttpUrl,
-                HttpsUrl = httpsUrl,
+                HttpsUrl = canonicalHttpsUrl,
                 HttpUrl = httpUrl,
                 PreferredUrl = preferredUrl,
                 HttpsAvailable = httpsAvailable,
-                RootCertificateUrl = rootCertificateUrl,
-                HostCertificateUrl = hostCertificateUrl,
-                HttpsSetupHint = httpsAvailable
+                RootCertificateUrl = usesTrustedPublicUrl ? null : rootCertificateUrl,
+                HostCertificateUrl = usesTrustedPublicUrl ? null : hostCertificateUrl,
+                HttpsSetupHint = usesTrustedPublicUrl
+                    ? "Open the VibeDeck secure URL. No browser warning or certificate installation is required."
+                    : localHttpsAvailable
                     ? "Open the HTTPS URL and continue past the browser's first-use certificate warning."
                     : "Restart VibeDeck Host so it can mint a local HTTPS certificate on port 5443.",
+                PublicUrl = endpoint.PublicUrl,
+                InstallationId = endpoint.InstallationId,
+                PublicBaseDomain = endpoint.BaseDomain,
+                UsesTrustedPublicUrl = usesTrustedPublicUrl,
                 IsHttpsRequest = request.IsHttps,
                 WakeLockNeedsHttps = !request.IsHttps,
-                Addresses = addresses
+                Addresses = hideLanAddresses ? Array.Empty<string>() : addresses
             };
         }
 

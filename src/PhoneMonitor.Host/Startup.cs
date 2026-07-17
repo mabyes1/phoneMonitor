@@ -14,6 +14,7 @@ using System.Threading;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -44,6 +45,17 @@ namespace PhoneMonitor.Host
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                    ForwardedHeaders.XForwardedProto |
+                    ForwardedHeaders.XForwardedHost;
+                options.ForwardLimit = 1;
+                options.KnownNetworks.Clear();
+                options.KnownProxies.Clear();
+                options.KnownProxies.Add(IPAddress.Loopback);
+                options.KnownProxies.Add(IPAddress.IPv6Loopback);
+            });
             services.AddSingleton<DisplayCatalog>();
             services.AddSingleton<DisplayFrameSource>();
             services.AddSingleton<H264StreamMetrics>();
@@ -55,12 +67,13 @@ namespace PhoneMonitor.Host
             services.AddSingleton<DisplayModeController>();
             services.AddSingleton<VirtualDisplayController>();
             services.AddSingleton<VirtualDisplayInstaller>();
-            services.AddSingleton<ConnectInfoProvider>();
             services.AddSingleton<GlanceBoardProxy>();
             services.AddSingleton<AiQuotaService>();
             services.AddSingleton<DashboardEventHub>();
             services.AddSingleton<DashboardLayoutService>();
             services.AddSingleton<AuditTrailService>();
+            services.AddSingleton<PublicEndpointService>();
+            services.AddSingleton<ConnectInfoProvider>();
             services.AddHostedService<DashboardChangeMonitor>();
             services.AddSingleton(sp =>
             {
@@ -99,6 +112,15 @@ namespace PhoneMonitor.Host
                     ["installed"] = AppPaths.IsInstalledLayout ? "true" : "false",
                     ["dataRoot"] = AppPaths.DataRoot
                 });
+
+            // Only a local connector may supply X-Forwarded-* data. Preserve the
+            // socket peer before Forwarded Headers replaces it with the phone IP.
+            app.Use(async (context, next) =>
+            {
+                context.Items[PublicEndpointService.OriginalRemoteAddressItemKey] = context.Connection.RemoteIpAddress;
+                await next();
+            });
+            app.UseForwardedHeaders();
 
             app.Use(async (context, next) =>
             {
@@ -277,7 +299,91 @@ namespace PhoneMonitor.Host
                 {
                     var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
                     context.Response.ContentType = "application/json";
-                    await context.Response.WriteAsync(JsonSerializer.Serialize(provider.Get(context.Request)));
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(provider.Get(context)));
+                });
+
+                endpoints.MapPost("/api/connect/public-endpoint", async context =>
+                {
+                    if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context))
+                    {
+                        return;
+                    }
+
+                    var request = await ReadJsonBodyOrDefaultAsync<PublicEndpointRequest>(context)
+                        ?? new PublicEndpointRequest();
+                    var endpointsService = context.RequestServices.GetRequiredService<PublicEndpointService>();
+                    try
+                    {
+                        var configured = endpointsService.Configure(request.PublicUrl);
+                        WriteAudit(
+                            context,
+                            "information",
+                            "public-endpoint",
+                            "configure",
+                            "completed",
+                            configured.InstallationId,
+                            new Dictionary<string, string>
+                            {
+                                ["host"] = $"{configured.InstallationId}.{configured.BaseDomain}"
+                            });
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(configured));
+                    }
+                    catch (PublicEndpointException error)
+                    {
+                        WriteAudit(
+                            context,
+                            "warning",
+                            "public-endpoint",
+                            "configure",
+                            "rejected",
+                            details: new Dictionary<string, string>
+                            {
+                                ["message"] = error.Message
+                            });
+                        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = error.Message, code = error.Code }));
+                    }
+                });
+
+                endpoints.MapDelete("/api/connect/public-endpoint", async context =>
+                {
+                    if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context))
+                    {
+                        return;
+                    }
+
+                    var endpointsService = context.RequestServices.GetRequiredService<PublicEndpointService>();
+                    try
+                    {
+                        var cleared = endpointsService.Clear();
+                        WriteAudit(
+                            context,
+                            "warning",
+                            "public-endpoint",
+                            "clear",
+                            "completed",
+                            cleared.InstallationId);
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(cleared));
+                    }
+                    catch (PublicEndpointException error)
+                    {
+                        WriteAudit(
+                            context,
+                            "error",
+                            "public-endpoint",
+                            "clear",
+                            "failed",
+                            details: new Dictionary<string, string>
+                            {
+                                ["message"] = error.Message
+                            });
+                        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                        context.Response.ContentType = "application/json";
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = error.Message, code = error.Code }));
+                    }
                 });
 
                 endpoints.MapGet("/api/stream/capabilities", async context =>
@@ -386,7 +492,7 @@ namespace PhoneMonitor.Host
                 endpoints.MapGet("/qr.svg", async context =>
                 {
                     var provider = context.RequestServices.GetRequiredService<ConnectInfoProvider>();
-                    var connectInfo = provider.Get(context.Request);
+                    var connectInfo = provider.Get(context);
                     var phonePageUrl = new Uri(new Uri(connectInfo.PreferredUrl), "index.html").ToString();
                     await WriteQrSvgAsync(context, phonePageUrl);
                 });
@@ -734,8 +840,7 @@ namespace PhoneMonitor.Host
 
                 endpoints.MapPost("/api/devices/pairing/request", async context =>
                 {
-                    if (!await RequirePrivateLanRequestAsync(context)) return;
-                    if (!await RequireHttpsPairingAsync(context)) return;
+                    if (!await RequirePairingTransportAsync(context)) return;
                     var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalStartRequest>(context)
                         ?? new PairingApprovalStartRequest();
                     var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
@@ -783,8 +888,7 @@ namespace PhoneMonitor.Host
 
                 endpoints.MapPost("/api/devices/pairing/poll", async context =>
                 {
-                    if (!await RequirePrivateLanRequestAsync(context)) return;
-                    if (!await RequireHttpsPairingAsync(context)) return;
+                    if (!await RequirePairingTransportAsync(context)) return;
                     var request = await ReadJsonBodyOrDefaultAsync<PairingApprovalPollRequest>(context)
                         ?? new PairingApprovalPollRequest();
                     var devices = context.RequestServices.GetRequiredService<DeviceTrustService>();
@@ -1202,15 +1306,29 @@ namespace PhoneMonitor.Host
             return false;
         }
 
-        private static async Task<bool> RequirePrivateLanRequestAsync(HttpContext context)
+        private static async Task<bool> RequirePairingTransportAsync(HttpContext context)
+        {
+            if (IsPrivateLanRequest(context) ||
+                context.RequestServices.GetRequiredService<PublicEndpointService>().IsTrustedPublicRequest(context))
+            {
+                return await RequireHttpsPairingAsync(context);
+            }
+
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(JsonSerializer.Serialize(new
+            {
+                error = "Pairing is only available on the local network or through this PC's configured VibeDeck secure URL."
+            }));
+            return false;
+        }
+
+        private static bool IsPrivateLanRequest(HttpContext context)
         {
             var address = context.Connection.RemoteIpAddress;
             if (address != null && address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
-            if (address != null && (IPAddress.IsLoopback(address) || IsLocalMachineAddress(address) || IsPrivateIpv4(address))) return true;
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            context.Response.ContentType = "application/json";
-            await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = "Pairing is only available on the local network." }));
-            return false;
+            return address != null &&
+                (IPAddress.IsLoopback(address) || IsLocalMachineAddress(address) || IsPrivateIpv4(address));
         }
 
         private static async Task<bool> RequireHttpsPairingAsync(HttpContext context)
@@ -1503,5 +1621,10 @@ namespace PhoneMonitor.Host
     {
         public string AccountId { get; set; }
         public string Email { get; set; }
+    }
+
+    public sealed class PublicEndpointRequest
+    {
+        public string PublicUrl { get; set; }
     }
 }

@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=94">
+  <link rel="stylesheet" href="/index.css?v=96">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -256,13 +256,13 @@
         <div class="pairing-guide" aria-label="手機配對流程">
           <div id="pairingStepInstall" class="pairing-step active">
             <b>1</b>
-            <strong>手機掃描 QR Code</strong>
-            <span>用相機掃描左側 QR Code，開啟這台電腦的 HTTPS 頁面。</span>
+            <strong id="pairingStepInstallTitle" data-i18n="secureEndpoint.localScanTitle">手機掃描 QR Code</strong>
+            <span id="pairingStepInstallHint" data-i18n="secureEndpoint.localScanHint">用相機掃描左側 QR Code，開啟這台電腦的 HTTPS 頁面。</span>
           </div>
           <div id="pairingStepPair" class="pairing-step">
             <b>2</b>
-            <strong>接受首次警告</strong>
-            <span>若顯示「危險網頁」或「連線不是私人連線」，按「進階」→「繼續前往」。</span>
+            <strong id="pairingStepPairTitle" data-i18n="secureEndpoint.localWarningTitle">接受首次警告</strong>
+            <span id="pairingStepPairHint" data-i18n="secureEndpoint.localWarningHint">若顯示「危險網頁」或「連線不是私人連線」，按「進階」→「繼續前往」。</span>
           </div>
           <div id="pairingStepOpen" class="pairing-step">
             <b>3</b>
@@ -287,10 +287,22 @@
             <a id="prettyLink" href="#"></a>
             <a id="httpsLink" href="#"></a>
             <a id="httpLink" href="#"></a>
-            <span class="advanced-cert-title">進階：不想再看到瀏覽器警告</span>
+            <span id="certificateSetupTitle" class="advanced-cert-title">進階：不想再看到瀏覽器警告</span>
             <a id="httpsCertLink" href="#" hidden>安裝 HTTPS 憑證</a>
             <a id="androidCertLink" href="#" hidden>Android / BOOX 安裝 CA 憑證</a>
             <p id="androidCertHelp" class="certificate-install-help" hidden>只有進階使用者需要：Android / BOOX 下載後請選「CA 憑證」；一般使用者直接在警告頁按「進階」→「繼續前往」即可。</p>
+            <section id="publicEndpointPanel" class="public-endpoint-panel" hidden>
+              <span class="advanced-cert-title" data-i18n="secureEndpoint.title">VibeDeck 安全網址</span>
+              <p id="publicEndpointStatus" class="public-endpoint-status" aria-live="polite"></p>
+              <p class="public-endpoint-id"><span data-i18n="secureEndpoint.installationId">安裝代號</span>：<code id="publicEndpointInstallationId">--</code></p>
+              <label for="publicEndpointUrl" data-i18n="secureEndpoint.urlLabel">此電腦的安全網址</label>
+              <div class="public-endpoint-controls">
+                <input id="publicEndpointUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" data-i18n-attr="placeholder:secureEndpoint.urlPlaceholder" placeholder="https://vd-…vibedeck.pp.ua/">
+                <button id="savePublicEndpoint" type="button" data-i18n="secureEndpoint.save">儲存安全網址</button>
+                <button id="clearPublicEndpoint" type="button" hidden data-i18n="secureEndpoint.clear">停用安全網址</button>
+              </div>
+              <small data-i18n="secureEndpoint.manualHint">首次 Tunnel 設定使用；日後正式版將由 VibeDeck 自動完成。</small>
+            </section>
           </div>
         </details>
           </div>
@@ -730,6 +742,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=102"></script>
+  <script type="module" src="/index.js?v=104"></script>
 </body>
 </html>

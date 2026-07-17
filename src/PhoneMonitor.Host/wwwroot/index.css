@@ -1464,6 +1464,59 @@ body.eink-client .quota-page-button {
       font-weight: 700;
     }
 
+    .public-endpoint-panel {
+      display: grid;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .public-endpoint-panel label,
+    .public-endpoint-panel small,
+    .public-endpoint-status,
+    .public-endpoint-id {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .public-endpoint-status,
+    .public-endpoint-id {
+      margin: 0;
+    }
+
+    .public-endpoint-id code {
+      color: #dce7f4;
+      font-size: 12px;
+      user-select: all;
+    }
+
+    .public-endpoint-controls {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 6px;
+    }
+
+    .public-endpoint-controls input {
+      min-width: 0;
+      min-height: 34px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 6px;
+      padding: 6px 8px;
+      color: #eef6ff;
+      background: rgba(0,0,0,.22);
+      font: inherit;
+      font-size: 12px;
+    }
+
+    .public-endpoint-controls button {
+      min-height: 34px;
+      white-space: nowrap;
+    }
+
+    body.phone-client .public-endpoint-panel {
+      display: none !important;
+    }
+
     .connect-copy a {
       color: var(--blue);
       overflow-wrap: anywhere;
@@ -2762,6 +2815,7 @@ body.eink-client .quota-page-button {
 
     body.pc-console.mode-setup header {
       align-content: start;
+      grid-auto-rows: max-content;
       overflow-x: hidden;
       overflow-y: auto;
     }
@@ -4193,6 +4247,23 @@ body.pc-console.pairing-active .connect-status {
 
 body.pc-console.pairing-active #httpsCertLink {
   display: inline-flex !important;
+}
+
+body.trusted-public-endpoint #certificateSetupTitle,
+body.trusted-public-endpoint #httpsCertLink,
+body.trusted-public-endpoint #androidCertLink,
+body.trusted-public-endpoint #androidCertHelp {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .public-endpoint-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .public-endpoint-controls input {
+    grid-column: 1 / -1;
+  }
 }
 
 body.pc-console.pairing-active .connect-links {

@@ -98,6 +98,21 @@ function Resolve-PackageVersion {
     return $version.ToString(4)
 }
 
+function Assert-GuiExecutable([string]$path) {
+    $bytes = [System.IO.File]::ReadAllBytes($path)
+    $peOffset = [System.BitConverter]::ToInt32($bytes, 0x3c)
+    $optionalHeaderOffset = $peOffset + 24
+    $magic = [System.BitConverter]::ToUInt16($bytes, $optionalHeaderOffset)
+    if ($magic -notin 0x10b, 0x20b) {
+        throw "Notification companion is not a valid Windows executable: $path"
+    }
+
+    $subsystem = [System.BitConverter]::ToUInt16($bytes, $optionalHeaderOffset + 68)
+    if ($subsystem -ne 2) {
+        throw "Notification companion must be a Windows GUI executable, but subsystem $subsystem was built: $path"
+    }
+}
+
 if ($Uninstall) {
     $package = Get-AppxPackage -Name "PhoneMonitor.Dev" -ErrorAction SilentlyContinue
     if ($package) {
@@ -146,6 +161,7 @@ Move-Item -LiteralPath $packagedHostExe -Destination $companionExe -Force
 if (Test-Path -LiteralPath (Join-Path $packageRoot "wwwroot")) { throw "Notification package still contains the Host web application." }
 if (Test-Path -LiteralPath (Join-Path $packageRoot "Installers")) { throw "Notification package still contains product installers." }
 if (-not (Test-Path -LiteralPath $companionExe)) { throw "Notification companion executable is missing after packaging." }
+Assert-GuiExecutable $companionExe
 
 $makeAppx = Find-WindowsKitTool "makeappx.exe"
 $signtool = Find-WindowsKitTool "signtool.exe"

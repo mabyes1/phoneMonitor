@@ -74,6 +74,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     const httpsCertLink = document.getElementById("httpsCertLink");
     const androidCertLink = document.getElementById("androidCertLink");
     const androidCertHelp = document.getElementById("androidCertHelp");
+    const certificateSetupTitle = document.getElementById("certificateSetupTitle");
+    const publicEndpointPanel = document.getElementById("publicEndpointPanel");
+    const publicEndpointStatus = document.getElementById("publicEndpointStatus");
+    const publicEndpointInstallationId = document.getElementById("publicEndpointInstallationId");
+    const publicEndpointUrl = document.getElementById("publicEndpointUrl");
+    const savePublicEndpoint = document.getElementById("savePublicEndpoint");
+    const clearPublicEndpoint = document.getElementById("clearPublicEndpoint");
     const httpLink = document.getElementById("httpLink");
     const pairPhone = document.getElementById("pairPhone");
     const phonePairRequest = document.getElementById("phonePairRequest");
@@ -81,6 +88,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     const pairingStepInstall = document.getElementById("pairingStepInstall");
     const pairingStepPair = document.getElementById("pairingStepPair");
     const pairingStepOpen = document.getElementById("pairingStepOpen");
+    const pairingStepInstallTitle = document.getElementById("pairingStepInstallTitle");
+    const pairingStepInstallHint = document.getElementById("pairingStepInstallHint");
+    const pairingStepPairTitle = document.getElementById("pairingStepPairTitle");
+    const pairingStepPairHint = document.getElementById("pairingStepPairHint");
     const trustState = document.getElementById("trustState");
     const streamCapabilityState = document.getElementById("streamCapabilityState");
     const trustedDevicesPanel = document.getElementById("trustedDevicesPanel");
@@ -360,6 +371,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     let deviceTrusted = false;
     let deviceLocalRequest = false;
     let pairingQrActive = false;
+    let usesTrustedPublicUrl = false;
     let resolvedPairingInfo = null;
     let quotaSnapshotData = null;
     // Keep the initial quota view consistent across phone and E Ink clients.
@@ -594,6 +606,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       document.body.classList.toggle("device-trusted", Boolean(deviceTrusted) && !localConsole);
       document.body.classList.toggle("pc-console", localConsole);
       document.body.classList.toggle("standalone-app", isStandaloneApp());
+      if (publicEndpointPanel) publicEndpointPanel.hidden = !localConsole;
       const pairingRescue = document.getElementById("phonePairRescue");
       if (pairingRescue) pairingRescue.hidden = !phoneClient || Boolean(deviceTrusted);
       customCardsController?.syncAccess?.();
@@ -607,6 +620,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       if (!tip) return;
       tip.classList.toggle("show-install", isIos() && !isStandaloneApp());
       if (!isIos()) return;
+      if (usesTrustedPublicUrl && !deviceTrusted) {
+        tip.textContent = t("secureEndpoint.iosPair");
+        return;
+      }
       if (location.protocol !== "https:") {
         tip.innerHTML = "iPhone 必須用 <strong>HTTPS</strong>。第一次警告請按進階並繼續前往。";
         return;
@@ -820,9 +837,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       const isSetup = mode === "setup";
       const isSideboard = mode === "sideboard";
       const isQuota = mode === "quota";
+      const isDisplay = !isSetup && !isSideboard && !isQuota;
       // A leftover "paired" toast must never sit on top of the display stream.
       if (!isSideboard && !isQuota) hidePairSuccessBanner();
-      document.body.classList.toggle("mode-display", !isSetup && !isSideboard && !isQuota);
+      document.body.classList.toggle("mode-display", isDisplay);
       document.body.classList.toggle("mode-setup", isSetup);
       document.body.classList.toggle("mode-sideboard", isSideboard);
       document.body.classList.toggle("mode-quota", isQuota);
@@ -831,10 +849,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         displaySettingsToggle?.setAttribute("aria-expanded", "false");
         if (displaySettingsToggle) displaySettingsToggle.textContent = "顯示設定";
       }
-      displayView.classList.toggle("active", !isSetup && !isSideboard && !isQuota);
+      displayView.classList.toggle("active", isDisplay);
       sideboardView.classList.toggle("active", isSideboard);
       quotaView.classList.toggle("active", isQuota);
-      displayMode.classList.toggle("active", !isSetup && !isSideboard && !isQuota);
+      displayMode.classList.toggle("active", isDisplay);
       setupMode?.classList.toggle("active", isSetup);
       sideboardMode.classList.toggle("active", isSideboard);
       quotaMode.classList.toggle("active", isQuota);
@@ -860,8 +878,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         if (document.body.classList.contains("viewer-fullscreen")) {
           exitLandscapeViewer();
         }
-      } else if (isIos() && deviceTrusted && !deviceLocalRequest) {
-        // iPhone display mode: keep stream connected; user taps image for fullscreen.
+      } else if (isDisplay && selectedDisplayName && canUseProtectedConnection()) {
         connectVideo();
       }
     }
@@ -1007,14 +1024,112 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     function updatePairingGuide(state) {
       const normalized = state || "pair";
       setPairingStep(pairingStepInstall, normalized === "pair" || normalized === "scan" ? "active" : "done");
-      setPairingStep(pairingStepPair, normalized === "warning" ? "active" : normalized === "approve" || normalized === "paired" ? "done" : "");
+      const publicPairStepActive = usesTrustedPublicUrl && (normalized === "pair" || normalized === "scan");
+      setPairingStep(
+        pairingStepPair,
+        usesTrustedPublicUrl
+          ? publicPairStepActive ? "active" : normalized === "approve" || normalized === "paired" ? "done" : ""
+          : normalized === "warning" ? "active" : normalized === "approve" || normalized === "paired" ? "done" : ""
+      );
       setPairingStep(pairingStepOpen, normalized === "approve" ? "active" : normalized === "paired" ? "done" : "");
       if (normalized === "paired") {
         qrCaption.textContent = tLegacy("手機已配對，可以直接使用 VibeDeck。");
       } else if (normalized === "approve") {
         qrCaption.textContent = tLegacy("手機申請已送達；請核對驗證碼並按「允許」。");
       } else {
-        qrCaption.textContent = tLegacy("手機掃碼；若出現瀏覽器警告，按「進階」→「繼續前往」。");
+        qrCaption.textContent = usesTrustedPublicUrl
+          ? t("secureEndpoint.qrScan")
+          : tLegacy("手機掃碼；若出現瀏覽器警告，按「進階」→「繼續前往」。");
+      }
+    }
+
+    function updatePublicEndpointUi(info) {
+      const publicUrl = String(info.PublicUrl || info.publicUrl || "").trim();
+      const installationId = String(info.InstallationId || info.installationId || "").trim();
+      const baseDomain = String(info.PublicBaseDomain || info.publicBaseDomain || "").trim();
+      const expectedUrl = installationId && baseDomain
+        ? `https://${installationId}.${baseDomain}/`
+        : "";
+      usesTrustedPublicUrl = Boolean(info.UsesTrustedPublicUrl ?? info.usesTrustedPublicUrl) && Boolean(publicUrl);
+      document.body.classList.toggle("trusted-public-endpoint", usesTrustedPublicUrl);
+
+      if (pairingStepInstallTitle) {
+        pairingStepInstallTitle.textContent = t("secureEndpoint.localScanTitle");
+      }
+      if (pairingStepInstallHint) {
+        pairingStepInstallHint.textContent = usesTrustedPublicUrl
+          ? t("secureEndpoint.scanHint")
+          : t("secureEndpoint.localScanHint");
+      }
+      if (pairingStepPairTitle) {
+        pairingStepPairTitle.textContent = usesTrustedPublicUrl
+          ? t("secureEndpoint.pairTitle")
+          : t("secureEndpoint.localWarningTitle");
+      }
+      if (pairingStepPairHint) {
+        pairingStepPairHint.textContent = usesTrustedPublicUrl
+          ? t("secureEndpoint.pairHint")
+          : t("secureEndpoint.localWarningHint");
+      }
+
+      if (publicEndpointInstallationId) {
+        publicEndpointInstallationId.textContent = installationId || "--";
+      }
+      if (publicEndpointUrl && document.activeElement !== publicEndpointUrl) {
+        publicEndpointUrl.value = publicUrl;
+        publicEndpointUrl.placeholder = expectedUrl || t("secureEndpoint.urlPlaceholder");
+      }
+      if (publicEndpointStatus) {
+        publicEndpointStatus.textContent = usesTrustedPublicUrl
+          ? t("secureEndpoint.statusEnabled")
+          : t("secureEndpoint.statusPending", { url: expectedUrl || "--" });
+      }
+      if (clearPublicEndpoint) {
+        clearPublicEndpoint.hidden = !usesTrustedPublicUrl;
+      }
+      if (certificateSetupTitle) {
+        certificateSetupTitle.hidden = usesTrustedPublicUrl;
+      }
+      applyClientChrome();
+      updateIosHomeTip();
+    }
+
+    async function saveTrustedPublicEndpoint() {
+      if (!deviceLocalRequest || !publicEndpointUrl || !savePublicEndpoint) return;
+      const originalText = savePublicEndpoint.textContent;
+      savePublicEndpoint.disabled = true;
+      savePublicEndpoint.textContent = t("secureEndpoint.saveBusy");
+      try {
+        await fetchJsonOrThrow("/api/connect/public-endpoint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ publicUrl: publicEndpointUrl.value.trim() })
+        });
+        await loadConnectInfo();
+        showInstallQr();
+        setTrustState(t("secureEndpoint.saved"), true);
+      } catch (error) {
+        if (publicEndpointStatus) publicEndpointStatus.textContent = error.message || t("secureEndpoint.saveFailed");
+      } finally {
+        savePublicEndpoint.disabled = false;
+        savePublicEndpoint.textContent = originalText;
+      }
+    }
+
+    async function clearTrustedPublicEndpoint() {
+      if (!deviceLocalRequest || !clearPublicEndpoint) return;
+      const originalText = clearPublicEndpoint.textContent;
+      clearPublicEndpoint.disabled = true;
+      try {
+        await fetchJsonOrThrow("/api/connect/public-endpoint", { method: "DELETE" });
+        await loadConnectInfo();
+        showInstallQr();
+        setTrustState(t("secureEndpoint.cleared"), true);
+      } catch (error) {
+        if (publicEndpointStatus) publicEndpointStatus.textContent = error.message || t("secureEndpoint.clearFailed");
+      } finally {
+        clearPublicEndpoint.disabled = false;
+        clearPublicEndpoint.textContent = originalText;
       }
     }
 
@@ -1834,7 +1949,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       try {
         showInstallQr();
         setPairingUiActive(true);
-        setTrustState(tLegacy("請用手機掃描 QR Code；若出現警告，按「進階」→「繼續前往」，再於手機按「連接這台電腦」。"), true);
+        setTrustState(
+          usesTrustedPublicUrl
+            ? t("secureEndpoint.pairPrompt")
+            : tLegacy("請用手機掃描 QR Code；若出現警告，按「進階」→「繼續前往」，再於手機按「連接這台電腦」。"),
+          true
+        );
         setStatus("手機 QR Code 已顯示", true);
         updatePairingGuide("scan");
       } finally {
@@ -3498,19 +3618,25 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       const httpsAvailable = Boolean(info.HttpsAvailable ?? info.httpsAvailable);
       const rootCertificateUrl = info.RootCertificateUrl || info.rootCertificateUrl || "";
       const httpsSetupHint = info.HttpsSetupHint || info.httpsSetupHint || "";
+      const httpsUrl = info.HttpsUrl || info.httpsUrl || "";
+      const httpUrl = info.HttpUrl || info.httpUrl || "";
+      const publicUrl = info.PublicUrl || info.publicUrl || "";
+      updatePublicEndpointUi(info);
       if (!pairingQrActive) {
         showInstallQr();
       }
-      const httpsUrl = info.HttpsUrl || info.httpsUrl || "";
-      const httpUrl = info.HttpUrl || info.httpUrl || "";
       // HTTPS is the canonical phone URL; HTTP remains a local bootstrap fallback.
       prettyLink.href = httpsAvailable ? httpsUrl : (info.LocalNameHttpUrl || httpUrl);
       prettyLink.textContent = httpsAvailable
-        ? `手機請用：${httpsUrl}`
+        ? usesTrustedPublicUrl
+          ? t("secureEndpoint.phoneUrl", { url: publicUrl || httpsUrl })
+          : `手機請用：${httpsUrl}`
         : `本機：${info.LocalNameHttpUrl || httpUrl}`;
       httpsLink.href = httpsAvailable ? httpsUrl : "#";
       httpsLink.textContent = httpsAvailable
-        ? `HTTPS（推薦）：${httpsUrl}`
+        ? usesTrustedPublicUrl
+          ? t("secureEndpoint.linkUrl", { url: publicUrl || httpsUrl })
+          : `HTTPS（推薦）：${httpsUrl}`
         : `HTTPS 未就緒：${httpsSetupHint || "PC 執行 scripts\\setup-https.ps1"}`;
       httpsCertLink.hidden = !httpsAvailable || !rootCertificateUrl;
       httpsCertLink.href = rootCertificateUrl || "#";
@@ -3520,10 +3646,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       androidCertLink.href = androidCertificateUrl || "#";
       androidCertHelp.hidden = !httpsAvailable || !rootCertificateUrl;
       httpLink.href = httpUrl || "#";
+      httpLink.hidden = usesTrustedPublicUrl;
       httpLink.textContent = `HTTP（本機備援）：${httpUrl}`;
       const connectTitleHint = document.getElementById("connectTitleHint");
       if (connectTitleHint) {
-        connectTitleHint.textContent = tLegacy("不必安裝憑證。第一次開啟時，在瀏覽器警告頁按「進階」→「繼續前往」。");
+        connectTitleHint.textContent = usesTrustedPublicUrl
+          ? t("secureEndpoint.connectHint")
+          : tLegacy("不必安裝憑證。第一次開啟時，在瀏覽器警告頁按「進階」→「繼續前往」。");
       }
       const gateHttps = document.getElementById("mobileGateHttpsUrl");
       if (gateHttps && httpsUrl) {
@@ -3696,6 +3825,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     applyMode.addEventListener("click", applyDisplayMode);
     pairPhone?.addEventListener("click", () => {
       startPhonePairing();
+    });
+    savePublicEndpoint?.addEventListener("click", () => {
+      saveTrustedPublicEndpoint();
+    });
+    clearPublicEndpoint?.addEventListener("click", () => {
+      clearTrustedPublicEndpoint();
     });
     openNewDevicePanel?.addEventListener("click", () => {
       if (newDeviceConnectPanel) {
@@ -4033,7 +4168,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       });
       if (!isEinkClient()) {
         loadStreamCapabilities();
-        loadPhoneDisplay().then(loadDisplayStatus).finally(connectVideo);
+        loadPhoneDisplay().then(loadDisplayStatus).finally(() => {
+          if (activeMode === "display" && canUseProtectedConnection()) connectVideo();
+        });
         connectInput();
       }
       if (isIos()) {

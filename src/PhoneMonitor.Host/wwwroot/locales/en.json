@@ -45,12 +45,48 @@
     "updateInProgress": "Preparing update…",
     "tryAgain": "Try again"
   },
+  "secureEndpoint": {
+    "title": "VibeDeck secure URL",
+    "localScanTitle": "Scan the QR code",
+    "localScanHint": "Use the phone camera to scan the QR code on the left and open this PC's HTTPS page.",
+    "localWarningTitle": "Accept the first warning",
+    "localWarningHint": "If the browser says the page is dangerous or the connection is not private, tap Advanced and Continue.",
+    "statusPending": "Not enabled yet. After creating the Cloudflare Tunnel, enter {url}.",
+    "statusEnabled": "Trusted HTTPS is enabled; scanning the QR code will not show a browser warning.",
+    "installationId": "Installation ID",
+    "urlLabel": "Secure URL for this PC",
+    "urlPlaceholder": "https://vd-…vibedeck.pp.ua/",
+    "save": "Save secure URL",
+    "clear": "Disable secure URL",
+    "manualHint": "Used only while setting up the first Tunnel. A future VibeDeck release will provision it automatically.",
+    "connectHint": "This VibeDeck secure URL is ready. Scan and pair directly; no browser warning or certificate installation is needed.",
+    "scanHint": "Scan the QR code on the left to open the secure page directly.",
+    "pairTitle": "Connect to this PC",
+    "pairHint": "Tap Connect to this PC on the phone, then verify the code on the PC.",
+    "qrScan": "Scan with the phone to open the secure page, then tap Connect to this PC.",
+    "pairPrompt": "Scan the QR code with the phone, tap Connect to this PC, then verify the code on the PC.",
+    "iosPair": "The secure URL is ready. Pair from the PC, then add this page to the Home Screen.",
+    "phoneUrl": "Phone secure URL: {url}",
+    "linkUrl": "VibeDeck secure URL: {url}",
+    "saveBusy": "Saving…",
+    "saved": "Secure URL saved. Scan the QR code again to use trusted HTTPS.",
+    "cleared": "Secure URL disabled. The QR code now uses the local connection.",
+    "saveFailed": "Unable to save the secure URL.",
+    "clearFailed": "Unable to disable the secure URL."
+  },
   "api": {
     "auth": {
       "https_required": "Remote sign-in requires HTTPS.",
       "password_not_configured": "Remote password sign-in is not enabled.",
       "rate_limited": "Too many sign-in attempts. Try again later.",
       "invalid_password": "Incorrect password."
+    },
+    "public_endpoint": {
+      "invalid_url": "Enter a complete HTTPS secure URL.",
+      "https_required": "The secure URL must use HTTPS.",
+      "invalid_shape": "The secure URL cannot contain an account, port, path, query, or fragment.",
+      "unexpected_host": "The secure URL must exactly match the URL shown for this PC.",
+      "persistence_failed": "The secure URL could not be saved. Check the VibeDeck data-folder permissions and try again."
     },
     "display": {
       "ready": "Windows will ask for administrator approval after you create it.",

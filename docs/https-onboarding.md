@@ -4,6 +4,30 @@ Last updated: 2026-07-16
 
 The zero-install phone path still starts from the Host web page. HTTPS is required for real LAN pairing and is strongly preferred for Wake Lock / home-screen use.
 
+## Preferred product path: VibeDeck secure URL
+
+From `0.1.22`, the normal product connection can use one browser-trusted URL per Windows Host:
+
+```text
+https://<installation-id>.vibedeck.pp.ua/
+```
+
+The Host creates and persists its `installation-id` under the product data root. A Cloudflare Tunnel (or future VibeDeck control plane) publishes that exact first-level hostname and forwards it to `http://127.0.0.1:5000`. The Windows Host never stores a Cloudflare API token or tunnel token.
+
+When the local PC records that URL in **進階連線資訊 → VibeDeck 安全網址**:
+
+1. The PC QR code switches to the trusted public HTTPS URL.
+2. Safari, Chrome, Android, iPhone, and BOOX open without a certificate warning.
+3. Phone pairing still requires the existing six-digit code and an explicit **Allow** action on the PC.
+
+The Host accepts a public pairing request only when all of these are true:
+
+- the request was forwarded by a connector on `127.0.0.1` or `::1`;
+- forwarded HTTPS and hostname exactly match this Host's stored URL;
+- the phone completes the usual PC approval flow.
+
+This keeps router ports closed while preserving the local approval boundary. The old local certificate path below remains a recovery/offline fallback until Tunnel provisioning is automated in Setup.
+
 ## Where certificates live
 
 Installed product (Setup):

@@ -48,7 +48,7 @@ The same device can become a focused desktop sideboard with live system telemetr
 For an installed build:
 
 - Windows 10 or Windows 11 on x64.
-- A phone or e-paper device on the same Wi-Fi network, or connected through the same Tailscale network.
+- A phone or e-paper device on the same Wi-Fi network, connected through the same Tailscale network, or using the configured VibeDeck secure URL.
 - The optional virtual display only when using second-screen mode.
 
 Building from source additionally requires the .NET 8 SDK. Creating the Windows installer requires Inno Setup 6.
@@ -137,7 +137,15 @@ These checks verify that:
 
 ## Connect a Phone or E-Paper Device
 
-With both devices on the same Wi-Fi network, open the HTTPS address shown by the PC Host, for example:
+The preferred path is to open the QR code shown by the PC Host. When the PC has a configured VibeDeck secure URL, it looks like:
+
+```text
+https://<installation-id>.vibedeck.pp.ua/
+```
+
+This browser-trusted route does not require accepting a dangerous-page warning or installing a phone certificate. The Host still requires the normal phone request, six-digit verification code, and PC **Allow** action.
+
+The local-network fallback opens the HTTPS address shown by the PC Host, for example:
 
 ```text
 https://192.168.1.20:5443
@@ -161,7 +169,7 @@ The phone and PC show the same explicit pairing progress:
 | 90% | Approval succeeded and the persistent credential is being saved |
 | 100% | Pairing is saved, or an existing pairing was restored; the page reloads automatically |
 
-Pairing is attached to a persistent browser-instance ID and stored under `%ProgramData%\VibeDeck\devices`. Re-pairing the same browser continues the existing device record and rotates its credential instead of adding a duplicate. Android Chromium reports its model when available, so known devices appear as names such as `BOOX Go Color 7` and `Samsung SM-S9110`; browsers that intentionally hide the model fall back to a platform name.
+Pairing is attached to a persistent browser-instance ID and stored under `%ProgramData%\VibeDeck\devices`. Re-pairing the same browser continues the existing device record and rotates its credential instead of adding a duplicate. Android Chromium reports its model when available, so known devices appear as names such as `BOOX Go Color 7` and `Samsung SM-S9110`; browsers that intentionally hide the model fall back to a platform name. The secure URL assignment is persisted separately in `%ProgramData%\VibeDeck\connect` and only the local PC can change it.
 
 Information Board and Quota modes do not require the virtual display. iPhone, Android, and BOOX all use the same Host-served web application; responsive and e-paper styles handle platform differences.
 

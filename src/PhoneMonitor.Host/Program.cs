@@ -53,6 +53,7 @@ namespace PhoneMonitor.Host
                 return;
             }
 
+            EnsureInstalledAutostart();
             AppPaths.EnsureDirectory(AppPaths.DataRoot);
             AppPaths.EnsureDirectory(AppPaths.LogsDirectory);
             var migrationMessage = AppPaths.TryMigrateLegacyData();
@@ -139,22 +140,7 @@ namespace PhoneMonitor.Host
 
             try
             {
-                using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
-                if (register)
-                {
-                    var executable = Path.Combine(AppContext.BaseDirectory, "VibeDeck.Host.exe");
-                    if (!File.Exists(executable))
-                    {
-                        Environment.ExitCode = 1;
-                        return true;
-                    }
-
-                    runKey.SetValue("VibeDeckHost", $"\"{executable}\"", RegistryValueKind.String);
-                }
-                else
-                {
-                    runKey.DeleteValue("VibeDeckHost", throwOnMissingValue: false);
-                }
+                UpdateAutostartRegistration(register);
             }
             catch
             {
@@ -162,6 +148,42 @@ namespace PhoneMonitor.Host
             }
 
             return true;
+        }
+
+        private static void EnsureInstalledAutostart()
+        {
+            if (!AppPaths.IsInstalledLayout)
+            {
+                return;
+            }
+
+            try
+            {
+                UpdateAutostartRegistration(true);
+            }
+            catch (Exception error)
+            {
+                Trace.TraceWarning($"VibeDeck auto-start registration could not be repaired: {error.Message}");
+            }
+        }
+
+        private static void UpdateAutostartRegistration(bool register)
+        {
+            using var runKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true)
+                ?? throw new InvalidOperationException("The current user's Run registry key is unavailable.");
+            if (!register)
+            {
+                runKey.DeleteValue("VibeDeckHost", throwOnMissingValue: false);
+                return;
+            }
+
+            var executable = Path.Combine(AppContext.BaseDirectory, "VibeDeck.Host.exe");
+            if (!File.Exists(executable))
+            {
+                throw new FileNotFoundException("VibeDeck Host executable was not found.", executable);
+            }
+
+            runKey.SetValue("VibeDeckHost", $"\"{executable}\"", RegistryValueKind.String);
         }
 
         private static void ShowLaunchError(string message)

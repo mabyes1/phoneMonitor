@@ -45,12 +45,48 @@
     "updateInProgress": "正在準備更新…",
     "tryAgain": "重試更新"
   },
+  "secureEndpoint": {
+    "title": "VibeDeck 安全網址",
+    "localScanTitle": "手機掃描 QR Code",
+    "localScanHint": "用相機掃描左側 QR Code，開啟這台電腦的 HTTPS 頁面。",
+    "localWarningTitle": "接受首次警告",
+    "localWarningHint": "若顯示「危險網頁」或「連線不是私人連線」，按「進階」→「繼續前往」。",
+    "statusPending": "尚未啟用。建立 Cloudflare Tunnel 後填入 {url}。",
+    "statusEnabled": "已啟用受信任 HTTPS；手機掃碼後不會出現瀏覽器警告。",
+    "installationId": "安裝代號",
+    "urlLabel": "此電腦的安全網址",
+    "urlPlaceholder": "https://vd-…vibedeck.pp.ua/",
+    "save": "儲存安全網址",
+    "clear": "停用安全網址",
+    "manualHint": "首次 Tunnel 設定使用；日後正式版將由 VibeDeck 自動完成。",
+    "connectHint": "已使用 VibeDeck 安全網址。掃碼後直接配對，不需接受瀏覽器警告或安裝憑證。",
+    "scanHint": "用相機掃描左側 QR Code，直接開啟安全頁面。",
+    "pairTitle": "連接這台電腦",
+    "pairHint": "手機按「連接這台電腦」，再回 PC 核對驗證碼。",
+    "qrScan": "手機掃碼後直接開啟安全頁面，再按「連接這台電腦」。",
+    "pairPrompt": "請用手機掃描 QR Code，直接按「連接這台電腦」，再於 PC 核對驗證碼。",
+    "iosPair": "安全網址已就緒。回 PC 配對後，再將這一頁加入主畫面。",
+    "phoneUrl": "手機安全網址：{url}",
+    "linkUrl": "VibeDeck 安全網址：{url}",
+    "saveBusy": "儲存中…",
+    "saved": "安全網址已儲存。重新掃 QR Code 即可使用受信任 HTTPS。",
+    "cleared": "安全網址已停用，QR Code 已改回本機連線。",
+    "saveFailed": "無法儲存安全網址。",
+    "clearFailed": "無法停用安全網址。"
+  },
   "api": {
     "auth": {
       "https_required": "遠端登入必須使用 HTTPS。",
       "password_not_configured": "遠端密碼登入尚未啟用。",
       "rate_limited": "登入嘗試過多，請稍後再試。",
       "invalid_password": "密碼不正確。"
+    },
+    "public_endpoint": {
+      "invalid_url": "請輸入完整的 HTTPS 安全網址。",
+      "https_required": "安全網址必須使用 HTTPS。",
+      "invalid_shape": "安全網址不可包含帳號、連接埠、路徑、參數或片段。",
+      "unexpected_host": "安全網址必須完全符合這台電腦顯示的網址。",
+      "persistence_failed": "安全網址無法寫入磁碟，請確認 VibeDeck 資料夾權限後再試。"
     },
     "display": {
       "ready": "按下建立後，Windows 會跳出一次管理員確認。",

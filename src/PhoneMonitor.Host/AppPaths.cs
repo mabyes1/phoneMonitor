@@ -24,6 +24,8 @@ namespace PhoneMonitor.Host
 
         public static string DevicesDirectory => Path.Combine(DataRoot, "devices");
 
+        public static string ConnectDirectory => Path.Combine(DataRoot, "connect");
+
         public static string CustomSourcesDirectory => Path.Combine(DataRoot, "custom-sources");
 
         public static string WindowsNotificationsDirectory => Path.Combine(DataRoot, "windows-notifications");
