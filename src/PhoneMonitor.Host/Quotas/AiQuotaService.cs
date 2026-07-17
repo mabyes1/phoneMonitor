@@ -11,6 +11,10 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
+using static PhoneMonitor.Host.Quotas.QuotaJsonHelpers;
+using static PhoneMonitor.Host.Quotas.QuotaPaths;
+using static PhoneMonitor.Host.Quotas.SecretProtector;
+
 namespace PhoneMonitor.Host.Quotas
 {
     public sealed class AiQuotaService
@@ -21,9 +25,6 @@ namespace PhoneMonitor.Host.Quotas
         private const string AgyGoogleClientSecretEnv = "AGY_GOOGLE_CLIENT_SECRET";
         private const string AgyUserAgent = "antigravity/1.20.5 windows/amd64 google-api-nodejs-client/10.3.0";
         private const string AgyOAuthScope = "openid email https://www.googleapis.com/auth/cloud-platform";
-        private const string PhoneMonitorQuotaRootName = "PhoneMonitor";
-        private const string PhoneMonitorQuotaFolderName = "quotas";
-        private static readonly byte[] AgyTokenEntropy = Encoding.UTF8.GetBytes("PhoneMonitor.AGY.RefreshToken.v1");
         private static readonly string[] AgyQuotaApiBases =
         {
             "https://daily-cloudcode-pa.googleapis.com",
@@ -430,7 +431,7 @@ namespace PhoneMonitor.Host.Quotas
 
         private AiQuotaStatus TryReadCodexQuotaFromFile(string path)
         {
-            var lines = ReadTailLines(path);
+            var lines = ReadTailLines(path, TailBytes);
             for (var index = lines.Count - 1; index >= 0; index--)
             {
                 var line = lines[index];
@@ -721,20 +722,6 @@ namespace PhoneMonitor.Host.Quotas
                 : $"codex-{SafeFileName(accountId)}";
         }
 
-        private static List<string> ReadTailLines(string path)
-        {
-            var file = new FileInfo(path);
-            var start = Math.Max(0, file.Length - TailBytes);
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            stream.Seek(start, SeekOrigin.Begin);
-            using var reader = new StreamReader(stream);
-            var text = reader.ReadToEnd();
-            return text
-                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ToList();
-        }
-
         private async Task<IEnumerable<AiQuotaStatus>> ReadAgyQuotasAsync(bool forceRefresh, CancellationToken cancellationToken)
         {
             var agyExe = AgyExecutablePath();
@@ -881,43 +868,6 @@ namespace PhoneMonitor.Host.Quotas
             return statuses;
         }
 
-        private static string PhoneMonitorQuotaRoot()
-        {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                PhoneMonitorQuotaRootName,
-                PhoneMonitorQuotaFolderName);
-        }
-
-        private static string AgyExecutablePath()
-        {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "agy",
-                "bin",
-                "agy.exe");
-        }
-
-        private static string AgyAccountStoreDirectory()
-        {
-            return Path.Combine(PhoneMonitorQuotaRoot(), "agy", "accounts");
-        }
-
-        private static string AgyQuotaCacheDirectory()
-        {
-            return Path.Combine(PhoneMonitorQuotaRoot(), "agy", "cache");
-        }
-
-        private static string CodexQuotaCacheDirectory()
-        {
-            return Path.Combine(PhoneMonitorQuotaRoot(), "codex", "accounts");
-        }
-
-        private static string AgyLauncherDirectory()
-        {
-            return Path.Combine(PhoneMonitorQuotaRoot(), "agy", "launch");
-        }
-
         private static AgyAccountToken FindPhoneMonitorAgyAccount(string accountId, string email)
         {
             return ReadPhoneMonitorAgyAccounts(AgyAccountStoreDirectory())
@@ -1013,21 +963,6 @@ namespace PhoneMonitor.Host.Quotas
                     string.Equals(storedAccountId, requestedAccountId, StringComparison.OrdinalIgnoreCase)) ||
                 (!string.IsNullOrWhiteSpace(requestedEmail) &&
                     string.Equals(storedEmail, requestedEmail, StringComparison.OrdinalIgnoreCase));
-        }
-
-        private static void TryDeleteFile(string path, ref int deleted)
-        {
-            try
-            {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                    deleted++;
-                }
-            }
-            catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException)
-            {
-            }
         }
 
         private static int ImportAgyAccountsFromAntigravity(string accountStoreDir)
@@ -1150,38 +1085,6 @@ namespace PhoneMonitor.Host.Quotas
             };
             File.WriteAllLines(launcher, lines, Encoding.ASCII);
             return launcher;
-        }
-
-        private static string ProtectSecret(string value)
-        {
-            if (string.IsNullOrWhiteSpace(value))
-            {
-                return null;
-            }
-
-            var bytes = Encoding.UTF8.GetBytes(value);
-            var protectedBytes = ProtectedData.Protect(bytes, AgyTokenEntropy, DataProtectionScope.CurrentUser);
-            return Convert.ToBase64String(protectedBytes);
-        }
-
-        private static string ReadProtectedSecret(JsonElement root, string propertyName)
-        {
-            var protectedValue = TryGetString(root, propertyName);
-            if (string.IsNullOrWhiteSpace(protectedValue))
-            {
-                return null;
-            }
-
-            try
-            {
-                var protectedBytes = Convert.FromBase64String(protectedValue);
-                var bytes = ProtectedData.Unprotect(protectedBytes, AgyTokenEntropy, DataProtectionScope.CurrentUser);
-                return Encoding.UTF8.GetString(bytes);
-            }
-            catch (Exception ex) when (ex is CryptographicException || ex is FormatException)
-            {
-                return null;
-            }
         }
 
         private async Task<List<AiQuotaStatus>> RefreshAgyQuotasAsync(
@@ -1485,15 +1388,6 @@ namespace PhoneMonitor.Host.Quotas
             }
         }
 
-        private static string AgyGoogleOAuthSecretsPath()
-        {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                PhoneMonitorQuotaRootName,
-                "secrets",
-                "agy-google-oauth.json");
-        }
-
         private static async Task WarmAgyLoadCodeAssistAsync(string accessToken, CancellationToken cancellationToken)
         {
             using var response = await PostAgyApiAsync("v1internal:loadCodeAssist", accessToken, cancellationToken);
@@ -1603,19 +1497,6 @@ namespace PhoneMonitor.Host.Quotas
             };
         }
 
-        private static IEnumerable<string> FindJsonFiles(string directory)
-        {
-            if (!Directory.Exists(directory))
-            {
-                return Enumerable.Empty<string>();
-            }
-
-            return Directory.EnumerateFiles(directory, "*.json", SearchOption.TopDirectoryOnly)
-                .Select(path => new FileInfo(path))
-                .OrderByDescending(file => file.LastWriteTimeUtc)
-                .Select(file => file.FullName);
-        }
-
         private static string FindExecutable(string fileName)
         {
             var pathValue = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
@@ -1674,105 +1555,6 @@ namespace PhoneMonitor.Host.Quotas
                 UsedPercent = TryGetDouble(window, "used_percent"),
                 WindowMinutes = TryGetInt(window, "window_minutes"),
                 ResetsAt = TryGetUnixTime(window, "resets_at")
-            };
-        }
-
-        private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
-        {
-            if (element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out value))
-            {
-                return true;
-            }
-
-            value = default;
-            return false;
-        }
-
-        private static string TryGetString(JsonElement element, string name)
-        {
-            return TryGetProperty(element, name, out var value) && value.ValueKind == JsonValueKind.String
-                ? value.GetString()
-                : null;
-        }
-
-        private static double? TryGetDouble(JsonElement element, string name)
-        {
-            if (!TryGetProperty(element, name, out var value))
-            {
-                return null;
-            }
-
-            if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var parsed))
-            {
-                return parsed;
-            }
-
-            return null;
-        }
-
-        private static int? TryGetInt(JsonElement element, string name)
-        {
-            if (!TryGetProperty(element, name, out var value))
-            {
-                return null;
-            }
-
-            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var parsed))
-            {
-                return parsed;
-            }
-
-            return null;
-        }
-
-        private static DateTimeOffset? TryGetUnixTime(JsonElement element, string name)
-        {
-            if (!TryGetProperty(element, name, out var value))
-            {
-                return null;
-            }
-
-            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var seconds))
-            {
-                return DateTimeOffset.FromUnixTimeSeconds(seconds);
-            }
-
-            return null;
-        }
-
-        private static DateTimeOffset? TryGetUnixTimeMilliseconds(JsonElement element, string name)
-        {
-            if (!TryGetProperty(element, name, out var value))
-            {
-                return null;
-            }
-
-            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var milliseconds))
-            {
-                return DateTimeOffset.FromUnixTimeMilliseconds(milliseconds);
-            }
-
-            return null;
-        }
-
-        private static DateTimeOffset? TryGetDateTimeOffset(JsonElement element, string name)
-        {
-            var value = TryGetString(element, name);
-            if (value != null && DateTimeOffset.TryParse(value, out var parsed))
-            {
-                return parsed;
-            }
-
-            return null;
-        }
-
-        private static int? ParseWindowMinutes(string window)
-        {
-            return window?.ToLowerInvariant() switch
-            {
-                "5h" => 300,
-                "weekly" => 10080,
-                _ => null
             };
         }
 
@@ -1849,50 +1631,6 @@ namespace PhoneMonitor.Host.Quotas
             {
                 return new AgyGoogleIdentity();
             }
-        }
-
-        private static string Base64UrlEncode(byte[] bytes)
-        {
-            return Convert.ToBase64String(bytes)
-                .TrimEnd('=')
-                .Replace('+', '-')
-                .Replace('/', '_');
-        }
-
-        private static byte[] DecodeBase64Url(string value)
-        {
-            var padded = value
-                .Replace('-', '+')
-                .Replace('_', '/');
-            switch (padded.Length % 4)
-            {
-                case 2:
-                    padded += "==";
-                    break;
-                case 3:
-                    padded += "=";
-                    break;
-            }
-
-            return Convert.FromBase64String(padded);
-        }
-
-        private static string SafeFileName(string value)
-        {
-            var raw = string.IsNullOrWhiteSpace(value) ? Guid.NewGuid().ToString("N") : value;
-            var invalid = Path.GetInvalidFileNameChars();
-            var builder = new StringBuilder(raw.Length);
-            foreach (var ch in raw)
-            {
-                builder.Append(invalid.Contains(ch) ? '_' : ch);
-            }
-
-            return builder.ToString();
-        }
-
-        private static string FirstNonEmpty(params string[] values)
-        {
-            return values?.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
         }
 
         private static string EscapeBatchValue(string value)
