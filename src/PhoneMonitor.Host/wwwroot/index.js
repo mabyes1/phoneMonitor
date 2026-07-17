@@ -1335,6 +1335,7 @@ import {
           quotaGrid.append(renderAgySetupCard());
         }
       } else if (quotaActiveTab === "codex") {
+        quotaGrid.append(renderCodexAccountBar());
         if (codexProviders.length) {
           const index = getQuotaAccountIndex("codex", codexProviders.length);
           const provider = codexProviders[index];
@@ -1555,6 +1556,123 @@ import {
       applyQuotaCardStatus(card);
       wireQuotaToolbox(card);
       return card;
+    }
+
+    function renderCodexAccountBar() {
+      const card = document.createElement("article");
+      card.className = "quota-account-card quota-codex-switcher";
+      card.dataset.statusKey = "codex:switcher";
+      card.innerHTML = `
+        <div class="quota-account-head">
+          <span class="quota-account-email">Codex 帳號切換</span>
+        </div>
+        <div class="quota-codex-switch-row">
+          <select class="quota-codex-select" aria-label="選擇 Codex 帳號">
+            <option value="">讀取帳號中…</option>
+          </select>
+          <div class="quota-toolbox" aria-label="Codex 帳號操作">
+            <button type="button" data-quota-action="codex-switch" title="關閉執行中的 Codex 並用選定帳號重新開啟">▶ 切換</button>
+            <button type="button" data-quota-action="codex-reauth" title="開啟 codex login 重新認證">＋ 重新登入</button>
+            <button type="button" data-quota-action="codex-profile-delete" title="刪除選定帳號的備份 profile">⌫ 刪除</button>
+          </div>
+        </div>
+        <div class="quota-action-status" aria-live="polite"></div>
+      `;
+      applyQuotaCardStatus(card);
+      wireCodexAccountBar(card);
+      return card;
+    }
+
+    function wireCodexAccountBar(card) {
+      const select = card.querySelector(".quota-codex-select");
+      const switchButton = card.querySelector('[data-quota-action="codex-switch"]');
+      const reauthButton = card.querySelector('[data-quota-action="codex-reauth"]');
+      const deleteButton = card.querySelector('[data-quota-action="codex-profile-delete"]');
+
+      function selectedAccount() {
+        const option = select?.selectedOptions?.[0];
+        return {
+          accountId: option?.dataset.accountId || "",
+          email: option?.dataset.email || ""
+        };
+      }
+
+      async function populate() {
+        try {
+          const profiles = await fetchJsonOrThrow("/api/quotas/codex/profiles");
+          select.replaceChildren();
+          if (!Array.isArray(profiles) || !profiles.length) {
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = "尚無備份帳號 — 先按「＋ 重新登入」登入一次";
+            select.append(option);
+            if (switchButton) switchButton.disabled = true;
+            if (deleteButton) deleteButton.disabled = true;
+            return;
+          }
+          if (switchButton) switchButton.disabled = false;
+          if (deleteButton) deleteButton.disabled = false;
+          for (const profile of profiles) {
+            const accountId = profile.AccountId || profile.accountId || "";
+            const email = profile.Email || profile.email || "";
+            const tier = profile.Tier || profile.tier || "";
+            const active = Boolean(profile.IsActive ?? profile.isActive);
+            const option = document.createElement("option");
+            option.dataset.accountId = accountId;
+            option.dataset.email = email;
+            option.value = accountId || email;
+            const bits = [email || accountId || "unknown"];
+            if (tier) bits.push(tier);
+            option.textContent = `${bits.join(" · ")}${active ? "（使用中）" : ""}`;
+            if (active) option.selected = true;
+            select.append(option);
+          }
+        } catch (error) {
+          select.replaceChildren();
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "無法讀取帳號";
+          select.append(option);
+          setQuotaCardStatus(card, error.message || "讀取 Codex 帳號失敗。", "error");
+        }
+      }
+
+      if (switchButton) switchButton.addEventListener("click", async () => {
+        const target = selectedAccount();
+        if (!target.accountId && !target.email) return;
+        await runQuotaButton(switchButton, async () => {
+          const result = await fetchJsonOrThrow("/api/quotas/codex/switch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(target)
+          });
+          await refreshQuotas({ force: true });
+          return result;
+        }, { pending: "正在關閉並切換 Codex 帳號...", success: "已切換並重新開啟 Codex。" });
+      });
+
+      if (reauthButton) reauthButton.addEventListener("click", async () => {
+        await runQuotaButton(reauthButton, () =>
+          fetchJsonOrThrow("/api/quotas/codex/reauth", { method: "POST" }),
+          { pending: "正在開啟 codex login...", success: "已開啟 codex login，請在該視窗完成登入。" });
+      });
+
+      if (deleteButton) deleteButton.addEventListener("click", async () => {
+        const target = selectedAccount();
+        if (!target.accountId && !target.email) return;
+        if (!window.confirm(`要刪除 ${target.email || target.accountId} 的備份 profile 嗎？（不影響目前登入）`)) return;
+        await runQuotaButton(deleteButton, async () => {
+          const result = await fetchJsonOrThrow("/api/quotas/codex/profile/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(target)
+          });
+          await populate();
+          return result;
+        }, { pending: "正在刪除 profile...", success: "備份 profile 已刪除。" });
+      });
+
+      populate();
     }
 
     function renderQuotaTabs(tabs) {

@@ -4171,3 +4171,18 @@ body.eink-client .custom-credential-panel textarea {
   color: #000 !important;
   font-size: 18px !important;
 }
+
+.quota-codex-switch-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.quota-codex-select {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font: inherit;
+}
