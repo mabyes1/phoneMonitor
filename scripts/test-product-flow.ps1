@@ -88,6 +88,12 @@ if ($Payload) {
     }
     $launcher = Get-Content (Join-Path $PayloadPath "Open-VibeDeck.cmd") -Raw
     Assert-Product ($launcher -notmatch "sc\s+(query|start)|net\s+start") "Payload launcher still starts the legacy Windows Service."
+    $openLauncher = Get-Content (Join-Path $PayloadPath "Open-VibeDeck.vbs") -Raw
+    Assert-Product ($openLauncher -notmatch "Open-VibeDeck\.cmd") "Product launcher still routes through a visible Command Prompt path."
+    Assert-Product ($openLauncher -match "WinHttp\.WinHttpRequest\.5\.1") "Product launcher does not wait for the Host without a console window."
+    $cscript = Join-Path $env:WINDIR "System32\cscript.exe"
+    & $cscript //nologo (Join-Path $PayloadPath "Open-VibeDeck.vbs") /check
+    Assert-Product ($LASTEXITCODE -eq 0) "Product launcher VBScript syntax check failed."
     Assert-Product (-not (Get-ChildItem (Join-Path $PayloadPath "wwwroot") -Recurse -File -Include "*.apk","*.ipa" -ErrorAction SilentlyContinue)) "Payload contains a native mobile package."
 }
 
