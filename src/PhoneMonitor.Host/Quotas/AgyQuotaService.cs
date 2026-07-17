@@ -226,6 +226,10 @@ namespace PhoneMonitor.Host.Quotas
                 };
             }
 
+            // Account switch: close the running AGY CLI before reopening with the
+            // selected account, otherwise the old session keeps the previous context.
+            CliProcessManager.KillByNames(CliProcessManager.AgyProcessNames);
+
             try
             {
                 Process.Start(new ProcessStartInfo
