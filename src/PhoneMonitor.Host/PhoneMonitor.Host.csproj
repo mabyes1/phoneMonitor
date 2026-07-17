@@ -9,6 +9,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="PhoneMonitor.Host.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.28" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
