@@ -1,3 +1,5 @@
+import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+
 export function escapeHtml(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -17,8 +19,8 @@ export function renderQuotaWindow(label, windowData = {}) {
       : Number.NaN;
   const reset = windowData.ResetsAt || windowData.resetsAt;
   const resetText = reset
-    ? `重置 ${new Date(reset).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-    : "重置 --";
+    ? `${tLegacy("重置")} ${new Date(reset).toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit" })}`
+    : `${tLegacy("重置")} --`;
   const value = Number.isFinite(remaining) ? `${Math.round(remaining)}%` : "--";
   const bar = Number.isFinite(remaining) ? remaining : 0;
   return `

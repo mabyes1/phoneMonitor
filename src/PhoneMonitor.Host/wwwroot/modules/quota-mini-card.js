@@ -1,3 +1,5 @@
+import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+
 const SOURCE_STORAGE_KEY = "phoneMonitorDashboardQuotaSource.v1";
 
 export function createQuotaMiniCardController({ elements, fetchJsonOrThrow }) {
@@ -67,9 +69,9 @@ export function createQuotaMiniCardController({ elements, fetchJsonOrThrow }) {
     bar.style.width = `${Number.isFinite(remaining) ? remaining : 0}%`;
     const resetsAt = primary?.ResetsAt || primary?.resetsAt;
     reset.textContent = resetsAt
-      ? `重置 ${new Date(resetsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-      : selected ? "尚無 5 小時資料" : "尚無額度來源";
-    state.textContent = selected ? "5 小時剩餘" : "等待來源";
+      ? `${tLegacy("重置")} ${new Date(resetsAt).toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit" })}`
+      : selected ? tLegacy("尚無 5 小時資料") : tLegacy("尚無額度來源");
+    state.textContent = selected ? tLegacy("5 小時剩餘") : tLegacy("等待來源");
     select.disabled = !sorted.length;
     if (previous !== selectedKey && selectedKey) localStorage.setItem(SOURCE_STORAGE_KEY, selectedKey);
   }
@@ -94,8 +96,8 @@ export function createQuotaMiniCardController({ elements, fetchJsonOrThrow }) {
       } catch (error) {
         value.textContent = "--";
         bar.style.width = "0%";
-        reset.textContent = error?.message || "額度讀取失敗";
-        state.textContent = "來源離線";
+        reset.textContent = error?.message || tLegacy("額度讀取失敗");
+        state.textContent = tLegacy("來源離線");
         return null;
       }
     },

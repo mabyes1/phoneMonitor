@@ -1,3 +1,5 @@
+import { tLegacy } from "./i18n.js?v=3";
+
 export function createStreamController({
   elements,
   getWsBase,
@@ -107,22 +109,22 @@ export function createStreamController({
     closeRtcStream(false);
 
     if (!canUseProtectedConnection()) {
-      setStatus("請先配對手機", false);
+      setStatus(tLegacy("請先配對手機"), false);
       return;
     }
     if (!getSelectedDisplayName()) await loadPhoneDisplay();
     if (generation !== connectGeneration || !getSelectedDisplayName()) return;
 
     if (prefersWebRtcDisplay() && !window.RTCPeerConnection) {
-      fallbackReason = "WebRTC API 不可用";
+      fallbackReason = tLegacy("WebRTC API 不可用");
     } else if (prefersWebRtcDisplay() && window.RTCPeerConnection) {
       try {
         const connected = await connectRtcVideo(generation);
         if (connected && generation === connectGeneration) return;
       } catch (error) {
         console.warn("WebRTC negotiation failed; using JPEG fallback", error);
-        if (generation === connectGeneration) setStatus(`WebRTC 無法連線，切回 JPEG：${error.message || "未知錯誤"}`, false);
-        fallbackReason = `WebRTC fallback：${error.message || "未知錯誤"}`;
+        if (generation === connectGeneration) setStatus(`${tLegacy("WebRTC 無法連線，切回 JPEG：")}${error.message || tLegacy("未知錯誤")}`, false);
+        fallbackReason = `WebRTC fallback: ${error.message || tLegacy("未知錯誤")}`;
         closeRtcStream(false);
       }
     }
@@ -150,7 +152,7 @@ export function createStreamController({
 
   async function connectRtcVideo(generation) {
     if (generation !== connectGeneration) return false;
-    if (!window.isSecureContext && !isLoopbackHost()) throw new Error("WebRTC 需要 HTTPS");
+    if (!window.isSecureContext && !isLoopbackHost()) throw new Error(tLegacy("WebRTC 需要 HTTPS"));
 
     const peer = new RTCPeerConnection({ iceServers: [] });
     rtcPeer = peer;
@@ -160,7 +162,7 @@ export function createStreamController({
     elements.rtcScreen.onloadedmetadata = () => {
       applyRotation();
       elements.rtcScreen.play().catch(() => {});
-      setStatus("WebRTC H.264 已連線", true);
+      setStatus(tLegacy("WebRTC H.264 已連線"), true);
     };
     peer.ontrack = event => {
       if (generation !== connectGeneration || rtcPeer !== peer) return;
@@ -178,20 +180,20 @@ export function createStreamController({
           disconnectTimer = null;
           if (generation !== connectGeneration || rtcPeer !== peer || peer.connectionState !== "disconnected") return;
           closeRtcStream(false);
-          setStatus("WebRTC 中斷（ICE disconnected），切回 JPEG", false);
+          setStatus(tLegacy("WebRTC 中斷（ICE disconnected），切回 JPEG"), false);
           connectJpegVideo("WebRTC ICE disconnected");
         }, 3000);
         return;
       }
       if (["failed", "closed"].includes(peer.connectionState)) {
         closeRtcStream(false);
-        setStatus(`WebRTC 中斷（${peer.connectionState}），切回 JPEG`, false);
+        setStatus(`${tLegacy("WebRTC 中斷（")}${peer.connectionState}${tLegacy("），切回 JPEG")}`, false);
         connectJpegVideo(`WebRTC ${peer.connectionState}`);
       }
     };
     peer.oniceconnectionstatechange = () => {
       if (generation !== connectGeneration || rtcPeer !== peer) return;
-      if (peer.iceConnectionState === "failed") setStatus("WebRTC ICE failed，切回 JPEG", false);
+      if (peer.iceConnectionState === "failed") setStatus(tLegacy("WebRTC ICE failed，切回 JPEG"), false);
     };
 
     peer.addTransceiver("video", { direction: "recvonly" });
@@ -274,13 +276,13 @@ export function createStreamController({
     videoSocket = socket;
     socket.binaryType = "blob";
     resetJpegStats();
-    socket.onopen = () => setStatus(fallbackReason ? `${fallbackReason} · JPEG` : "影像已連線", true);
+    socket.onopen = () => setStatus(fallbackReason ? `${fallbackReason} · JPEG` : tLegacy("影像已連線"), true);
     socket.onclose = () => {
       if (videoSocket !== socket) return;
-      setStatus("重新連線中", false);
+      setStatus(tLegacy("重新連線中"), false);
       setTimeout(connect, 1000);
     };
-    socket.onerror = () => setStatus("影像連線錯誤", false);
+    socket.onerror = () => setStatus(tLegacy("影像連線錯誤"), false);
     socket.onmessage = event => {
       pendingJpegFrame = event.data;
       presentPendingJpegFrame();

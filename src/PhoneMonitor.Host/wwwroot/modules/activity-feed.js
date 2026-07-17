@@ -1,3 +1,5 @@
+import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+
 const FILTER_STORAGE_KEY = "phoneMonitorActivityFilter.v1";
 
 export function createActivityFeedController({ elements }) {
@@ -45,7 +47,7 @@ export function createActivityFeedController({ elements }) {
       return [{
         key: makeKey("task", item, text, index),
         type: "task",
-        source: "Codex 任務",
+        source: tLegacy("Codex 任務"),
         from: "",
         text,
         time,
@@ -61,7 +63,7 @@ export function createActivityFeedController({ elements }) {
       return {
         key: makeKey("notification", item, text, index),
         type: "notification",
-        source: "Windows 通知",
+        source: tLegacy("Windows 通知"),
         from: String(item?.from || "").trim(),
         text,
         time,
@@ -75,7 +77,7 @@ export function createActivityFeedController({ elements }) {
     const date = new Date(value || "");
     return Number.isNaN(date.getTime())
       ? ""
-      : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      : date.toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit" });
   }
 
   function isAtLatest() {
@@ -126,6 +128,7 @@ export function createActivityFeedController({ elements }) {
       }
       const text = document.createElement("div");
       text.className = "activity-feed-text";
+      text.dataset.userContent = "";
       text.textContent = item.text;
       row.append(meta, text);
       list.append(row);
@@ -135,10 +138,10 @@ export function createActivityFeedController({ elements }) {
       const empty = document.createElement("li");
       empty.className = "activity-feed-empty";
       empty.textContent = activeFilter === "task"
-        ? "目前沒有任務動態"
+        ? tLegacy("目前沒有任務動態")
         : activeFilter === "notification"
-          ? "目前沒有 Windows 通知"
-          : "目前沒有活動動態";
+          ? tLegacy("目前沒有 Windows 通知")
+          : tLegacy("目前沒有活動動態");
       list.append(empty);
     }
 

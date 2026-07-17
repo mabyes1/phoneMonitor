@@ -14,12 +14,12 @@
   <meta name="screen-orientation" content="any">
   <meta name="theme-color" content="#111820">
   <!-- Cache-bust: iOS freezes the first icon/title it saw for a host. -->
-  <link rel="manifest" href="/manifest.json?v=53">
+  <link id="manifestLink" rel="manifest" href="/manifest.json?v=53">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=22" sizes="180x180">
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=83">
+  <link rel="stylesheet" href="/index.css?v=86">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -101,20 +101,19 @@
       <small>遠端登入只接受 HTTPS。若還沒設定，請在 Host 啟動前設定 VIBEDECK_REMOTE_PASSWORD 或 PHONEMONITOR_REMOTE_PASSWORD。</small>
     </form>
   </div>
-  <div id="iosHttpsGate" role="dialog" aria-modal="true" aria-labelledby="iosHttpsGateTitle">
-    <h1 id="iosHttpsGateTitle">iPhone 只用 HTTPS</h1>
-    <p>長亮、主畫面 App、穩定連線都需要 HTTPS。這台 iPhone 不要再用 HTTP 開 VibeDeck。</p>
+  <div id="mobileHttpsGate" role="dialog" aria-modal="true" aria-labelledby="mobileHttpsGateTitle">
+    <h1 id="mobileHttpsGateTitle">用 HTTPS 開啟 VibeDeck</h1>
+    <p>長亮、主畫面 App 與穩定串流需要 HTTPS。第一次開啟會看到瀏覽器警告，不必安裝憑證。</p>
     <ol>
-      <li>先安裝本機 HTTPS 憑證（只做一次）</li>
-      <li>設定 → 一般 → 關於本機 → 憑證信任設定 → 開啟完整信任</li>
-      <li>回到這裡按「開啟 HTTPS」</li>
+      <li>按下「開啟 HTTPS」</li>
+      <li>若瀏覽器顯示警告，按「顯示詳細資訊」或「進階」</li>
+      <li>選擇「造訪此網站」或「繼續前往」，再回 VibeDeck 配對</li>
     </ol>
     <div class="gate-actions">
-      <a id="iosGateCertLink" class="gate-primary" href="/cert/vibedeck-root.cer">1. 安裝 HTTPS 憑證</a>
-      <button id="iosGateOpenHttps" class="gate-primary" type="button">2. 開啟 HTTPS</button>
-      <a id="iosGateHttpsUrl" class="gate-secondary" href="#">複製用的 HTTPS 網址</a>
+      <button id="mobileGateOpenHttps" class="gate-primary" type="button">開啟 HTTPS</button>
+      <a id="mobileGateHttpsUrl" class="gate-secondary" href="#">複製用的 HTTPS 網址</a>
     </div>
-    <p class="gate-note">Android 瀏覽器可用 HTTP 測試；iPhone 固定走 HTTPS，不再切來切去。</p>
+    <p class="gate-note">這是本機電腦使用自簽憑證的正常提示，只需接受一次。</p>
     <p class="gate-note">若主畫面還是舊圖示／舊名稱：長按刪除舊圖示，改從 HTTPS 頁重新「加入主畫面」。</p>
   </div>
   <header>
@@ -133,6 +132,14 @@
         <button id="quotaMode" class="mode-button" type="button">額度</button>
       </div>
       <div class="utility-controls">
+        <label class="locale-control">
+          <span class="sr-only" data-i18n="ui.language">語言</span>
+          <select id="localeSelect" aria-label="語言">
+            <option value="zh-Hant">繁體中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+          </select>
+        </label>
         <button id="einkModeToggle" type="button" aria-pressed="false" title="切換成電子紙版面（BOOX / 電子書）">電子書</button>
         <button id="keepAwake" type="button">長亮 ON</button>
         <button id="fullscreen" type="button">全螢幕</button>
@@ -212,11 +219,11 @@
       </div>
       <div class="connect-copy">
         <p id="iosHomeTip" class="ios-home-tip">
-          iPhone：先裝 HTTPS 憑證 → 用 HTTPS 配對 → 分享加入主畫面 → 點「長亮 ON」。
+          iPhone：開啟 HTTPS → 首次警告按進階繼續 → 配對 → 分享加入主畫面。
         </p>
         <div class="connect-title">
           <strong>裝置連線</strong>
-          <span id="connectTitleHint">用手機瀏覽器開啟 HTTPS 網址；第一次只需在下方允許一次。</span>
+          <span id="connectTitleHint">不必安裝憑證。第一次開啟時，在瀏覽器警告頁按「進階」→「繼續前往」。</span>
         </div>
         <div class="pairing-progress" data-pair-progress style="--pair-progress:0%">
           <div><strong data-pair-progress-detail>準備配對</strong><b data-pair-progress-label>0%</b></div>
@@ -225,24 +232,23 @@
         <div class="pairing-guide" aria-label="手機配對流程">
           <div id="pairingStepInstall" class="pairing-step active">
             <b>1</b>
-            <strong>準備 HTTPS</strong>
-            <span>iPhone 或需要長亮時，先下載並信任本機 HTTPS 憑證。</span>
+            <strong>手機掃描 QR Code</strong>
+            <span>用相機掃描左側 QR Code，開啟這台電腦的 HTTPS 頁面。</span>
           </div>
           <div id="pairingStepPair" class="pairing-step">
             <b>2</b>
-            <strong>掃碼開啟</strong>
-            <span>手機掃描 QR Code，開啟 HTTPS Host。</span>
+            <strong>接受首次警告</strong>
+            <span>若顯示「危險網頁」或「連線不是私人連線」，按「進階」→「繼續前往」。</span>
           </div>
           <div id="pairingStepOpen" class="pairing-step">
             <b>3</b>
-            <strong>提出申請</strong>
-            <span>手機按配對申請，PC 按允許或拒絕。</span>
+            <strong>允許這台手機</strong>
+            <span>手機按「連接這台電腦」，再回 PC 核對驗證碼並按「允許」。</span>
           </div>
         </div>
         <div class="connect-actions">
           <button id="pairPhone" class="primary-action" type="button" hidden>配對新手機</button>
           <button id="launchDeckWindow" type="button" hidden>把資訊板開到副螢幕</button>
-          <a id="httpsCertLink" href="#" hidden>安裝 HTTPS 憑證</a>
         </div>
         <div class="connect-status">
           <span id="trustState" class="trust-state"></span>
@@ -257,6 +263,10 @@
             <a id="prettyLink" href="#"></a>
             <a id="httpsLink" href="#"></a>
             <a id="httpLink" href="#"></a>
+            <span class="advanced-cert-title">進階：不想再看到瀏覽器警告</span>
+            <a id="httpsCertLink" href="#" hidden>安裝 HTTPS 憑證</a>
+            <a id="androidCertLink" href="#" hidden>Android / BOOX 安裝 CA 憑證</a>
+            <p id="androidCertHelp" class="certificate-install-help" hidden>只有進階使用者需要：Android / BOOX 下載後請選「CA 憑證」；一般使用者直接在警告頁按「進階」→「繼續前往」即可。</p>
           </div>
         </details>
         <div id="trustedDevicesPanel" class="trusted-devices" hidden>
@@ -279,13 +289,13 @@
     <div id="pairSuccessBanner" class="pair-success-banner" role="status" aria-live="polite"></div>
     <div id="phonePairRescue" class="phone-pair-rescue">
       <small>VIBEDECK · 手機設定</small>
-      <strong>連接這台手機</strong>
-      <span>按下開始配對，再到 PC 視窗核對六位數驗證碼並按「允許」。</span>
+      <strong>連接這台電腦</strong>
+      <span>你已經開啟正確頁面。按下方按鈕，再回 PC 核對六位數驗證碼並按「允許」。</span>
       <div class="pairing-progress" data-pair-progress style="--pair-progress:0%">
         <div><strong data-pair-progress-detail>準備配對</strong><b data-pair-progress-label>0%</b></div>
         <progress data-pair-progress-bar max="100" value="0" aria-label="配對進度"></progress>
       </div>
-      <button id="phonePairRequest" type="button">開始配對</button>
+      <button id="phonePairRequest" type="button">連接這台電腦</button>
     </div>
     <section id="displayView" class="app-view display-view active">
       <div id="displayEmptyState" class="display-empty-state">
@@ -303,6 +313,23 @@
     </section>
     <section id="sideboardView" class="app-view sideboard-view">
       <div id="sideboardShell" class="sideboard-shell skin-command">
+        <section id="dashboardEditBar" class="dashboard-edit-bar" hidden>
+          <div id="dashboardSelectionControls" class="dashboard-selection-controls" hidden></div>
+          <div class="dashboard-edit-copy">
+            <strong>編輯模式</strong>
+            <span id="dashboardEditStatus">點選卡片；可直接拖曳卡片，或用上方控制列調整大小。</span>
+          </div>
+          <div class="dashboard-edit-actions">
+            <button id="dashboardAddCard" type="button">＋ 加入卡片</button>
+            <button id="customSettingsButton" type="button">卡片設定</button>
+            <button id="customManageButton" type="button">來源管理</button>
+            <button id="customAddSource" type="button">新增自訂卡片</button>
+            <button id="dashboardCompactLayout" type="button">整理空白</button>
+            <button id="dashboardResetLayout" type="button">恢復預設</button>
+            <button id="dashboardSaveLayout" type="button">完成並儲存</button>
+          </div>
+          <div id="dashboardCardLibrary" class="dashboard-card-library" hidden></div>
+        </section>
         <div class="sideboard-top">
           <div class="side-title">
             <strong id="sideHeadline">資訊板</strong>
@@ -322,23 +349,6 @@
             <button data-side-skin="focus" type="button">專注</button>
           </div>
         </div>
-
-        <section id="dashboardEditBar" class="dashboard-edit-bar" hidden>
-          <div class="dashboard-edit-copy">
-            <strong>編輯模式</strong>
-            <span id="dashboardEditStatus">拖曳卡片調整位置；寬、高每次調整一格。</span>
-          </div>
-          <div class="dashboard-edit-actions">
-            <button id="dashboardAddCard" type="button">＋ 加入卡片</button>
-            <button id="customSettingsButton" type="button">卡片設定</button>
-            <button id="customManageButton" type="button">來源管理</button>
-            <button id="customAddSource" type="button">新增自訂卡片</button>
-            <button id="dashboardCompactLayout" type="button">整理空白</button>
-            <button id="dashboardResetLayout" type="button">恢復預設</button>
-            <button id="dashboardSaveLayout" type="button">完成並儲存</button>
-          </div>
-          <div id="dashboardCardLibrary" class="dashboard-card-library" hidden></div>
-        </section>
 
         <section id="mobileOverview" class="mobile-overview" aria-label="手機資訊總覽">
           <div class="mobile-overview-head">
@@ -685,6 +695,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=85"></script>
+  <script type="module" src="/index.js?v=92"></script>
 </body>
 </html>

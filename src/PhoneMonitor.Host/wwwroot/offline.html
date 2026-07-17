@@ -245,5 +245,9 @@
 
     <a href="/" class="retry-btn">再試一次 ↻</a>
   </main>
+  <script type="module">
+    import { initLocale } from "/modules/i18n.js?v=3";
+    initLocale().catch(() => {});
+  </script>
 </body>
 </html>

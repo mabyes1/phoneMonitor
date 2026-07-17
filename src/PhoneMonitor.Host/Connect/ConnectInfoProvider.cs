@@ -43,7 +43,7 @@ namespace PhoneMonitor.Host.Connect
                 RootCertificateUrl = rootCertificateUrl,
                 HostCertificateUrl = hostCertificateUrl,
                 HttpsSetupHint = httpsAvailable
-                    ? "Install and trust the VibeDeck root certificate on the phone, then use the HTTPS URL."
+                    ? "Open the HTTPS URL and continue past the browser's first-use certificate warning."
                     : "Restart VibeDeck Host so it can mint a local HTTPS certificate on port 5443.",
                 IsHttpsRequest = request.IsHttps,
                 WakeLockNeedsHttps = !request.IsHttps,

@@ -1,3 +1,5 @@
+import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+
 const CARD_TYPE_LABELS = {
   "message-feed": "即時訊息",
   status: "狀態",
@@ -260,19 +262,19 @@ export function createCustomCardsController({
     setPanelOpen(windowsNotificationControl, localConsole);
     if (!localConsole) return;
     if (!status) {
-      windowsNotificationStatus.textContent = "無法取得狀態";
-      windowsNotificationMessage.textContent = "Windows 通知狀態讀取失敗。";
+      windowsNotificationStatus.textContent = tLegacy("無法取得狀態");
+      windowsNotificationMessage.textContent = tLegacy("Windows 通知狀態讀取失敗。");
       return;
     }
     const listening = Boolean(status.listening);
     const enabled = Boolean(status.enabled);
-    windowsNotificationStatus.textContent = listening ? "監聽中" : enabled ? "已設定但未連線" : "未啟用";
+    windowsNotificationStatus.textContent = listening ? tLegacy("監聽中") : enabled ? tLegacy("已設定但未連線") : tLegacy("未啟用");
     windowsNotificationStatus.className = listening ? "windows-notification-ok" : enabled ? "windows-notification-warn" : "";
-    windowsNotificationMessage.textContent = status.message || "把這台 PC 的新通知轉成「Windows 通知」訊息卡片。";
+    windowsNotificationMessage.textContent = status.message || tLegacy("把這台 PC 的新通知轉成「Windows 通知」訊息卡片。");
     if (status.companionRequired && enabled && !listening) {
-      windowsNotificationMessage.textContent += " Companion 會在登入使用者的 Windows 工作階段取得通知權限。";
+      windowsNotificationMessage.textContent += ` ${tLegacy("Companion 會在登入使用者的 Windows 工作階段取得通知權限。")}`;
     } else if (status.packaged === false && enabled && !listening) {
-      windowsNotificationMessage.textContent += " 目前 Host 是非封裝模式，請使用含通知權限的 MSIX 版本。";
+      windowsNotificationMessage.textContent += ` ${tLegacy("目前 Host 是非封裝模式，請使用含通知權限的 MSIX 版本。")}`;
     }
     windowsNotificationEnable.hidden = listening;
     windowsNotificationDisable.hidden = !enabled;
@@ -321,7 +323,7 @@ export function createCustomCardsController({
       }
       await refresh();
     } catch (error) {
-      setStatus(error.message || "Windows 通知設定失敗", "error");
+      setStatus(error.message || tLegacy("Windows 通知設定失敗"), "error");
       await loadWindowsNotificationStatus();
     } finally {
       if (button) button.disabled = false;
@@ -349,6 +351,9 @@ export function createCustomCardsController({
     const element = document.createElement(tag);
     if (className) element.className = className;
     if (text != null) element.textContent = text;
+    if (/custom-(feed-text|card-title|status-value|status-detail|metric-value|key-value|source-name)/.test(className || "")) {
+      element.dataset.userContent = "true";
+    }
     return element;
   }
 
@@ -357,7 +362,7 @@ export function createCustomCardsController({
     const date = new Date(value);
     return Number.isNaN(date.getTime())
       ? "--"
-      : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      : date.toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }
 
   function renderMessageFeed(card, content) {
@@ -377,7 +382,7 @@ export function createCustomCardsController({
       const meta = document.createElement("div");
       meta.className = "custom-feed-meta";
       meta.append(
-        createText("span", "custom-feed-from", item.from || card.sourceKey || "來源"),
+        createText("span", "custom-feed-from", item.from || card.sourceKey || tLegacy("來源")),
         createText("time", "custom-feed-time", formatTime(item.occurredAt || item.receivedAt)),
       );
       const text = createText("div", "custom-feed-text", state.displayTextByKey.get(key) ?? item.text ?? "");
@@ -386,14 +391,14 @@ export function createCustomCardsController({
       row.append(meta, text);
       list.append(row);
     }
-    if (!list.children.length) list.append(createText("li", "custom-card-empty", "等待第一筆訊息"));
+    if (!list.children.length) list.append(createText("li", "custom-card-empty", tLegacy("等待第一筆訊息")));
     return list;
   }
 
   function renderStatus(content) {
     const wrapper = createText("div", "custom-status-content");
     wrapper.append(
-      createText("strong", "custom-status-value", content?.status || "等待資料"),
+      createText("strong", "custom-status-value", content?.status || tLegacy("等待資料")),
       createText("span", "custom-status-detail", content?.detail || ""),
     );
     return wrapper;
@@ -420,7 +425,7 @@ export function createCustomCardsController({
     for (const item of (content?.items || [])) {
       list.append(createText("dt", "", item.label || "--"), createText("dd", "", item.value || "--"));
     }
-    if (!list.children.length) list.append(createText("dd", "custom-card-empty", "等待第一筆資料"));
+    if (!list.children.length) list.append(createText("dd", "custom-card-empty", tLegacy("等待第一筆資料")));
     return list;
   }
 
@@ -429,22 +434,22 @@ export function createCustomCardsController({
     element.dataset.dashboardKey = card.sourceKey === "windows-notifications"
       ? "windows-notifications"
       : `custom:${card.cardId}`;
-    element.dataset.dashboardTitle = card.title || "自訂卡片";
+    element.dataset.dashboardTitle = card.title || tLegacy("自訂卡片");
     const header = createText("header", "custom-card-header");
     const titleBlock = createText("div", "custom-card-title-block");
     titleBlock.append(
-      createText("strong", "custom-card-title", card.title || "自訂卡片"),
-      createText("span", "custom-card-source", `${card.sourceKey === "windows-notifications" ? "Windows 通知" : (card.sourceKey || "source")} · ${CARD_TYPE_LABELS[card.type] || card.type || "資料"}`),
+      createText("strong", "custom-card-title", card.title || tLegacy("自訂卡片")),
+      createText("span", "custom-card-source", `${card.sourceKey === "windows-notifications" ? tLegacy("Windows 通知") : (card.sourceKey || "source")} · ${CARD_TYPE_LABELS[card.type] ? tLegacy(CARD_TYPE_LABELS[card.type]) : card.type || tLegacy("資料")}`),
     );
-    const freshness = card.freshness === "stale" ? "資料過期" : card.freshness === "empty" ? "等待資料" : "已更新";
+    const freshness = card.freshness === "stale" ? tLegacy("資料過期") : card.freshness === "empty" ? tLegacy("等待資料") : tLegacy("已更新");
     header.append(titleBlock, createText("span", `custom-card-freshness freshness-${card.freshness || "empty"}`, freshness));
     element.append(header);
     if (card.type === "message-feed") element.append(renderMessageFeed(card, card.content));
     else if (card.type === "status") element.append(renderStatus(card.content));
     else if (card.type === "metric") element.append(renderMetric(card.content));
     else if (card.type === "key-value") element.append(renderKeyValue(card.content));
-    else element.append(createText("p", "custom-card-empty", "不支援的卡片類型"));
-    element.append(createText("footer", "custom-card-footer", `更新 ${formatTime(card.lastReceivedAt)} · revision ${card.revision ?? 0}`));
+    else element.append(createText("p", "custom-card-empty", tLegacy("不支援的卡片類型")));
+    element.append(createText("footer", "custom-card-footer", `${tLegacy("更新")} ${formatTime(card.lastReceivedAt)} · revision ${card.revision ?? 0}`));
     return element;
   }
 
@@ -457,7 +462,7 @@ export function createCustomCardsController({
     onWindowsNotifications?.(windowsCard);
     const displayCards = cards.filter(card => card.sourceKey !== "windows-notifications");
     if (!cards.length) {
-      setStatus("沒有自訂卡片", "muted");
+      setStatus(tLegacy("沒有自訂卡片"), "muted");
       renderSettingsCardOptions();
       document.dispatchEvent(new CustomEvent("dashboard:cards-changed"));
       return;
@@ -469,7 +474,7 @@ export function createCustomCardsController({
     });
     displayCards.forEach(card => processStreamQueue(card));
     renderSettingsCardOptions();
-    setStatus(`最後同步 ${formatTime(snapshot.generatedAt)}`, "ok");
+    setStatus(`${tLegacy("最後同步")} ${formatTime(snapshot.generatedAt)}`, "ok");
     document.dispatchEvent(new CustomEvent("dashboard:cards-changed"));
   }
 
@@ -479,11 +484,11 @@ export function createCustomCardsController({
       renderSnapshot(await fetchJsonOrThrow("/api/custom-cards"));
     } catch (error) {
       if (isTrustRequiredError(error)) {
-        customCardsGrid.replaceChildren(createText("div", "custom-empty-state", "自訂卡片已鎖定，請先配對手機。"));
-        setStatus("需要信任裝置", "error");
+        customCardsGrid.replaceChildren(createText("div", "custom-empty-state", tLegacy("自訂卡片已鎖定，請先配對手機。")));
+        setStatus(tLegacy("需要信任裝置"), "error");
         return;
       }
-      setStatus(error.message || "自訂卡片讀取失敗", "error");
+      setStatus(error.message || tLegacy("自訂卡片讀取失敗"), "error");
     }
   }
 
@@ -539,7 +544,7 @@ export function createCustomCardsController({
     setPanelOpen(customSourceForm, true);
     if (!customSourceForm) return;
     customSourceForm.dataset.editSource = source?.sourceKey || "";
-    if (customSourceFormTitle) customSourceFormTitle.textContent = source ? `編輯 ${source.displayName}` : "新增資料來源";
+    if (customSourceFormTitle) customSourceFormTitle.textContent = source ? `${tLegacy("編輯")} ${source.displayName}` : tLegacy("新增資料來源");
     if (customSourceKey) customSourceKey.value = source?.sourceKey || "";
     if (customSourceDisplayName) customSourceDisplayName.value = source?.displayName || "";
     if (customCardType) customCardType.value = source?.card?.type || "message-feed";
@@ -550,7 +555,7 @@ export function createCustomCardsController({
     if (customMaxItems) customMaxItems.value = source?.card?.maxItems ?? 20;
     if (customSourceKey) customSourceKey.disabled = Boolean(source);
     if (customCardType) customCardType.disabled = Boolean(source);
-    if (customSourceFormSubmit) customSourceFormSubmit.textContent = source ? "儲存變更" : "建立來源";
+    if (customSourceFormSubmit) customSourceFormSubmit.textContent = source ? tLegacy("儲存變更") : tLegacy("建立來源");
     customSourceKey?.focus();
   }
 
@@ -602,7 +607,7 @@ export function createCustomCardsController({
       if (result?.ingest?.token) showCredential(result.ingest);
       await refreshAll();
     } catch (error) {
-      setStatus(error.message || "來源儲存失敗", "error");
+      setStatus(error.message || tLegacy("來源儲存失敗"), "error");
     } finally {
       customSourceFormSubmit.disabled = false;
     }
@@ -629,11 +634,11 @@ export function createCustomCardsController({
   async function copyCredential() {
     try {
       await navigator.clipboard.writeText(credentialValue);
-      setStatus("連線資訊已複製", "ok");
+      setStatus(tLegacy("連線資訊已複製"), "ok");
     } catch {
       customCredentialText.focus();
       customCredentialText.select();
-      setStatus("請使用 Ctrl+C 複製連線資訊", "muted");
+      setStatus(tLegacy("請使用 Ctrl+C 複製連線資訊"), "muted");
     }
   }
 
@@ -655,7 +660,7 @@ export function createCustomCardsController({
       if (customSettingsStreamDelay) customSettingsStreamDelay.disabled = true;
       if (customSettingsSave) customSettingsSave.disabled = true;
       if (customSettingsClear) customSettingsClear.disabled = true;
-      if (customSettingsHint) customSettingsHint.textContent = "目前沒有可設定的卡片。";
+      if (customSettingsHint) customSettingsHint.textContent = tLegacy("目前沒有可設定的卡片。");
       return;
     }
 
@@ -677,8 +682,8 @@ export function createCustomCardsController({
     if (customSettingsClear) customSettingsClear.disabled = false;
     if (customSettingsHint) {
       customSettingsHint.textContent = isFeed
-        ? "新通知會由完整資料即時推送，再在畫面上逐字出現。"
-        : "逐字串流目前只套用在即時訊息卡片。";
+        ? tLegacy("新通知會由完整資料即時推送，再在畫面上逐字出現。")
+        : tLegacy("逐字串流目前只套用在即時訊息卡片。");
     }
   }
 
@@ -689,7 +694,7 @@ export function createCustomCardsController({
     for (const card of latestCards) {
       const option = document.createElement("option");
       option.value = card.cardId;
-      option.textContent = `${card.title || "自訂卡片"} · ${card.sourceKey === "windows-notifications" ? "Windows 通知" : (card.sourceKey || "來源")}`;
+      option.textContent = `${card.title || tLegacy("自訂卡片")} · ${card.sourceKey === "windows-notifications" ? tLegacy("Windows 通知") : (card.sourceKey || tLegacy("來源"))}`;
       customSettingsCard.append(option);
     }
     if (!latestCards.length) {
@@ -728,10 +733,10 @@ export function createCustomCardsController({
       latestCards = latestCards.map(item => item.cardId === card.cardId
         ? { ...item, maxItems: result.maxItems, streamEnabled: result.streamEnabled, streamCharDelayMs: result.streamCharDelayMs }
         : item);
-      setStatus("卡片設定已保存", "ok");
+      setStatus(tLegacy("卡片設定已保存"), "ok");
       await refresh();
     } catch (error) {
-      setStatus(error.message || "卡片設定保存失敗", "error");
+      setStatus(error.message || tLegacy("卡片設定保存失敗"), "error");
     } finally {
       applySettingsCardForm();
     }
@@ -739,15 +744,15 @@ export function createCustomCardsController({
 
   async function clearSelectedCard() {
     const card = getSettingsCard();
-    if (!card || !window.confirm(`清空「${card.title || "這張卡片"}」目前的通知？`)) return;
+    if (!card || !window.confirm(`${tLegacy("清空")}「${card.title || tLegacy("這張卡片")}」${tLegacy("目前的通知？")}`)) return;
     if (customSettingsClear) customSettingsClear.disabled = true;
     try {
       await fetchJsonOrThrow(`/api/custom-cards/${encodeURIComponent(card.cardId)}/clear`, { method: "POST" });
       clearStreamState(card.cardId);
-      setStatus("目前通知已清空", "ok");
+      setStatus(tLegacy("目前通知已清空"), "ok");
       await refresh();
     } catch (error) {
-      setStatus(error.message || "通知清空失敗", "error");
+      setStatus(error.message || tLegacy("通知清空失敗"), "error");
     } finally {
       applySettingsCardForm();
     }
@@ -774,7 +779,7 @@ export function createCustomCardsController({
     const summary = createText("div", "custom-source-summary");
     summary.append(
       createText("strong", "custom-source-name", source.displayName || source.sourceKey),
-      createText("span", "custom-source-meta", `${source.sourceKey} · ${CARD_TYPE_LABELS[source.card?.type] || source.card?.type || "card"}`),
+      createText("span", "custom-source-meta", `${source.sourceKey} · ${CARD_TYPE_LABELS[source.card?.type] ? tLegacy(CARD_TYPE_LABELS[source.card?.type]) : source.card?.type || "card"}`),
       createText("span", `custom-source-health health-${source.health || "waiting"}`, source.health || "waiting"),
     );
     const actions = createText("div", "custom-source-actions");
@@ -786,8 +791,8 @@ export function createCustomCardsController({
       button.addEventListener("click", () => handler(button));
       actions.append(button);
     };
-    addAction("編輯", "編輯來源設定", () => showForm(source));
-    addAction(source.enabled ? "停用" : "啟用", "切換來源啟用狀態", async button => {
+    addAction(tLegacy("編輯"), tLegacy("編輯來源設定"), () => showForm(source));
+    addAction(source.enabled ? tLegacy("停用") : tLegacy("啟用"), tLegacy("切換來源啟用狀態"), async button => {
       button.disabled = true;
       await runSourceAction(() => fetchJsonOrThrow(`/api/custom-sources/${encodeURIComponent(source.sourceKey)}`, {
         method: "PATCH",
@@ -795,18 +800,18 @@ export function createCustomCardsController({
         body: JSON.stringify({ enabled: !source.enabled }),
       }));
     });
-    addAction("輪替", "立即撤銷舊 Token 並產生新 Token", async button => {
-      if (!window.confirm(`輪替 ${source.displayName} 的 Token？舊 Token 會立即失效。`)) return;
+    addAction(tLegacy("輪替"), tLegacy("立即撤銷舊 Token 並產生新 Token"), async button => {
+      if (!window.confirm(`${tLegacy("輪替")} ${source.displayName} ${tLegacy("的 Token？舊 Token 會立即失效。")}`)) return;
       button.disabled = true;
       await runSourceAction(async () => {
         const result = await fetchJsonOrThrow(`/api/custom-sources/${encodeURIComponent(source.sourceKey)}/rotate-token`, { method: "POST" });
         showCredential(result.ingest);
       });
     });
-    addAction("↑", "往前移動", () => moveSource(index, -1), index === 0);
-    addAction("↓", "往後移動", () => moveSource(index, 1), index === latestSources.length - 1);
-    addAction("刪除", "刪除來源與目前資料", async button => {
-      if (!window.confirm(`刪除 ${source.displayName}？這會清除目前卡片資料。`)) return;
+    addAction("↑", tLegacy("往前移動"), () => moveSource(index, -1), index === 0);
+    addAction("↓", tLegacy("往後移動"), () => moveSource(index, 1), index === latestSources.length - 1);
+    addAction(tLegacy("刪除"), tLegacy("刪除來源與目前資料"), async button => {
+      if (!window.confirm(`${tLegacy("刪除")} ${source.displayName}？${tLegacy("這會清除目前卡片資料。")}`)) return;
       button.disabled = true;
       await runSourceAction(() => fetchJsonOrThrow(`/api/custom-sources/${encodeURIComponent(source.sourceKey)}`, { method: "DELETE" }));
     });
@@ -818,7 +823,7 @@ export function createCustomCardsController({
     latestSources = [...(sources || [])].sort((a, b) => (a.card?.position || 0) - (b.card?.position || 0));
     customSourceList.replaceChildren();
     if (!latestSources.length) {
-      customSourceList.append(createText("p", "custom-manager-empty", "還沒有資料來源。"));
+      customSourceList.append(createText("p", "custom-manager-empty", tLegacy("還沒有資料來源。")));
       return;
     }
     latestSources.forEach((source, index) => customSourceList.append(renderSourceRow(source, index)));
@@ -829,7 +834,7 @@ export function createCustomCardsController({
       await action();
       await refreshAll();
     } catch (error) {
-      setStatus(error.message || "來源操作失敗", "error");
+      setStatus(error.message || tLegacy("來源操作失敗"), "error");
     }
   }
 
@@ -858,7 +863,7 @@ export function createCustomCardsController({
       const result = await fetchJsonOrThrow("/api/custom-sources");
       renderSources(result.sources || result.Sources || []);
     } catch (error) {
-      setStatus(error.message || "資料來源管理讀取失敗", "error");
+      setStatus(error.message || tLegacy("資料來源管理讀取失敗"), "error");
     }
   }
 

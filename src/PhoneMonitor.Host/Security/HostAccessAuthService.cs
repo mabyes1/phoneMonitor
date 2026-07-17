@@ -80,19 +80,19 @@ namespace PhoneMonitor.Host.Security
         {
             if (!Enabled)
             {
-                return HostLoginResult.Fail("遠端密碼登入尚未啟用。");
+                return HostLoginResult.Fail("遠端密碼登入尚未啟用。", "auth.password_not_configured");
             }
 
             var address = string.IsNullOrWhiteSpace(remoteAddress) ? "unknown" : remoteAddress;
             if (IsLockedOut(address))
             {
-                return HostLoginResult.Fail("登入嘗試過多，請稍後再試。");
+                return HostLoginResult.Fail("登入嘗試過多，請稍後再試。", "auth.rate_limited");
             }
 
             if (!VerifyPassword(password, passwordHash))
             {
                 RegisterFailure(address);
-                return HostLoginResult.Fail("密碼不正確。");
+                return HostLoginResult.Fail("密碼不正確。", "auth.invalid_password");
             }
 
             lock (sync)
@@ -259,6 +259,7 @@ namespace PhoneMonitor.Host.Security
     public sealed class HostLoginResult
     {
         public bool Success { get; set; }
+        public string Code { get; set; }
         public string Message { get; set; }
         public string SessionToken { get; set; }
         public TimeSpan SessionLifetime { get; set; }
@@ -266,14 +267,16 @@ namespace PhoneMonitor.Host.Security
         public static HostLoginResult Ok(string token, TimeSpan lifetime) => new HostLoginResult
         {
             Success = true,
+            Code = "auth.success",
             Message = "登入成功。",
             SessionToken = token,
             SessionLifetime = lifetime
         };
 
-        public static HostLoginResult Fail(string message) => new HostLoginResult
+        public static HostLoginResult Fail(string message, string code) => new HostLoginResult
         {
             Success = false,
+            Code = code,
             Message = message
         };
     }

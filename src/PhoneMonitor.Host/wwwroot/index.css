@@ -803,6 +803,35 @@ body.eink-client .quota-page-button {
       min-width: 0;
     }
 
+    .locale-control {
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .locale-control select {
+      min-height: 34px;
+      max-width: 136px;
+      padding: 0 8px;
+      border: 1px solid rgba(143, 209, 255, .22);
+      border-radius: 7px;
+      background: rgba(9, 14, 20, .55);
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     #displaySettingsToggle {
       display: none;
     }
@@ -1062,6 +1091,15 @@ body.eink-client .quota-page-button {
       display: none;
     }
 
+    .certificate-install-help {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .certificate-install-help[hidden] { display: none; }
+
     .connect-actions .primary-action,
     #pairPhone {
       background: var(--text);
@@ -1219,6 +1257,15 @@ body.eink-client .quota-page-button {
       display: grid;
       gap: 6px;
       margin-top: 8px;
+    }
+
+    .advanced-cert-title {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
     }
 
     .connect-copy a {
@@ -3331,7 +3378,7 @@ body.eink-client .quota-page-button {
     }
 
     body.phone-client.viewport-portrait.mode-display .display-view.active::after {
-      content: "直式適合看資訊板 / 額度；副螢幕建議橫向全螢幕。";
+      content: var(--i18n-portrait-hint, "直式適合看資訊板 / 額度；副螢幕建議橫向全螢幕。");
       color: var(--quiet);
       font-size: 12px;
       line-height: 1.35;
@@ -3536,7 +3583,7 @@ body.eink-client .quota-page-button {
     }
 
     body.ios-client.phone-client.device-trusted.mode-display .display-view.active::after {
-      content: "單指操作 PC 滑鼠 · 連點兩下放大畫面";
+      content: var(--i18n-touch-hint, "單指操作 PC 滑鼠 · 連點兩下放大畫面");
       color: var(--quiet);
       font-size: 12px;
       line-height: 1.35;
@@ -3661,7 +3708,7 @@ body.eink-client .quota-page-button {
     }
 
     /* Single full-screen path for iPhone on HTTP: must switch to HTTPS. */
-    #iosHttpsGate {
+    #mobileHttpsGate {
       display: none;
       position: fixed;
       inset: 0;
@@ -3672,47 +3719,47 @@ body.eink-client .quota-page-button {
       overflow: auto;
     }
 
-    body.ios-http-blocked #iosHttpsGate {
+    body.mobile-http-blocked #mobileHttpsGate {
       display: grid;
       align-content: center;
       gap: 14px;
       max-width: 100%;
     }
 
-    body.ios-http-blocked > header,
-    body.ios-http-blocked > main,
-    body.ios-http-blocked > .exit-viewer {
+    body.mobile-http-blocked > header,
+    body.mobile-http-blocked > main,
+    body.mobile-http-blocked > .exit-viewer {
       display: none !important;
     }
 
-    #iosHttpsGate h1 {
+    #mobileHttpsGate h1 {
       margin: 0;
       font-size: 26px;
       line-height: 1.15;
     }
 
-    #iosHttpsGate p {
+    #mobileHttpsGate p {
       margin: 0;
       color: #b9c4d0;
       font-size: 15px;
       line-height: 1.45;
     }
 
-    #iosHttpsGate ol {
+    #mobileHttpsGate ol {
       margin: 0;
       padding-left: 1.2em;
       color: #dce7f4;
       line-height: 1.5;
     }
 
-    #iosHttpsGate .gate-actions {
+    #mobileHttpsGate .gate-actions {
       display: grid;
       gap: 10px;
       margin-top: 8px;
     }
 
-    #iosHttpsGate a,
-    #iosHttpsGate button {
+    #mobileHttpsGate a,
+    #mobileHttpsGate button {
       display: grid;
       place-items: center;
       min-height: 48px;
@@ -3723,18 +3770,18 @@ body.eink-client .quota-page-button {
       text-decoration: none;
     }
 
-    #iosHttpsGate .gate-primary {
+    #mobileHttpsGate .gate-primary {
       background: #70d98b;
       color: #0a1311;
     }
 
-    #iosHttpsGate .gate-secondary {
+    #mobileHttpsGate .gate-secondary {
       background: #223040;
       color: #f5f7fb;
       border: 1px solid rgba(143, 209, 255, .22);
     }
 
-    #iosHttpsGate .gate-note {
+    #mobileHttpsGate .gate-note {
       font-size: 13px;
       color: #7f91a5;
     }
@@ -4448,9 +4495,9 @@ body.eink-client .eink-connection-state.offline {
   color: #000;
 }
 
-/* E Ink clients still need one explicit escape hatch from the dense panel.
-   The generic trusted-phone rule hides the utility row; expose only the
-   fullscreen action here so refresh/keep-awake/display controls stay out. */
+/* E Ink clients still need explicit escape hatches from the dense panel.
+   The generic trusted-phone rule hides the utility row; keep the mode toggle
+   available so an accidentally enabled paper layout can always be disabled. */
 body.eink-client.phone-client.device-trusted:not(.mode-display) .utility-controls {
   display: flex !important;
   align-items: center;
@@ -4462,6 +4509,7 @@ body.eink-client.phone-client.device-trusted:not(.mode-display) .utility-control
   display: none !important;
 }
 
+body.eink-client.phone-client.device-trusted:not(.mode-display) .utility-controls #einkModeToggle,
 body.eink-client.phone-client.device-trusted:not(.mode-display) .utility-controls #fullscreen {
   display: inline-flex !important;
   align-items: center;
@@ -4797,6 +4845,35 @@ body.eink-client .quota-account-email {
 .dashboard-edit-copy span { color: rgba(247,242,232,.72); font-size: 12px; }
 .dashboard-edit-status.error { color: var(--side-warn); }
 
+.dashboard-selection-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--side-line);
+}
+
+.dashboard-selection-controls[hidden] { display: none !important; }
+
+.dashboard-selection-controls strong {
+  min-width: min(180px, 100%);
+  margin-right: auto;
+  color: var(--side-accent);
+}
+
+.dashboard-selection-controls button {
+  min-width: 42px;
+  min-height: 34px;
+  padding: 5px 9px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 3px;
+  background: #162229;
+  color: #fff;
+  touch-action: none;
+}
+
 .dashboard-edit-actions,
 .dashboard-card-library {
   display: flex;
@@ -4933,6 +5010,21 @@ body.deck-window.mode-sideboard #systemSideboardPage.dashboard-grid {
     linear-gradient(to bottom, rgba(255,255,255,.055) 1px, transparent 1px);
   background-size: calc(100% / 12) calc(100% / 6);
   outline: 1px dashed rgba(255,255,255,.2);
+}
+
+.dashboard-editing #systemSideboardPage.dashboard-grid [data-dashboard-key] {
+  cursor: pointer;
+}
+
+.dashboard-editing #systemSideboardPage.dashboard-grid .dashboard-card-selected {
+  cursor: grab;
+  touch-action: none;
+}
+
+.dashboard-editing #systemSideboardPage.dashboard-grid .dashboard-card-selected {
+  z-index: 2;
+  outline: 3px solid var(--side-accent);
+  outline-offset: -3px;
 }
 
 .dashboard-config-panel {
@@ -5102,6 +5194,7 @@ body.eink-client .dashboard-library-empty { color: #000; }
 
 body.eink-client .dashboard-edit-actions button,
 body.eink-client .dashboard-card-library button,
+body.eink-client .dashboard-selection-controls button,
 body.eink-client .dashboard-card-editor button {
   border: 2px solid #000;
   background: #fffef8;
@@ -5483,6 +5576,7 @@ body.eink-client .dashboard-edit-copy span,
 body.eink-client .dashboard-library-empty,
 body.eink-client .dashboard-edit-actions button,
 body.eink-client .dashboard-card-library button,
+body.eink-client .dashboard-selection-controls button,
 body.eink-client .dashboard-card-editor button {
   font-size: var(--eink-dashboard-min-font) !important;
   line-height: 1.2 !important;
@@ -5622,6 +5716,7 @@ body.phone-client:not(.eink-client) .dashboard-edit-copy span,
 body.phone-client:not(.eink-client) .dashboard-library-empty,
 body.phone-client:not(.eink-client) .dashboard-edit-actions button,
 body.phone-client:not(.eink-client) .dashboard-card-library button,
+body.phone-client:not(.eink-client) .dashboard-selection-controls button,
 body.phone-client:not(.eink-client) .dashboard-card-editor button {
   font-size: var(--eink-dashboard-min-font) !important;
   line-height: 1.2 !important;

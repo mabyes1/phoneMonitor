@@ -99,6 +99,7 @@ namespace PhoneMonitor.Host.Display
                             {
                                 CanInstall = false,
                                 State = "finishing",
+                                Code = "display.finishing",
                                 Message = message
                             }
                             : VirtualDisplayInstallStatus.RepairReady();
@@ -110,6 +111,7 @@ namespace PhoneMonitor.Host.Display
                             CanInstall = false,
                             RestartRequired = result.RestartRequired,
                             State = result.RestartRequired ? "restart-required" : "finishing",
+                            Code = result.RestartRequired ? "display.restart_required" : "display.finishing",
                             Message = message
                         }
                         : VirtualDisplayInstallStatus.Failed(message);
@@ -230,12 +232,14 @@ namespace PhoneMonitor.Host.Display
         public bool CanInstall { get; set; }
         public bool RestartRequired { get; set; }
         public string State { get; set; }
+        public string Code { get; set; }
         public string Message { get; set; }
 
         public static VirtualDisplayInstallStatus Ready() => new VirtualDisplayInstallStatus
         {
             CanInstall = true,
             State = "ready",
+            Code = "display.ready",
             Message = "按下建立後，Windows 會跳出一次管理員確認。"
         };
 
@@ -243,6 +247,7 @@ namespace PhoneMonitor.Host.Display
         {
             CanInstall = false,
             State = "installing",
+            Code = "display.installing",
             Message = "正在下載並建立虛擬螢幕，通常需要一分鐘。"
         };
 
@@ -250,6 +255,7 @@ namespace PhoneMonitor.Host.Display
         {
             CanInstall = false,
             State = "installed",
+            Code = "display.installed",
             Message = "虛擬螢幕已建立。"
         };
 
@@ -257,6 +263,7 @@ namespace PhoneMonitor.Host.Display
         {
             CanInstall = true,
             State = "failed",
+            Code = "display.failed",
             Message = message
         };
 
@@ -264,6 +271,7 @@ namespace PhoneMonitor.Host.Display
         {
             CanInstall = true,
             State = "repair-ready",
+            Code = "display.repair_ready",
             Message = "驅動已裝好，但 Windows 尚未顯示虛擬螢幕。按一次修復會補齊設定並重新啟動驅動。"
         };
 
@@ -271,6 +279,7 @@ namespace PhoneMonitor.Host.Display
         {
             CanInstall = false,
             State = "console-required",
+            Code = "display.console_required",
             Message = "虛擬螢幕已安裝，但 VibeDeck 正在遠端桌面工作階段執行。請回到這台電腦的本機 Windows 桌面重新啟動 VibeDeck。"
         };
 
@@ -278,6 +287,7 @@ namespace PhoneMonitor.Host.Display
         {
             CanInstall = false,
             State = "unavailable",
+            Code = "display.unavailable",
             Message = message
         };
     }

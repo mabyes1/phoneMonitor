@@ -1,3 +1,5 @@
+import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+
 export function createSideboardController({
   elements,
   fetchJsonOrThrow,
@@ -64,18 +66,18 @@ export function createSideboardController({
     const gpu = Number(stats?.gpu?.usagePercent);
     const candidates = [
       Number.isFinite(cpu) ? { label: "CPU", value: cpu } : null,
-      Number.isFinite(memory) ? { label: "記憶體", value: memory } : null,
+      Number.isFinite(memory) ? { label: tLegacy("記憶體"), value: memory } : null,
       Number.isFinite(gpu) && gpu > 0 ? { label: "GPU", value: gpu } : null,
     ].filter(Boolean);
     const maxValue = candidates.length ? Math.max(...candidates.map(item => item.value)) : 0;
-    const status = maxValue >= 97 ? "系統狀態極重度" : maxValue >= warningThreshold ? "系統狀態重度" : maxValue >= 75 ? "系統狀態中度" : maxValue >= 60 ? "系統狀態輕度" : "系統狀態良好";
+    const status = maxValue >= 97 ? tLegacy("系統狀態極重度") : maxValue >= warningThreshold ? tLegacy("系統狀態重度") : maxValue >= 75 ? tLegacy("系統狀態中度") : maxValue >= 60 ? tLegacy("系統狀態輕度") : tLegacy("系統狀態良好");
     const highest = candidates.filter(item => item.value >= 60).sort((a, b) => b.value - a.value);
     sideLoadNormal.hidden = false;
     sideLoadAlert.hidden = true;
     sideLoadStatus.textContent = status;
     sideLoadStatusReason.textContent = highest.length
       ? highest.map(item => `${item.label} ${Math.round(item.value)}%`).join(" · ")
-      : "目前沒有明顯瓶頸";
+      : tLegacy("目前沒有明顯瓶頸");
   }
 
   function renderProcesses(processes) {
@@ -94,7 +96,7 @@ export function createSideboardController({
 
     if (!sideProcessList.children.length) {
       const li = document.createElement("li");
-      li.textContent = "沒有程序資料";
+      li.textContent = tLegacy("沒有程序資料");
       sideProcessList.append(li);
     }
   }
@@ -114,16 +116,16 @@ export function createSideboardController({
       disk.usagePercent,
     ]);
 
-    sideHeadline.textContent = system.hostname || "VibeDeck 資訊板";
-    sideSummary.textContent = `${new Date(stats.generatedAt || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+    sideHeadline.textContent = system.hostname || tLegacy("VibeDeck 資訊板");
+    sideSummary.textContent = `${new Date(stats.generatedAt || Date.now()).toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit" })}`;
     sideLoad.textContent = formatPercent(load);
     renderLoadState(stats);
-    sideHost.textContent = `主機 ${system.localIp || "--"}`;
-    sideUptime.textContent = `已運行 ${formatSeconds(system.uptimeSeconds)}`;
-    sideHealth.textContent = stats.error ? `收集器：${stats.error}` : "收集器正常";
+    sideHost.textContent = `${tLegacy("主機")} ${system.localIp || "--"}`;
+    sideUptime.textContent = `${tLegacy("已運行")} ${formatSeconds(system.uptimeSeconds)}`;
+    sideHealth.textContent = stats.error ? `${tLegacy("收集器：")}${stats.error}` : tLegacy("收集器正常");
 
     setText(sideCpu, formatPercent(cpu.usagePercent));
-    setText(sideCpuSub, `溫度 ${formatTemperature(cpu.temperatureC)}`);
+    setText(sideCpuSub, `${tLegacy("溫度")} ${formatTemperature(cpu.temperatureC)}`);
     setBar(sideCpuBar, cpu.usagePercent);
 
     setText(sideRam, formatPercent(memory.usagePercent));
@@ -139,11 +141,11 @@ export function createSideboardController({
     setBar(sideVramBar, gpu.memoryUsagePercent);
 
     setText(sideNet, `${formatMbps(network.downMbps)}↓`);
-    setText(sideNetSub, `${formatMbps(network.upMbps)} Mbps 上傳`);
+    setText(sideNetSub, `${formatMbps(network.upMbps)} Mbps ${tLegacy("上傳")}`);
     setBar(sideNetBar, Math.min(100, Math.max(network.downMbps || 0, network.upMbps || 0) * 5));
 
     setText(sideDisk, formatPercent(disk.usagePercent));
-    setText(sideDiskSub, `${disk.drive || "磁碟"} · ${formatGb(disk.usedGb)} / ${formatGb(disk.totalGb)}`);
+    setText(sideDiskSub, `${disk.drive || tLegacy("磁碟")} · ${formatGb(disk.usedGb)} / ${formatGb(disk.totalGb)}`);
     setBar(sideDiskBar, disk.usagePercent);
 
     const weatherTemp = Number.isFinite(weather.temperatureC) ? formatTemperature(weather.temperatureC) : "";
@@ -154,9 +156,9 @@ export function createSideboardController({
       weatherDescription,
       weatherTemp,
     ].filter(Boolean);
-    setText(sideWeather, weatherParts.length > 1 ? weatherParts.join(" · ") : "天氣資料暫不可用");
-    setText(sideWeatherSub, `體感 ${weatherFeels}`);
-    setText(sideDiskIo, `磁碟 IO 讀 ${formatMbps(disk.readMBps)} / 寫 ${formatMbps(disk.writeMBps)} MB/s`);
+    setText(sideWeather, weatherParts.length > 1 ? weatherParts.join(" · ") : tLegacy("天氣資料暫不可用"));
+    setText(sideWeatherSub, `${tLegacy("體感")} ${weatherFeels}`);
+    setText(sideDiskIo, `${tLegacy("磁碟 IO")} ${tLegacy("讀")} ${formatMbps(disk.readMBps)} / ${tLegacy("寫")} ${formatMbps(disk.writeMBps)} MB/s`);
     renderProcesses(stats.processes || []);
   }
 
@@ -176,16 +178,16 @@ export function createSideboardController({
     } catch (error) {
       onConnectionChange?.("connecting");
       if (isTrustRequiredError(error)) {
-        sideHeadline.textContent = "資訊板已鎖定";
-        sideSummary.textContent = "請先配對手機。";
-        sideError.textContent = "需要信任裝置。";
+        sideHeadline.textContent = tLegacy("資訊板已鎖定");
+        sideSummary.textContent = tLegacy("請先配對手機。");
+        sideError.textContent = tLegacy("需要信任裝置。");
         onWorkPulse?.(null);
         return;
       }
 
-      sideHeadline.textContent = "資訊板無法使用";
-      sideSummary.textContent = "VibeDeck 無法讀取本機電腦資訊。";
-      sideError.textContent = error.message || "資料收集器無法使用。";
+      sideHeadline.textContent = tLegacy("資訊板無法使用");
+      sideSummary.textContent = tLegacy("VibeDeck 無法讀取本機電腦資訊。");
+      sideError.textContent = error.message || tLegacy("資料收集器無法使用。");
       onWorkPulse?.(null);
     }
   }

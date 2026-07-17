@@ -163,7 +163,7 @@ namespace PhoneMonitor.Host
                     {
                         context.Response.StatusCode = StatusCodes.Status400BadRequest;
                         context.Response.ContentType = "application/json";
-                        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = "遠端登入必須使用 HTTPS。" }));
+                        await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = "遠端登入必須使用 HTTPS。", code = "auth.https_required" }));
                         return;
                     }
 
@@ -190,6 +190,7 @@ namespace PhoneMonitor.Host
                     await context.Response.WriteAsync(JsonSerializer.Serialize(new
                     {
                         success = result.Success,
+                        code = result.Code,
                         message = result.Message
                     }));
                 });
@@ -309,6 +310,15 @@ namespace PhoneMonitor.Host
                         context,
                         LocalHttpsCertificate.RootCertificatePath,
                         "vibedeck-root.cer",
+                        "application/x-x509-ca-cert");
+                });
+
+                endpoints.MapGet("/cert/vibedeck-root.crt", async context =>
+                {
+                    await WriteCertificateFileAsync(
+                        context,
+                        LocalHttpsCertificate.RootCertificatePath,
+                        "vibedeck-root.crt",
                         "application/x-x509-ca-cert");
                 });
 
@@ -1079,7 +1089,7 @@ namespace PhoneMonitor.Host
             context.Response.ContentType = "application/json";
             await context.Response.WriteAsync(JsonSerializer.Serialize(new
             {
-                error = "手機配對申請必須使用 HTTPS。請先在 PC 安裝並信任 HTTPS 憑證，再掃描 QR Code。"
+                error = "手機配對必須使用 HTTPS。請掃描 PC 顯示的 QR Code；若瀏覽器顯示警告，請按「進階」並繼續前往。"
             }));
             return false;
         }

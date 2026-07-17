@@ -1,3 +1,5 @@
+import { tLegacy } from "./i18n.js?v=3";
+
 export function createQuotaController({
   elements,
   getActiveMode,
@@ -23,8 +25,8 @@ export function createQuotaController({
       onConnectionChange?.("connecting");
       const requiresTrust = isTrustRequiredError(error);
       elements.quotaSummary.textContent = requiresTrust
-        ? "請先配對手機，才能查看 AI 額度。"
-        : error.message || "額度來源無法使用。";
+        ? tLegacy("請先配對手機，才能查看 AI 額度。")
+        : error.message || tLegacy("額度來源無法使用。");
       elements.quotaUpdated.textContent = "--";
       if (elements.quotaHelp) {
         elements.quotaHelp.replaceChildren();

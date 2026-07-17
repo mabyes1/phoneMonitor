@@ -1,3 +1,5 @@
+import { tLegacy } from "./i18n.js?v=3";
+
 const STORAGE_KEY = "phoneMonitorMobileOverview.v1";
 const DEFAULT_SECTIONS = [
   { key: "status", label: "系統狀態", visible: true },
@@ -13,6 +15,10 @@ function byId(id) {
 function textOf(id, fallback = "--") {
   const value = byId(id)?.textContent?.trim();
   return value || fallback;
+}
+
+function labelFor(item) {
+  return tLegacy(item.label);
 }
 
 function copyBar(sourceId, targetId) {
@@ -69,14 +75,14 @@ export function createMobileOverviewController() {
   function syncStatus() {
     const alert = byId("sideLoadAlert");
     const showingAlert = alert && !alert.hidden;
-    setText("mobileSystemStatus", showingAlert ? textOf("sideLoadAlertTitle", "系統壓力偏高") : textOf("sideLoadStatus", "系統狀態良好"));
-    setText("mobileSystemReason", showingAlert ? textOf("sideLoadAlertReason", "請查看詳細資訊") : textOf("sideLoadStatusReason", "目前沒有明顯瓶頸"));
-    setText("mobileDetailHost", textOf("sideHost", "主機 --"));
-    setText("mobileDetailUptime", textOf("sideUptime", "運行時間 --"));
-    setText("mobileDetailHealth", textOf("sideHealth", "等待資料"));
+    setText("mobileSystemStatus", showingAlert ? textOf("sideLoadAlertTitle", tLegacy("系統壓力偏高")) : textOf("sideLoadStatus", tLegacy("系統狀態良好")));
+    setText("mobileSystemReason", showingAlert ? textOf("sideLoadAlertReason", tLegacy("請查看詳細資訊")) : textOf("sideLoadStatusReason", tLegacy("目前沒有明顯瓶頸")));
+    setText("mobileDetailHost", textOf("sideHost", tLegacy("主機 --")));
+    setText("mobileDetailUptime", textOf("sideUptime", tLegacy("運行時間 --")));
+    setText("mobileDetailHealth", textOf("sideHealth", tLegacy("等待資料")));
 
     const connection = document.querySelector("#sideboardView [data-eink-connection-state]");
-    setText("mobileConnectionState", connection?.textContent?.trim() || "正在連線");
+    setText("mobileConnectionState", connection?.textContent?.trim() || tLegacy("正在連線"));
     byId("mobileConnectionState")?.classList.toggle("online", connection?.classList.contains("online"));
   }
 
@@ -90,9 +96,9 @@ export function createMobileOverviewController() {
     setText("mobileVramSub", textOf("sideVramSub"));
     setText("mobileNetwork", textOf("sideNet"));
     setText("mobileNetworkSub", textOf("sideNetSub"));
-    setText("mobileWeather", textOf("sideWeather", "天氣 --"));
-    setText("mobileWeatherSub", textOf("sideWeatherSub", "體感 --"));
-    setText("mobileDiskIo", textOf("sideDiskIo", "磁碟 IO --"));
+    setText("mobileWeather", textOf("sideWeather", tLegacy("天氣 --")));
+    setText("mobileWeatherSub", textOf("sideWeatherSub", tLegacy("體感 --")));
+    setText("mobileDiskIo", textOf("sideDiskIo", tLegacy("磁碟 IO --")));
 
     const processTarget = byId("mobileProcessList");
     if (processTarget) {
@@ -105,7 +111,7 @@ export function createMobileOverviewController() {
     if (customTarget && customSection) {
       customTarget.replaceChildren(...customCards.map(card => {
         const article = document.createElement("article");
-        article.textContent = card.innerText?.trim() || "自訂卡片";
+        article.textContent = card.innerText?.trim() || tLegacy("自訂卡片");
         return article;
       }));
       customSection.hidden = !customCards.length;
@@ -118,7 +124,7 @@ export function createMobileOverviewController() {
       activityPreview.replaceChildren(...rows.slice(-2).map(cleanClone));
       if (!rows.length) {
         const empty = document.createElement("li");
-        empty.textContent = "目前沒有活動動態";
+        empty.textContent = tLegacy("目前沒有活動動態");
         activityPreview.append(empty);
       }
     }
@@ -141,10 +147,10 @@ export function createMobileOverviewController() {
   function syncQuota() {
     const select = byId("quotaMiniSource");
     const selected = select?.selectedOptions?.[0]?.textContent?.trim();
-    setText("mobileQuotaSource", selected || "5 小時額度");
+    setText("mobileQuotaSource", selected || tLegacy("5 小時額度"));
     setText("mobileQuotaValue", textOf("quotaMiniValue"));
-    setText("mobileQuotaState", textOf("quotaMiniState", "等待來源"));
-    setText("mobileQuotaReset", `${textOf("quotaMiniReset", "查看額度")} ›`);
+    setText("mobileQuotaState", textOf("quotaMiniState", tLegacy("等待來源")));
+    setText("mobileQuotaReset", `${textOf("quotaMiniReset", tLegacy("查看額度"))} ›`);
   }
 
   function sync() {
@@ -191,7 +197,7 @@ export function createMobileOverviewController() {
       checkbox.type = "checkbox";
       checkbox.checked = item.visible !== false;
       checkbox.addEventListener("change", () => { item.visible = checkbox.checked; });
-      label.append(checkbox, document.createTextNode(item.label));
+      label.append(checkbox, document.createTextNode(labelFor(item)));
       const actions = document.createElement("div");
       const up = document.createElement("button");
       up.type = "button";

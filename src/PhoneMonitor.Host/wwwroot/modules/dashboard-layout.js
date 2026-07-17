@@ -1,3 +1,5 @@
+import { tLegacy } from "./i18n.js?v=3";
+
 const SYSTEM_CARD_TITLES = {
   "system-load": "系統狀態",
   cpu: "CPU",
@@ -24,6 +26,7 @@ export function createDashboardLayoutController({
   const shell = document.getElementById("sideboardShell");
   const editToggle = document.getElementById("dashboardEditToggle");
   const editBar = document.getElementById("dashboardEditBar");
+  const selectionControls = document.getElementById("dashboardSelectionControls");
   const editStatus = document.getElementById("dashboardEditStatus");
   const addCard = document.getElementById("dashboardAddCard");
   const cardLibrary = document.getElementById("dashboardCardLibrary");
@@ -40,6 +43,7 @@ export function createDashboardLayoutController({
   let editing = false;
   let saving = false;
   let resizeTimer = 0;
+  let selectedKey = "";
 
   function getProfile() {
     if (!isEinkClient()) return "default";
@@ -85,7 +89,7 @@ export function createDashboardLayoutController({
   }
 
   function titleFor(key, node = null) {
-    return node?.dataset.dashboardTitle || SYSTEM_CARD_TITLES[key] || "自訂卡片";
+    return tLegacy(node?.dataset.dashboardTitle || SYSTEM_CARD_TITLES[key] || "自訂卡片");
   }
 
   function overlaps(a, b) {
@@ -139,9 +143,8 @@ export function createDashboardLayoutController({
     return button;
   }
 
-  function attachDrag(handle, node, item) {
-    handle.addEventListener("pointerdown", event => {
-      if (!editing || event.button > 0) return;
+  function beginDrag(event, handle, node, item) {
+      if (!editing || event.isPrimary === false || event.button > 0) return;
       event.preventDefault();
       event.stopPropagation();
       handle.setPointerCapture?.(event.pointerId);
@@ -162,9 +165,10 @@ export function createDashboardLayoutController({
       };
 
       const end = () => {
-        window.removeEventListener("pointermove", move);
-        window.removeEventListener("pointerup", end);
-        window.removeEventListener("pointercancel", cancel);
+        document.removeEventListener("pointermove", move, true);
+        document.removeEventListener("pointerup", end, true);
+        document.removeEventListener("pointercancel", cancel, true);
+        if (handle.hasPointerCapture?.(event.pointerId)) handle.releasePointerCapture(event.pointerId);
         node.classList.remove("dashboard-card-dragging");
         const collisions = items.filter(other => other.visible && other.key !== item.key && overlaps(item, other));
         if (collisions.length === 1)
@@ -193,9 +197,14 @@ export function createDashboardLayoutController({
         end();
       };
 
-      window.addEventListener("pointermove", move, { passive: false });
-      window.addEventListener("pointerup", end, { once: true });
-      window.addEventListener("pointercancel", cancel, { once: true });
+      document.addEventListener("pointermove", move, { capture: true, passive: false });
+      document.addEventListener("pointerup", end, { capture: true, once: true });
+      document.addEventListener("pointercancel", cancel, { capture: true, once: true });
+  }
+
+  function attachDrag(handle, node, item) {
+    handle.addEventListener("pointerdown", event => {
+      beginDrag(event, handle, node, item);
     });
   }
 
@@ -218,7 +227,7 @@ export function createDashboardLayoutController({
       }
       if (!slot) {
         for (const current of visible) Object.assign(current, original.get(current.key));
-        setStatus("目前卡片尺寸無法重新排列；請先縮小一張卡片。", "error");
+        setStatus(tLegacy("目前卡片尺寸無法重新排列；請先縮小一張卡片。"), "error");
         return false;
       }
       Object.assign(item, slot);
@@ -244,31 +253,43 @@ export function createDashboardLayoutController({
     if (slot) Object.assign(item, slot);
     else {
       Object.assign(item, previous);
-      setStatus("這個尺寸放不下；請先隱藏或移動相鄰卡片。", "error");
+      setStatus(tLegacy("這個尺寸放不下；請先隱藏或移動相鄰卡片。"), "error");
     }
     apply();
   }
 
-  function addEditorChrome(node, item) {
-    removeEditorChrome(node);
-    if (!editing || !item.visible) return;
-    const editor = document.createElement("div");
-    editor.className = "dashboard-card-editor";
-    const handle = makeButton("拖曳", `移動${titleFor(item.key, node)}`, () => {}, "dashboard-drag-handle");
+  function renderSelectionControls(nodes) {
+    selectionControls.replaceChildren();
+    selectionControls.hidden = !editing;
+    if (!editing) return;
+    let item = itemFor(selectedKey);
+    if (!item?.visible) {
+      item = items.find(candidate => candidate.visible) || null;
+      selectedKey = item?.key || "";
+    }
+    const node = selectedKey ? nodes.get(selectedKey) : null;
+    if (!item || !node) {
+      selectionControls.hidden = true;
+      return;
+    }
+    const title = document.createElement("strong");
+    title.textContent = titleFor(item.key, node);
+    const handle = makeButton(tLegacy("拖曳"), `${tLegacy("移動")}${titleFor(item.key, node)}`, () => {}, "dashboard-drag-handle");
     attachDrag(handle, node, item);
-    editor.append(
+    selectionControls.append(
+      title,
       handle,
-      makeButton("寬−", "寬度減少一格", () => resizeCard(item, "width", -1)),
-      makeButton("寬+", "寬度增加一格", () => resizeCard(item, "width", 1)),
-      makeButton("高−", "高度減少一格", () => resizeCard(item, "height", -1)),
-      makeButton("高+", "高度增加一格", () => resizeCard(item, "height", 1)),
-      makeButton("隱藏", "從目前版面隱藏", () => {
+      makeButton(tLegacy("寬−"), tLegacy("寬度減少一格"), () => resizeCard(item, "width", -1)),
+      makeButton(tLegacy("寬+"), tLegacy("寬度增加一格"), () => resizeCard(item, "width", 1)),
+      makeButton(tLegacy("高−"), tLegacy("高度減少一格"), () => resizeCard(item, "height", -1)),
+      makeButton(tLegacy("高+"), tLegacy("高度增加一格"), () => resizeCard(item, "height", 1)),
+      makeButton(tLegacy("隱藏"), tLegacy("從目前版面隱藏"), () => {
         item.visible = false;
+        selectedKey = "";
         compactLayout();
         apply();
       }),
     );
-    node.append(editor);
   }
 
   function applyNodeLayout(node, item) {
@@ -284,11 +305,17 @@ export function createDashboardLayoutController({
     for (const [key, node] of nodes) {
       const item = itemFor(key);
       const visible = Boolean(item?.visible);
+      removeEditorChrome(node);
       node.classList.toggle("dashboard-card-hidden", !visible);
+      node.classList.toggle("dashboard-card-selected", editing && visible && key === selectedKey);
       node.toggleAttribute("aria-hidden", !visible);
+      if (editing && visible) node.setAttribute("aria-selected", key === selectedKey ? "true" : "false");
+      else node.removeAttribute("aria-selected");
+      if (editing && visible) node.tabIndex = 0;
+      else node.removeAttribute("tabindex");
       if (item) applyNodeLayout(node, item);
-      addEditorChrome(node, item || { key, visible: false });
     }
+    renderSelectionControls(nodes);
     renderLibrary(nodes);
     updateStatus();
   }
@@ -299,15 +326,15 @@ export function createDashboardLayoutController({
     if (!hiddenItems.length) {
       const empty = document.createElement("span");
       empty.className = "dashboard-library-empty";
-      empty.textContent = "所有可用卡片都已在版面上。";
+      empty.textContent = tLegacy("所有可用卡片都已在版面上。");
       cardLibrary.append(empty);
       return;
     }
     for (const item of hiddenItems) {
-      const button = makeButton(`＋ ${titleFor(item.key, nodes.get(item.key))}`, "加入目前版面", () => {
+      const button = makeButton(`＋ ${titleFor(item.key, nodes.get(item.key))}`, tLegacy("加入目前版面"), () => {
         const slot = findNearestSlot(item, 0, 0);
         if (!slot) {
-          setStatus("目前單屏已滿，請先隱藏或縮小其他卡片。", "error");
+          setStatus(tLegacy("目前單屏已滿，請先隱藏或縮小其他卡片。"), "error");
           return;
         }
         Object.assign(item, slot, { visible: true });
@@ -325,7 +352,7 @@ export function createDashboardLayoutController({
 
   function updateStatus() {
     const visible = items.filter(item => item.visible).length;
-    setStatus(`${profile === "eink-landscape" ? "電子書橫向" : profile === "eink-portrait" ? "電子書直向" : "一般版面"} · ${visible} 張卡片 · 單屏 ${maxRows()} 列`);
+    setStatus(`${tLegacy(profile === "eink-landscape" ? "電子書橫向" : profile === "eink-portrait" ? "電子書直向" : "一般版面")} · ${visible} ${tLegacy("張卡片")} · ${tLegacy("單屏")} ${maxRows()} ${tLegacy("列")}`);
   }
 
   function setEditing(next) {
@@ -333,10 +360,14 @@ export function createDashboardLayoutController({
     shell.classList.toggle("dashboard-editing", editing);
     document.body.classList.toggle("dashboard-edit-mode", editing);
     editToggle.setAttribute("aria-pressed", editing ? "true" : "false");
-    editToggle.textContent = editing ? "取消編輯" : "編輯版面";
+    editToggle.textContent = editing ? tLegacy("取消編輯") : tLegacy("編輯版面");
     editBar.hidden = !editing;
     cardLibrary.hidden = true;
-    if (!editing) closeConfig?.();
+    if (editing && !itemFor(selectedKey)?.visible) selectedKey = items.find(item => item.visible)?.key || "";
+    if (!editing) {
+      selectedKey = "";
+      closeConfig?.();
+    }
     apply();
   }
 
@@ -354,7 +385,7 @@ export function createDashboardLayoutController({
       items = (result.items || result.Items || []).map(cloneItem);
       apply();
     } catch (error) {
-      setStatus(error.message || "版面讀取失敗", "error");
+      setStatus(error.message || tLegacy("版面讀取失敗"), "error");
     }
   }
 
@@ -371,7 +402,7 @@ export function createDashboardLayoutController({
       items = (result.items || result.Items || []).map(cloneItem);
       setEditing(false);
     } catch (error) {
-      setStatus(error.message || "版面儲存失敗", "error");
+      setStatus(error.message || tLegacy("版面儲存失敗"), "error");
     } finally {
       saving = false;
       saveButton.disabled = false;
@@ -379,13 +410,13 @@ export function createDashboardLayoutController({
   }
 
   async function reset() {
-    if (!window.confirm("恢復這個裝置方向的預設版面？")) return;
+    if (!window.confirm(tLegacy("恢復這個裝置方向的預設版面？"))) return;
     try {
       const result = await fetchJsonOrThrow(`/api/dashboard/layout/reset?profile=${encodeURIComponent(profile)}`, { method: "POST" });
       items = (result.items || result.Items || []).map(cloneItem);
       apply();
     } catch (error) {
-      setStatus(error.message || "版面重設失敗", "error");
+      setStatus(error.message || tLegacy("版面重設失敗"), "error");
     }
   }
 
@@ -399,12 +430,36 @@ export function createDashboardLayoutController({
   compactButton?.addEventListener("click", () => {
     const moved = compactLayout();
     apply();
-    if (!moved) setStatus("版面已經沒有可向上收合的空白。", "");
+    if (!moved) setStatus(tLegacy("版面已經沒有可向上收合的空白。"), "");
   });
   settingsButton?.addEventListener("click", () => openCardSettings?.());
   managerButton?.addEventListener("click", () => openSourceManager?.());
   addSourceButton?.addEventListener("click", () => openSourceForm?.());
   configClose?.addEventListener("click", () => closeConfig?.());
+  grid.addEventListener("click", event => {
+    if (!editing) return;
+    const node = event.target.closest("[data-dashboard-key]");
+    if (!node || !grid.contains(node)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    selectedKey = node.dataset.dashboardKey || "";
+    apply();
+  }, true);
+  grid.addEventListener("pointerdown", event => {
+    if (!editing) return;
+    const node = event.target.closest("[data-dashboard-key]");
+    const item = node ? itemFor(node.dataset.dashboardKey || "") : null;
+    if (!node || !item?.visible || item.key !== selectedKey) return;
+    beginDrag(event, node, node, item);
+  }, true);
+  grid.addEventListener("keydown", event => {
+    if (!editing || !["Enter", " "].includes(event.key)) return;
+    const node = event.target.closest("[data-dashboard-key]");
+    if (!node || !grid.contains(node)) return;
+    event.preventDefault();
+    selectedKey = node.dataset.dashboardKey || "";
+    apply();
+  });
   document.addEventListener("dashboard:cards-changed", apply);
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);

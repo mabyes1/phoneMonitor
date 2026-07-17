@@ -8,16 +8,16 @@ import {
   formatSeconds,
   formatTemperature,
   formatWeatherLocation,
-} from "./modules/formatters.js?v=47";
+} from "./modules/formatters.js?v=48";
 import { createDisplayInputController } from "./modules/display-input.js?v=48";
-import { createCustomCardsController } from "./modules/custom-cards.js?v=52";
-import { createActivityFeedController } from "./modules/activity-feed.js?v=53";
-import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=55";
-import { createQuotaController } from "./modules/quota-controller.js?v=49";
-import { createQuotaMiniCardController } from "./modules/quota-mini-card.js?v=53";
-import { createSideboardController } from "./modules/sideboard.js?v=49";
-import { createMobileOverviewController } from "./modules/mobile-overview.js?v=1";
-import { createStreamController } from "./modules/stream-controller.js?v=47";
+import { createCustomCardsController } from "./modules/custom-cards.js?v=53";
+import { createActivityFeedController } from "./modules/activity-feed.js?v=54";
+import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=57";
+import { createQuotaController } from "./modules/quota-controller.js?v=50";
+import { createQuotaMiniCardController } from "./modules/quota-mini-card.js?v=54";
+import { createSideboardController } from "./modules/sideboard.js?v=50";
+import { createMobileOverviewController } from "./modules/mobile-overview.js?v=2";
+import { createStreamController } from "./modules/stream-controller.js?v=48";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
 import {
   escapeHtml,
@@ -26,7 +26,8 @@ import {
   normalizeTierLabel,
   renderQuotaWindow,
   summarizeQuotaWindow,
-} from "./modules/quota-formatters.js?v=48";
+} from "./modules/quota-formatters.js?v=49";
+import { getIntlLocale, initLocale, onLocaleChange, tApi, tLegacy, translateText } from "./modules/i18n.js?v=3";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -67,6 +68,8 @@ import {
     const prettyLink = document.getElementById("prettyLink");
     const httpsLink = document.getElementById("httpsLink");
     const httpsCertLink = document.getElementById("httpsCertLink");
+    const androidCertLink = document.getElementById("androidCertLink");
+    const androidCertHelp = document.getElementById("androidCertHelp");
     const httpLink = document.getElementById("httpLink");
     const pairPhone = document.getElementById("pairPhone");
     const phonePairRequest = document.getElementById("phonePairRequest");
@@ -227,6 +230,8 @@ import {
     const LEGACY_DEVICE_ID_KEY = "phoneMonitorDeviceId";
     const DEVICE_COOKIE = "VibeDeck-Device-Token";
     const LEGACY_DEVICE_COOKIE = "PhoneMonitor-Device-Token";
+    const DEVICE_TOKEN_HISTORY_KEY = "vibeDeckDeviceTokenHistory.v1";
+    const DEVICE_TOKEN_HISTORY_LIMIT = 4;
     const CLIENT_INSTANCE_KEY = "vibeDeckClientInstanceId";
     const LEGACY_CLIENT_INSTANCE_KEY = "phoneMonitorClientInstanceId";
     const CLIENT_INSTANCE_COOKIE = "VibeDeck-Client-Instance";
@@ -267,9 +272,37 @@ import {
       return { token, id };
     }
 
+    function loadDeviceTokenHistory() {
+      try {
+        const values = JSON.parse(localStorage.getItem(DEVICE_TOKEN_HISTORY_KEY) || "[]");
+        return Array.isArray(values)
+          ? values.map(value => String(value || "").trim()).filter(Boolean).slice(0, DEVICE_TOKEN_HISTORY_LIMIT)
+          : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveDeviceTokenHistory(values) {
+      try {
+        const unique = [...new Set(values.map(value => String(value || "").trim()).filter(Boolean))]
+          .slice(0, DEVICE_TOKEN_HISTORY_LIMIT);
+        if (unique.length) localStorage.setItem(DEVICE_TOKEN_HISTORY_KEY, JSON.stringify(unique));
+        else localStorage.removeItem(DEVICE_TOKEN_HISTORY_KEY);
+      } catch {
+        // Token history is only a recovery path; normal cookie storage still works.
+      }
+    }
+
     function persistDeviceCredentials(token, id) {
       const nextToken = (token || "").trim();
       const nextId = (id || "").trim();
+      const previousToken = typeof deviceToken === "string" ? deviceToken.trim() : "";
+      if (nextToken && previousToken && nextToken !== previousToken) {
+        saveDeviceTokenHistory([previousToken, ...loadDeviceTokenHistory()].filter(value => value !== nextToken));
+      } else if (!nextToken) {
+        saveDeviceTokenHistory([]);
+      }
       deviceToken = nextToken;
       deviceId = nextId;
       try {
@@ -468,10 +501,10 @@ import {
       const on = isEinkClient();
       button.classList.toggle("active", on);
       button.setAttribute("aria-pressed", on ? "true" : "false");
-      button.textContent = on ? "電子書 ON" : "電子書";
-      button.title = on
+      button.textContent = tLegacy(on ? "電子書 ON" : "電子書");
+      button.title = tLegacy(on
         ? "目前是電子紙版面（資訊板優先、高對比）。再按可切回一般手機版。"
-        : "切換成電子紙版面（BOOX / 電子書）。也可在網址加 ?eink=1。";
+        : "切換成電子紙版面（BOOX / 電子書）。也可在網址加 ?eink=1。");
     }
 
     function dashboardMinInterval(topic) {
@@ -532,7 +565,10 @@ import {
       const ios = isIos();
       const eink = isEinkClient();
 
+      document.documentElement.classList.toggle("eink-boot", eink);
       document.body.classList.toggle("eink-client", eink);
+      const themeColor = document.querySelector('meta[name="theme-color"]');
+      if (themeColor) themeColor.setAttribute("content", eink ? "#f2f0e8" : "#111820");
       document.body.classList.toggle("phone-client", phoneClient);
       document.body.classList.toggle("ios-client", ios && !localConsole);
       document.body.classList.toggle("device-trusted", Boolean(deviceTrusted) && !localConsole);
@@ -552,7 +588,7 @@ import {
       tip.classList.toggle("show-install", isIos() && !isStandaloneApp());
       if (!isIos()) return;
       if (location.protocol !== "https:") {
-        tip.innerHTML = "iPhone 必須用 <strong>HTTPS</strong>。請走憑證 → 開啟 HTTPS，不要用 HTTP。";
+        tip.innerHTML = "iPhone 必須用 <strong>HTTPS</strong>。第一次警告請按進階並繼續前往。";
         return;
       }
       if (!deviceTrusted) {
@@ -729,29 +765,25 @@ import {
     }
 
     /** iPhone single path: never use HTTP for the app UI. */
-    function enforceIosHttpsPath() {
-      if (!isIos() || isLoopbackHost()) {
-        document.body.classList.remove("ios-http-blocked");
+    function enforceMobileHttpsPath() {
+      if (!isMobileClient() || isLoopbackHost()) {
+        document.body.classList.remove("mobile-http-blocked");
         return false;
       }
 
       if (location.protocol === "https:") {
-        document.body.classList.remove("ios-http-blocked");
+        document.body.classList.remove("mobile-http-blocked");
         return false;
       }
 
-      // HTTP on a real LAN host → block UI and force HTTPS gate.
-      document.body.classList.add("ios-http-blocked");
+      // Every phone platform uses one origin and one onboarding path.
+      document.body.classList.add("mobile-http-blocked");
       const httpsUrl = buildHttpsUrlFromCurrent();
-      const openBtn = document.getElementById("iosGateOpenHttps");
-      const link = document.getElementById("iosGateHttpsUrl");
-      const cert = document.getElementById("iosGateCertLink");
+      const openBtn = document.getElementById("mobileGateOpenHttps");
+      const link = document.getElementById("mobileGateHttpsUrl");
       if (link && httpsUrl) {
         link.href = httpsUrl;
         link.textContent = httpsUrl;
-      }
-      if (cert) {
-        cert.href = "/cert/vibedeck-root.cer";
       }
       if (openBtn) {
         openBtn.onclick = () => {
@@ -846,7 +878,7 @@ import {
     }
 
     function setText(element, value) {
-      element.textContent = value == null || value === "" ? "--" : String(value);
+      element.textContent = value == null || value === "" ? "--" : translateText(String(value));
     }
 
     function updateHostAuthGate(message = "") {
@@ -886,7 +918,7 @@ import {
       hostAuthRequired = Boolean(result.required ?? result.Required);
       updateHostAuthGate(
         Boolean(result.httpsRequired ?? result.HttpsRequired)
-          ? "遠端登入必須改用 HTTPS。"
+          ? tApi("auth.https_required", "遠端登入必須改用 HTTPS。")
           : ""
       );
       return result;
@@ -905,7 +937,7 @@ import {
         });
         const result = parseJsonResponse(await response.text(), "/api/auth/login");
         if (!response.ok || !result.success) {
-          throw new Error(result.error || result.message || `登入失敗 HTTP ${response.status}`);
+          throw new Error(tApi(result.code || result.Code, result.error || result.message || `登入失敗 HTTP ${response.status}`));
         }
 
         actionToken = "";
@@ -953,18 +985,16 @@ import {
     }
 
     function updatePairingGuide(state) {
-      const normalized = state || "install";
-      setPairingStep(pairingStepInstall, normalized === "install" ? "active" : "done");
-      setPairingStep(pairingStepPair, normalized === "pair" ? "active" : normalized === "paired" ? "done" : "");
-      setPairingStep(pairingStepOpen, normalized === "scan" ? "active" : normalized === "paired" ? "done" : "");
+      const normalized = state || "pair";
+      setPairingStep(pairingStepInstall, normalized === "pair" || normalized === "scan" ? "active" : "done");
+      setPairingStep(pairingStepPair, normalized === "warning" ? "active" : normalized === "approve" || normalized === "paired" ? "done" : "");
+      setPairingStep(pairingStepOpen, normalized === "approve" ? "active" : normalized === "paired" ? "done" : "");
       if (normalized === "paired") {
-        qrCaption.textContent = "已有配對手機。iPhone 請用 HTTPS 開啟主畫面圖示。";
-      } else if (normalized === "scan") {
-        qrCaption.textContent = "手機相機掃碼 → 開啟 HTTPS Host → 按「配對申請」。";
-      } else if (normalized === "pair") {
-        qrCaption.textContent = "手機先掃描 QR Code 開啟 HTTPS Host，再按「配對申請」。";
+        qrCaption.textContent = tLegacy("手機已配對，可以直接使用 VibeDeck。");
+      } else if (normalized === "approve") {
+        qrCaption.textContent = tLegacy("手機申請已送達；請核對驗證碼並按「允許」。");
       } else {
-        qrCaption.textContent = "手機瀏覽器：需要時先安裝 HTTPS 憑證，再進行配對。";
+        qrCaption.textContent = tLegacy("手機掃碼；若出現瀏覽器警告，按「進階」→「繼續前往」。");
       }
     }
 
@@ -984,7 +1014,12 @@ import {
         return true;
       }
       updatePairingGuide("pair");
-      setPairingProgress(20, "HTTPS 與 QR Code 已準備");
+      setPairingProgress(
+        isMobileClient() && !isLoopbackHost() ? 35 : 20,
+        isMobileClient() && !isLoopbackHost()
+          ? tLegacy("頁面已開啟，可以開始連接")
+          : tLegacy("HTTPS 與 QR Code 已準備")
+      );
       return true;
     }
 
@@ -1003,7 +1038,7 @@ import {
       if (!value) return "--";
       const date = new Date(value);
       if (Number.isNaN(date.getTime())) return "--";
-      return date.toLocaleString([], {
+      return date.toLocaleString(getIntlLocale(), {
         month: "2-digit",
         day: "2-digit",
         hour: "2-digit",
@@ -1136,7 +1171,7 @@ import {
       if (!pending?.requestId || !pending?.requestSecret) {
         if (!allowCreate) {
           setPairingProgress(25, "Host 已連線，等待你開始配對");
-          setTrustState("請按「配對申請」，再回 PC 按允許。", false);
+          setTrustState(tLegacy("請按「連接這台電腦」，再回 PC 按允許。"), false);
           updatePairingGuide("pair");
           return false;
         }
@@ -1157,7 +1192,7 @@ import {
       }
 
       setPairingProgress(70, `等待 PC 核准 · ${pending.verificationCode || "------"}`);
-      setTrustState(`已找到 Host，請在 PC 按允許（驗證碼 ${pending.verificationCode || "------"}）。`, false);
+      setTrustState(`${tLegacy("申請已送出；請回 PC 核對驗證碼並按允許：")}${pending.verificationCode || "------"}`, false);
       const poll = async () => {
         try {
           const response = await fetch("/api/devices/pairing/poll", {
@@ -1204,7 +1239,10 @@ import {
     function renderPendingApprovals(result) {
       const requests = result?.Requests || result?.requests || [];
       pendingPairingPanel.hidden = !requests.length;
-      if (requests.length) setPairingProgress(75, "手機申請已送達，等待 PC 核准");
+      if (requests.length) {
+        setPairingProgress(75, tLegacy("手機申請已送達，等待 PC 核准"));
+        updatePairingGuide("approve");
+      }
       pendingPairingList.replaceChildren();
       for (const request of requests) {
         const row = document.createElement("div");
@@ -1344,7 +1382,7 @@ import {
     async function loadDeviceTrustStatus() {
       try {
         const identity = await resolvePairingDeviceInfo();
-        const result = await fetchJsonOrThrow("/api/devices/status", {
+        let result = await fetchJsonOrThrow("/api/devices/status", {
           headers: {
             "X-VibeDeck-Client-Instance": identity.clientInstanceId,
             "X-VibeDeck-Device-Model": encodeURIComponent(identity.model || "")
@@ -1353,14 +1391,41 @@ import {
         deviceHeaderName = result.DeviceHeader || result.deviceHeader || deviceHeaderName;
         deviceTrusted = Boolean(result.Trusted ?? result.trusted);
 
-        // localStorage can outlive a re-pair (especially for an iOS PWA), while
-        // the cookie is refreshed by the approval response. If the two stores
-        // disagree, the stale localStorage value used to make every request
-        // look unpaired forever. Retry once with the cookie-backed credential.
-        const cookieToken = readCookie(DEVICE_COOKIE);
-        if (!deviceTrusted && deviceToken && cookieToken && cookieToken !== deviceToken) {
-          persistDeviceCredentials(cookieToken, deviceId);
-          return loadDeviceTrustStatus();
+        // The same HTTPS origin can temporarily point at an installed Host or a
+        // source-development Host with a separate trust database. Re-pairing on
+        // one rotates that realm's token. Keep a bounded history and recover the
+        // token accepted by the currently running Host instead of looking
+        // permanently unpaired when switching back.
+        if (!deviceTrusted) {
+          const originalToken = deviceToken;
+          const candidates = [
+            readCookie(DEVICE_COOKIE),
+            readCookie(LEGACY_DEVICE_COOKIE),
+            ...loadDeviceTokenHistory(),
+          ].map(value => String(value || "").trim())
+            .filter((value, index, values) => value && value !== originalToken && values.indexOf(value) === index);
+          for (const candidate of candidates) {
+            deviceToken = candidate;
+            try {
+              const candidateResult = await fetchJsonOrThrow("/api/devices/status", {
+                headers: {
+                  "X-VibeDeck-Client-Instance": identity.clientInstanceId,
+                  "X-VibeDeck-Device-Model": encodeURIComponent(identity.model || "")
+                }
+              });
+              if (candidateResult.Trusted ?? candidateResult.trusted) {
+                deviceToken = originalToken;
+                persistDeviceCredentials(candidate, deviceId);
+                result = candidateResult;
+                deviceTrusted = true;
+                break;
+              }
+            } catch {
+              // Try the next credential; the normal status UI handles failure.
+            } finally {
+              if (!deviceTrusted) deviceToken = originalToken;
+            }
+          }
         }
         deviceLocalRequest = Boolean(result.LocalRequest ?? result.localRequest) || isLoopbackHost();
         const currentDevice = result.CurrentDevice || result.currentDevice;
@@ -1396,7 +1461,7 @@ import {
           if (hasPendingRequest) {
             requestApprovalPairing().catch(error => setTrustState(error.message || "配對申請失敗。", false));
           } else {
-            setTrustState("請按「配對申請」，再回 PC 按允許。", false);
+            setTrustState(tLegacy("請按「連接這台電腦」，再回 PC 按允許。"), false);
             setPairingProgress(25, "Host 已連線，等待你開始配對");
             updatePairingGuide("pair");
           }
@@ -1442,7 +1507,7 @@ import {
       try {
         showInstallQr();
         setPairingUiActive(true);
-        setTrustState("請用手機掃描 QR Code 開啟 HTTPS Host，再按「配對申請」。", true);
+        setTrustState(tLegacy("請用手機掃描 QR Code；若出現警告，按「進階」→「繼續前往」，再於手機按「連接這台電腦」。"), true);
         setStatus("手機 QR Code 已顯示", true);
         updatePairingGuide("scan");
       } finally {
@@ -1530,14 +1595,14 @@ import {
 
       if (!response.ok) {
         const errorPayload = data.error && typeof data.error === "object" ? data.error : null;
-        const error = new Error(
-          errorPayload?.message ||
+        const rawMessage = errorPayload?.message ||
           data.Message ||
           data.message ||
           (typeof data.error === "string" ? data.error : null) ||
-          `HTTP ${response.status}`
-        );
-        error.code = errorPayload?.code || "";
+          `HTTP ${response.status}`;
+        const code = errorPayload?.code || data.code || data.Code || "";
+        const error = new Error(tApi(code, rawMessage));
+        error.code = code;
         error.status = response.status;
         throw error;
       }
@@ -1737,6 +1802,19 @@ import {
     });
     const refreshQuotas = options => quotaController.refresh(options);
 
+    onLocaleChange(() => {
+      // Existing DOM text is translated by the runtime. Refresh the data-backed
+      // panels so their next render uses the new locale for formatters/statuses.
+      updateEinkToggle();
+      refreshSideboard().catch(() => {});
+      refreshQuotas({ force: true }).catch(() => {});
+      const customRefresh = customCardsController?.refreshAll?.();
+      customRefresh?.catch?.(() => {});
+      updatePairingGuide(deviceTrusted ? "paired" : "pair");
+      updateEinkToggle();
+      updateKeepAwakeButton();
+    });
+
     function renderQuotas(snapshot) {
       quotaSnapshotData = snapshot || {};
       quotaMiniController?.renderSnapshot(snapshot);
@@ -1795,7 +1873,7 @@ import {
           : "目前沒有可用的額度來源。";
       }
       quotaUpdated.textContent = snapshot?.GeneratedAt || snapshot?.generatedAt
-        ? new Date(snapshot.GeneratedAt || snapshot.generatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        ? new Date(snapshot.GeneratedAt || snapshot.generatedAt).toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit" })
         : "--";
 
       if (quotaHelp) {
@@ -2294,7 +2372,7 @@ import {
       card.dataset.statusKey = `agy:${account.id || email}`;
       const updated = snapshot?.GeneratedAt || snapshot?.generatedAt;
       const updatedText = updated
-        ? new Date(updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+        ? new Date(updated).toLocaleString(getIntlLocale(), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
         : "--";
       const claude = providers.find(provider => providerContains(provider, "claude")) || {};
       const gemini = providers.find(provider => providerContains(provider, "gemini")) || {};
@@ -2345,7 +2423,7 @@ import {
       card.dataset.accountEmail = provider.AccountEmail || provider.accountEmail || "";
       const updated = provider.ObservedAt || provider.observedAt || snapshot?.GeneratedAt || snapshot?.generatedAt;
       const updatedText = updated
-        ? new Date(updated).toLocaleString([], { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+        ? new Date(updated).toLocaleString(getIntlLocale(), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
         : "--";
       card.innerHTML = `
         <div class="quota-account-head">
@@ -2909,14 +2987,16 @@ import {
     function renderDisplayInstallStatus(status) {
       const state = readInstallField(status, "State", "ready");
       const message = readInstallField(status, "Message", "");
+      const code = readInstallField(status, "Code", "");
+      const localizedMessage = tApi(code, message);
       const canInstall = Boolean(readInstallField(status, "CanInstall", false));
 
       if (displayInstallDetail) {
         displayInstallDetail.textContent = deviceLocalRequest
-          ? message
+          ? localizedMessage
           : "請到這台 PC 的 VibeDeck 頁面建立虛擬螢幕；手機不能遠端觸發管理員安裝。";
       }
-      if (setupDisplayInstallDetail) setupDisplayInstallDetail.textContent = message || "等待虛擬螢幕狀態。";
+      if (setupDisplayInstallDetail) setupDisplayInstallDetail.textContent = localizedMessage || "等待虛擬螢幕狀態。";
 
       if (installVirtualDisplay) {
         installVirtualDisplay.hidden = !deviceLocalRequest || state === "installed" || state === "finishing" || state === "console-required";
@@ -3030,10 +3110,10 @@ import {
     async function loadDisplayStatus() {
       try {
         const status = await fetchJsonOrThrow("/api/display/status");
-        driverState.textContent = `${driverState.textContent} 虛擬螢幕：${status.State}.`;
+        driverState.textContent = `${driverState.textContent} ${tLegacy(`虛擬螢幕：${status.State}.`)}`;
       } catch (error) {
         if (!isTrustRequiredError(error)) {
-          driverState.textContent = `${driverState.textContent} 無法取得虛擬螢幕狀態。`;
+          driverState.textContent = `${driverState.textContent} ${tLegacy("無法取得虛擬螢幕狀態。")}`;
         }
       }
     }
@@ -3064,22 +3144,22 @@ import {
       httpsCertLink.hidden = !httpsAvailable || !rootCertificateUrl;
       httpsCertLink.href = rootCertificateUrl || "#";
       httpsCertLink.textContent = "安裝 HTTPS 憑證";
+      const androidCertificateUrl = rootCertificateUrl.replace(/\.cer(?=$|\?)/i, ".crt");
+      androidCertLink.hidden = !httpsAvailable || !rootCertificateUrl;
+      androidCertLink.href = androidCertificateUrl || "#";
+      androidCertHelp.hidden = !httpsAvailable || !rootCertificateUrl;
       httpLink.href = httpUrl || "#";
       httpLink.textContent = `HTTP（本機備援）：${httpUrl}`;
       const connectTitleHint = document.getElementById("connectTitleHint");
       if (connectTitleHint) {
-        connectTitleHint.textContent = "用手機瀏覽器開啟 HTTPS 網址；第一次只需在下方允許一次。";
+        connectTitleHint.textContent = tLegacy("不必安裝憑證。第一次開啟時，在瀏覽器警告頁按「進階」→「繼續前往」。");
       }
-      const gateCert = document.getElementById("iosGateCertLink");
-      if (gateCert && rootCertificateUrl) {
-        gateCert.href = rootCertificateUrl;
-      }
-      const gateHttps = document.getElementById("iosGateHttpsUrl");
+      const gateHttps = document.getElementById("mobileGateHttpsUrl");
       if (gateHttps && httpsUrl) {
         gateHttps.href = httpsUrl;
         gateHttps.textContent = httpsUrl;
       }
-      const openHttps = document.getElementById("iosGateOpenHttps");
+      const openHttps = document.getElementById("mobileGateOpenHttps");
       if (openHttps) {
         const target = buildHttpsUrlFromCurrent() || (httpsUrl ? new URL("index.html" + (location.search || ""), httpsUrl).toString() : "");
         openHttps.onclick = () => {
@@ -3254,14 +3334,14 @@ import {
     });
     phonePairRequest?.addEventListener("click", async () => {
       phonePairRequest.disabled = true;
-      phonePairRequest.textContent = "申請中…";
+      phonePairRequest.textContent = tLegacy("連接中…");
       try {
         await requestApprovalPairing({ allowCreate: true });
       } catch (error) {
         setTrustState(error.message || "配對申請失敗。", false);
       } finally {
         phonePairRequest.disabled = false;
-        phonePairRequest.textContent = "開始配對";
+        phonePairRequest.textContent = tLegacy("連接這台電腦");
       }
     });
     displaySettingsToggle?.addEventListener("click", () => {
@@ -3438,6 +3518,7 @@ import {
       });
     }
     async function boot() {
+      await initLocale().catch(() => {});
       await (window.phoneMonitorServiceWorkerCleanup || Promise.resolve());
       ensureEinkPreferenceSticky();
       // If hardware/cookie says e-ink but URL has no flag, stamp ?eink=1 so a later
@@ -3455,7 +3536,7 @@ import {
       document.body.classList.toggle("deck-window", deckWindow);
 
       // iPhone: one path only — HTTPS. Block HTTP UI entirely (except loopback).
-      if (!deckWindow && enforceIosHttpsPath()) {
+      if (!deckWindow && enforceMobileHttpsPath()) {
         try {
           await loadConnectInfo();
         } catch {
