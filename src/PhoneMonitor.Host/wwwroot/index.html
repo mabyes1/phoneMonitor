@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=96">
+  <link rel="stylesheet" href="/index.css?v=102">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -34,6 +34,8 @@
       try {
         var params = new URLSearchParams(location.search);
         var q = params.get("eink");
+        var preview = /^(boox-go-color-7|galaxy-s23|iphone-xs)$/.test(params.get("devicePreview") || "") &&
+          /^(localhost|127\.0\.0\.1|::1)$/.test(location.hostname || "");
         var stored = null;
         try { stored = localStorage.getItem("phoneMonitorEink"); } catch (e) {}
         var cookie = (document.cookie.match(/(?:^|;\s*)phoneMonitorEink=([01])/) || [])[1] || null;
@@ -45,7 +47,7 @@
         var on = q === "1" || q === "true" || stored === "1" || cookie === "1" ||
           (q !== "0" && q !== "false" && stored !== "0" && cookie !== "0" && hardware);
         if (on) document.documentElement.classList.add("eink-boot");
-        if (on && stored !== "0" && cookie !== "0") {
+        if (!preview && on && stored !== "0" && cookie !== "0") {
           try { localStorage.setItem("phoneMonitorEink", "1"); } catch (e) {}
           try { document.cookie = "phoneMonitorEink=1; Path=/; Max-Age=31536000; SameSite=Lax"; } catch (e) {}
         }
@@ -270,6 +272,17 @@
             <span>手機按「連接這台電腦」，再回 PC 核對驗證碼並按「允許」。</span>
           </div>
         </div>
+        <section id="einkConnectionCodePanel" class="eink-connection-code" hidden>
+          <div>
+            <strong data-i18n="secureEndpoint.einkTitle">電子紙沒有相機？</strong>
+            <p><span data-i18n="secureEndpoint.einkHintBefore">在電子紙瀏覽器輸入</span> <code id="einkConnectionCodeUrl">vibedeck.pp.ua</code> <span data-i18n="secureEndpoint.einkHintAfter">，再輸入下方一次性連線碼。</span></p>
+          </div>
+          <div class="eink-connection-code-value">
+            <output id="einkConnectionCode">--------</output>
+            <button id="generateEinkConnectionCode" type="button" data-i18n="secureEndpoint.einkGenerate">產生電子紙連線碼</button>
+          </div>
+          <small id="einkConnectionCodeStatus" aria-live="polite" data-i18n="secureEndpoint.einkIdle">連線碼有效 10 分鐘，使用一次後即失效。</small>
+        </section>
         <div class="connect-actions">
           <button id="pairPhone" class="primary-action" type="button" hidden>配對新手機</button>
           <button id="launchDeckWindow" type="button" hidden>把資訊板開到副螢幕</button>
@@ -320,6 +333,7 @@
           <button id="refreshDiagnostics" type="button">更新軌跡</button>
           <button id="markDiagnostics" type="button">標記目前狀態</button>
           <button id="copyDiagnostics" type="button">複製診斷摘要</button>
+          <a href="http://localhost:5000/device-lab.html" target="_blank" rel="noopener" data-i18n="ui.deviceLab">裝置版面測試</a>
         </div>
         <div id="diagnosticsList" class="diagnostics-list" role="log" aria-live="polite" data-i18n-ignore></div>
       </div>
@@ -332,6 +346,14 @@
       <small>VIBEDECK · 手機設定</small>
       <strong>連接這台電腦</strong>
       <span>你已經開啟正確頁面。按下方按鈕，再回 PC 核對六位數驗證碼並按「允許」。</span>
+      <label class="pairing-locale-control" for="pairingLocaleSelect">
+        <span data-i18n="ui.language">語言</span>
+        <select id="pairingLocaleSelect" aria-label="語言">
+          <option value="zh-Hant">繁體中文</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+        </select>
+      </label>
       <div class="pairing-progress" data-pair-progress style="--pair-progress:0%">
         <div><strong data-pair-progress-detail>準備配對</strong><b data-pair-progress-label>0%</b></div>
         <progress data-pair-progress-bar max="100" value="0" aria-label="配對進度"></progress>
@@ -595,6 +617,11 @@
               <button type="button" data-activity-filter="task" aria-pressed="false">任務</button>
               <button type="button" data-activity-filter="notification" aria-pressed="false">通知</button>
             </div>
+            <select id="activityFeedFilterSelect" class="activity-feed-filter-select" aria-label="活動動態篩選">
+              <option value="all">全部</option>
+              <option value="task">任務</option>
+              <option value="notification">通知</option>
+            </select>
           </div>
           <ul id="activityFeedList" class="activity-feed-list"></ul>
         </section>
@@ -742,6 +769,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=104"></script>
+  <script type="module" src="/index.js?v=110"></script>
 </body>
 </html>

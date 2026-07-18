@@ -3,13 +3,17 @@
   <PropertyGroup>
     <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
-    <Version>0.1.24</Version>
+    <Version>0.1.27</Version>
     <AssemblyName>VibeDeck.Host</AssemblyName>
     <RootNamespace>PhoneMonitor.Host</RootNamespace>
     <Product>VibeDeck</Product>
     <Description>把閒置手機變成 Windows PC 的智慧副螢幕與資訊板。</Description>
     <OutputType>WinExe</OutputType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PhoneMonitor.Host.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="QRCoder" Version="1.6.0" />

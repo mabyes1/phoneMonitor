@@ -461,7 +461,7 @@ body.eink-client .quota-page-button {
     }
 
     header {
-      padding: calc(14px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right)) 14px calc(18px + env(safe-area-inset-left));
+      padding: calc(14px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(18px + var(--safe-area-inset-right, env(safe-area-inset-right))) 14px calc(18px + var(--safe-area-inset-left, env(safe-area-inset-left)));
       background: rgba(15, 23, 32, .82);
       backdrop-filter: blur(20px) saturate(140%);
       -webkit-backdrop-filter: blur(20px) saturate(140%);
@@ -476,9 +476,9 @@ body.eink-client .quota-page-button {
     main {
       display: grid;
       padding: 16px;
-      padding-left: calc(16px + env(safe-area-inset-left));
-      padding-right: calc(16px + env(safe-area-inset-right));
-      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      padding-left: calc(16px + var(--safe-area-inset-left, env(safe-area-inset-left)));
+      padding-right: calc(16px + var(--safe-area-inset-right, env(safe-area-inset-right)));
+      padding-bottom: calc(16px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom)));
       min-height: 0;
     }
 
@@ -645,8 +645,8 @@ body.eink-client .quota-page-button {
 
     .exit-viewer {
       position: fixed;
-      right: calc(10px + env(safe-area-inset-right));
-      bottom: calc(10px + env(safe-area-inset-bottom));
+      right: calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right)));
+      bottom: calc(10px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom)));
       z-index: 10;
       display: none;
       min-width: 42px;
@@ -1121,11 +1121,33 @@ body.eink-client .quota-page-button {
       gap: 8px;
     }
 
-    .diagnostics-actions button {
+    .diagnostics-actions button,
+    .diagnostics-actions a {
       min-height: 32px;
       padding: 6px 10px;
       font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
     }
+
+    .diagnostics-actions a {
+      border: 1px solid var(--line);
+      color: var(--text);
+      background: var(--panel);
+    }
+
+html[data-device-preview],
+html[data-device-preview] body {
+  scrollbar-width: none;
+}
+
+html[data-device-preview]::-webkit-scrollbar,
+html[data-device-preview] body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
 
     .diagnostics-list {
       display: grid;
@@ -1310,6 +1332,66 @@ body.eink-client .quota-page-button {
       border-color: #ffffff;
       box-shadow: 0 0 18px rgba(245, 247, 251, .28), 0 4px 14px rgba(0, 0, 0, .25);
     }
+
+    .eink-connection-code {
+      display: grid;
+      gap: 10px;
+      padding: 13px;
+      border: 1px solid rgba(141, 230, 166, .34);
+      border-radius: 8px;
+      background: rgba(47, 207, 114, .06);
+    }
+
+    .eink-connection-code[hidden] { display: none; }
+
+    .eink-connection-code strong {
+      color: #dff8e6;
+      font-size: 15px;
+    }
+
+    .eink-connection-code p,
+    .eink-connection-code small {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .eink-connection-code p code {
+      color: #dff8e6;
+      font-family: var(--mono);
+      font-size: 1em;
+      user-select: all;
+    }
+
+    .eink-connection-code-value {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .eink-connection-code output {
+      min-width: 184px;
+      color: #ffffff;
+      font-family: var(--mono);
+      font-size: clamp(24px, 2.4vw, 34px);
+      font-weight: 800;
+      letter-spacing: .11em;
+      line-height: 1;
+    }
+
+    .eink-connection-code button {
+      min-height: 38px;
+      padding: 8px 12px;
+      border: 1px solid rgba(141, 230, 166, .42);
+      border-radius: 6px;
+      background: rgba(47, 207, 114, .12);
+      color: #dff8e6;
+      font-weight: 700;
+    }
+
+    body.phone-client .eink-connection-code { display: none !important; }
 
     .pairing-guide {
       display: grid;
@@ -2262,7 +2344,7 @@ body.eink-client .quota-page-button {
       height: auto;
       border: 0;
       border-radius: 0;
-      padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+      padding: calc(8px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right))) calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom))) calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left)));
     }
 
     body.deck-window.mode-quota .quota-shell {
@@ -2345,7 +2427,7 @@ body.eink-client .quota-page-button {
       min-height: auto;
       height: auto;
       overflow: visible;
-      padding: 12px 12px calc(18px + env(safe-area-inset-bottom)) 12px;
+      padding: 12px 12px calc(18px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom))) 12px;
     }
 
     body.viewport-portrait .quota-top {
@@ -2493,7 +2575,7 @@ body.eink-client .quota-page-button {
       min-height: var(--viewer-height);
       height: auto;
       overflow: visible;
-      padding: calc(10px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+      padding: calc(10px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right))) calc(18px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom))) calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left)));
     }
 
     .sideboard-shell {
@@ -2552,7 +2634,7 @@ body.eink-client .quota-page-button {
       height: auto;
       border: 0;
       border-radius: 0;
-      padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+      padding: calc(8px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right))) calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom))) calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left)));
     }
 
     body.eink-client.viewer-fullscreen.mode-sideboard .sideboard-shell,
@@ -3432,7 +3514,7 @@ body.eink-client .quota-page-button {
     body.phone-client header {
       grid-template-columns: 1fr;
       gap: 10px;
-      padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 10px calc(12px + env(safe-area-inset-left));
+      padding: calc(10px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(12px + var(--safe-area-inset-right, env(safe-area-inset-right))) 10px calc(12px + var(--safe-area-inset-left, env(safe-area-inset-left)));
     }
 
     body.phone-client .brand-copy span {
@@ -3495,7 +3577,7 @@ body.eink-client .quota-page-button {
     body.phone-client:not(.device-trusted):not(.pc-console) main {
       display: grid;
       place-items: start center;
-      padding-top: max(28px, env(safe-area-inset-top));
+      padding-top: max(28px, var(--safe-area-inset-top, env(safe-area-inset-top)));
     }
 
     body.phone-client .panel {
@@ -3504,9 +3586,9 @@ body.eink-client .quota-page-button {
 
     body.phone-client main {
       padding: 10px;
-      padding-left: calc(10px + env(safe-area-inset-left));
-      padding-right: calc(10px + env(safe-area-inset-right));
-      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      padding-left: calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left)));
+      padding-right: calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right)));
+      padding-bottom: calc(10px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom)));
     }
 
     body.phone-client.mode-display .screen-media {
@@ -3558,7 +3640,7 @@ body.eink-client .quota-page-button {
 
     body.phone-client.viewport-portrait header {
       gap: 8px;
-      padding: calc(8px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 8px calc(10px + env(safe-area-inset-left));
+      padding: calc(8px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right))) 8px calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left)));
     }
 
     body.phone-client.viewport-portrait .brand {
@@ -3619,9 +3701,9 @@ body.eink-client .quota-page-button {
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       padding: 8px;
-      padding-left: calc(8px + env(safe-area-inset-left));
-      padding-right: calc(8px + env(safe-area-inset-right));
-      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+      padding-left: calc(8px + var(--safe-area-inset-left, env(safe-area-inset-left)));
+      padding-right: calc(8px + var(--safe-area-inset-right, env(safe-area-inset-right)));
+      padding-bottom: calc(12px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom)));
       align-content: start;
     }
 
@@ -3916,6 +3998,34 @@ body.eink-client .quota-page-button {
       line-height: 1.55;
     }
 
+    .pairing-locale-control {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 12px;
+      color: #f2dca9;
+      font-weight: 800;
+    }
+
+    .pairing-locale-control select {
+      min-width: 0;
+      min-height: 46px;
+      padding: 8px 12px;
+      border: 2px solid rgba(255, 255, 255, .34);
+      border-radius: 8px;
+      background: #fffdf4;
+      color: #171714;
+      font: inherit;
+      font-size: 17px;
+    }
+
+    body.eink-client .pairing-locale-control select {
+      min-height: 52px;
+      border: 3px solid #171714;
+      border-radius: 3px;
+      font-size: 20px;
+    }
+
     .phone-pair-rescue input,
     .phone-pair-rescue textarea {
       width: 100%;
@@ -3969,7 +4079,7 @@ body.eink-client .quota-page-button {
       position: fixed;
       inset: 0;
       z-index: 1000;
-      padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+      padding: calc(24px + var(--safe-area-inset-top, env(safe-area-inset-top))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom)));
       background: #0d131a;
       color: #f5f7fb;
       overflow: auto;
@@ -4046,7 +4156,7 @@ body.eink-client .quota-page-button {
       header {
         grid-template-columns: 1fr;
         gap: 12px;
-        padding: calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 12px calc(12px + env(safe-area-inset-left));
+        padding: calc(10px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(12px + var(--safe-area-inset-right, env(safe-area-inset-right))) 12px calc(12px + var(--safe-area-inset-left, env(safe-area-inset-left)));
       }
 
       .brand-mark {
@@ -4570,7 +4680,7 @@ body.eink-client .quota-shell {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: calc(10px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+    padding: calc(10px + var(--safe-area-inset-top, env(safe-area-inset-top))) calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right))) calc(12px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom))) calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left)));
     overflow-y: auto;
     color: #edf7f5;
     background: #071116;
@@ -4579,7 +4689,7 @@ body.eink-client .quota-shell {
 
   .mobile-detail-header {
     position: sticky;
-    top: calc(-10px - env(safe-area-inset-top));
+    top: calc(-10px - var(--safe-area-inset-top, env(safe-area-inset-top)));
     z-index: 2;
     display: grid;
     grid-template-columns: minmax(76px, 1fr) auto minmax(76px, 1fr);
@@ -4895,10 +5005,10 @@ body.eink-client.viewer-immersive {
   overflow-x: hidden !important;
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch;
-  padding-top: env(safe-area-inset-top, 0px) !important;
-  padding-left: env(safe-area-inset-left, 0px);
-  padding-right: env(safe-area-inset-right, 0px);
-  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) !important;
+  padding-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+  padding-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  padding-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
   box-sizing: border-box !important;
 }
 
@@ -6238,6 +6348,10 @@ body.eink-client .load-pet span::after { background: #000; }
   line-height: .95;
 }
 
+.activity-feed-filter-select {
+  display: none;
+}
+
 .quota-mini-credit {
   overflow: hidden;
   color: var(--side-muted);
@@ -6282,6 +6396,26 @@ body.eink-client .activity-feed-filters button {
 body.eink-client .activity-feed-filters button.active {
   background: #000;
   color: #fffef8;
+}
+
+body.eink-client .activity-feed-filters {
+  display: none !important;
+}
+
+body.eink-client .activity-feed-filter-select {
+  display: block;
+  flex: 0 1 180px;
+  width: min(180px, 48%);
+  min-width: 120px;
+  min-height: 42px;
+  padding: 4px 34px 4px 10px;
+  border: 2px solid #000;
+  border-radius: 2px;
+  background: #fffef8;
+  color: #000;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 800;
 }
 
 body.eink-client .activity-feed-list { scrollbar-width: auto; }
@@ -6494,5 +6628,527 @@ body.eink-client .energy-wave-backdrop {
 @media (prefers-reduced-motion: reduce) {
   .energy-wave-backdrop {
     transition: none;
+  }
+}
+
+.quota-codex-switcher {
+  grid-template-rows: auto auto auto;
+}
+
+.quota-codex-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.quota-codex-select {
+  flex: 1 1 190px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 8px;
+  background: rgba(0,0,0,.22);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+
+body.eink-client .quota-codex-select {
+  min-height: 48px;
+  border: 3px solid #000;
+  border-radius: 4px;
+  background: #fffef8;
+  color: #000;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* E-ink layout safety net ----------------------------------------------------
+ * BOOX / e-reader browsers span a wide range of CSS viewport sizes. Keep
+ * cards readable, but never let a long label or a dense action row widen the
+ * page beyond the paper viewport. This block stays last on purpose. */
+body.eink-client {
+  overflow-x: hidden;
+}
+
+body.eink-client *,
+body.eink-client *::before,
+body.eink-client *::after {
+  box-sizing: border-box;
+}
+
+body.eink-client header,
+body.eink-client main,
+body.eink-client .app-view,
+body.eink-client .sideboard-view,
+body.eink-client .quota-view,
+body.eink-client .sideboard-shell,
+body.eink-client .quota-shell,
+body.eink-client .sideboard-top,
+body.eink-client .quota-top,
+body.eink-client .dashboard-edit-bar,
+body.eink-client .dashboard-config-panel,
+body.eink-client .custom-sideboard-page,
+body.eink-client .custom-cards-grid,
+body.eink-client .custom-sources-manager,
+body.eink-client .quota-account-card,
+body.eink-client .quota-account-head,
+body.eink-client .quota-codex-switch-row {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.eink-client img,
+body.eink-client video,
+body.eink-client canvas,
+body.eink-client svg,
+body.eink-client input,
+body.eink-client select,
+body.eink-client textarea,
+body.eink-client button {
+  max-width: 100%;
+}
+
+body.eink-client .brand-copy,
+body.eink-client .side-title,
+body.eink-client .side-title span,
+body.eink-client .quota-title,
+body.eink-client .quota-title span,
+body.eink-client .quota-status,
+body.eink-client .quota-account-email,
+body.eink-client .quota-account-switcher,
+body.eink-client .quota-action-status,
+body.eink-client .quota-window small,
+body.eink-client .custom-source-meta,
+body.eink-client .custom-source-health,
+body.eink-client .custom-card-source,
+body.eink-client .custom-card-footer,
+body.eink-client .custom-feed-text,
+body.eink-client .custom-feed-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+body.eink-client .top-controls,
+body.eink-client .utility-controls,
+body.eink-client .sideboard-top,
+body.eink-client .dashboard-view-controls,
+body.eink-client .dashboard-mode-switch,
+body.eink-client .dashboard-edit-actions,
+body.eink-client .dashboard-card-library,
+body.eink-client .dashboard-selection-controls,
+body.eink-client .custom-cards-top,
+body.eink-client .custom-manager-header,
+body.eink-client .custom-source-row,
+body.eink-client .custom-source-actions,
+body.eink-client .custom-source-form-actions,
+body.eink-client .activity-feed-head,
+body.eink-client .quota-mini-head,
+body.eink-client .quota-mini-value-row {
+  flex-wrap: wrap;
+}
+
+body.eink-client .sideboard-top {
+  align-items: flex-start;
+}
+
+body.eink-client .side-title,
+body.eink-client .dashboard-view-controls {
+  flex: 1 1 220px;
+  max-width: 100%;
+}
+
+body.eink-client .dashboard-view-controls,
+body.eink-client .dashboard-mode-switch {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.eink-client .dashboard-mode-switch {
+  flex: 1 1 180px;
+}
+
+body.eink-client .dashboard-mode-switch button {
+  flex: 1 1 88px;
+  min-width: 0;
+  white-space: normal;
+}
+
+body.eink-client .eink-connection-state {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+/* The quota page used to keep a three-column desktop header and icon-sized
+ * controls. E-ink action labels now wrap and remain tappable instead. */
+body.eink-client .quota-top {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+body.eink-client .quota-left,
+body.eink-client .quota-top .dashboard-view-controls,
+body.eink-client .quota-status {
+  grid-column: 1;
+  justify-self: start;
+  width: 100%;
+}
+
+body.eink-client .quota-title {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+
+body.eink-client .quota-tabs {
+  width: 100%;
+  max-width: 100%;
+}
+
+body.eink-client .quota-account-head {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: start;
+}
+
+body.eink-client .quota-account-email {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+body.eink-client .quota-account-switcher {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  justify-self: start;
+  white-space: normal;
+}
+
+body.eink-client .quota-pill {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+body.eink-client .quota-pair,
+body.eink-client .quota-footer {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.eink-client .quota-footer {
+  justify-items: start;
+}
+
+body.eink-client .quota-toolbox {
+  justify-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  gap: 8px;
+}
+
+body.eink-client .quota-toolbox button {
+  flex: 1 1 152px;
+  width: auto;
+  min-width: 0;
+  min-height: 48px;
+  height: auto;
+  padding: 6px 12px;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+body.eink-client .quota-codex-switch-row {
+  align-items: stretch;
+}
+
+body.eink-client .quota-codex-select {
+  flex: 1 1 100%;
+  width: 100%;
+}
+
+body.eink-client .quota-codex-switch-row .quota-toolbox {
+  flex: 1 1 100%;
+}
+
+body.eink-client.dashboard-viewer main,
+body.eink-client.viewer-immersive main,
+body.eink-client.viewer-fullscreen main {
+  height: 100dvh !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body.eink-client.dashboard-viewer .quota-view.active,
+body.eink-client.viewer-immersive .quota-view.active,
+body.eink-client.viewer-fullscreen .quota-view.active,
+body.eink-client.mode-quota .quota-shell {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow: visible !important;
+}
+
+body.eink-client.mode-quota .quota-shell {
+  grid-template-rows: auto auto auto !important;
+  align-content: start;
+}
+
+body.eink-client.mode-quota .quota-grid,
+body.eink-client.mode-quota .quota-account-page,
+body.eink-client.mode-quota .quota-account-card {
+  height: auto !important;
+  min-height: 0 !important;
+  align-content: start !important;
+  overflow: visible !important;
+}
+
+body.eink-client.mode-quota .quota-account-card {
+  display: block !important;
+  grid-template-rows: auto auto auto auto auto !important;
+  min-height: max-content !important;
+  align-self: start !important;
+}
+
+body.eink-client.mode-quota .quota-account-card > * + * {
+  margin-top: 16px;
+}
+
+body.eink-client.mode-quota .quota-pair {
+  min-height: max-content !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-self: start !important;
+  gap: 14px;
+  padding: 18px !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview > * {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-head {
+  display: grid;
+  gap: 10px;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-head > .quota-account-switcher {
+  grid-column: auto;
+  grid-row: auto;
+  justify-self: start;
+}
+
+body.eink-client.mode-quota .quota-eink-usage {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-provider-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 22px !important;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-window {
+  gap: 6px 12px;
+  padding: 14px 0;
+  border-top: 2px solid #000;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-provider-title + .quota-window {
+  border-top: 0;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-window b {
+  font-size: clamp(36px, 6vw, 48px) !important;
+}
+
+body.eink-client.mode-quota .quota-eink-credit {
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 2px solid #000;
+  font-size: 20px !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 2px solid #000;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-footer .quota-toolbox {
+  width: auto;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-footer .quota-toolbox button {
+  flex: 0 1 auto;
+  width: auto;
+  padding: 6px 14px;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager {
+  margin: 0 !important;
+  border: 2px solid #000;
+  background: #f2f0e8;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 52px;
+  padding: 12px 14px;
+  color: #000;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager > summary::after {
+  content: "＋";
+  font-size: 26px;
+  line-height: 1;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager[open] > summary {
+  border-bottom: 2px solid #000;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager[open] > summary::after {
+  content: "−";
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls {
+  min-width: 0;
+  padding: 14px;
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls .quota-codex-switch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls .quota-toolbox {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  width: 100%;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls .quota-toolbox button {
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 12px;
+}
+
+body.eink-client .custom-cards-toolbar,
+body.eink-client .custom-source-actions,
+body.eink-client .custom-source-form-actions {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+}
+
+body.eink-client .custom-cards-toolbar button,
+body.eink-client .custom-manager-header button,
+body.eink-client .custom-source-actions button,
+body.eink-client .custom-source-form-actions button {
+  flex: 1 1 112px;
+  min-width: 0;
+  white-space: normal;
+}
+
+/* Language is a product-level setting, not a display-only control. Keep it
+ * reachable after a phone or e-reader enters the trusted dashboard/quota UI. */
+body.phone-client.device-trusted:not(.mode-display) .utility-controls {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+body.phone-client.device-trusted:not(.mode-display) .utility-controls > * {
+  display: none !important;
+}
+
+body.phone-client.device-trusted:not(.mode-display) .utility-controls .locale-control {
+  display: inline-flex !important;
+  min-height: 44px;
+}
+
+body.phone-client.device-trusted:not(.mode-display) .locale-control select {
+  min-height: 44px;
+  max-width: 148px;
+}
+
+/* Persisted dashboard cards may be deliberately small. Containment lets their
+ * own controls and figures adapt to the card width instead of pushing a row
+ * outside the dashboard. */
+body.eink-client #systemSideboardPage.dashboard-grid [data-dashboard-key] {
+  container-type: inline-size;
+  container-name: eink-card;
+}
+
+@container eink-card (max-width: 280px) {
+  body.eink-client #systemSideboardPage.dashboard-grid .metric-card,
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-card,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-card {
+    padding: 8px !important;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .metric-value,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-value-row strong,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-window b {
+    font-size: clamp(24px, 18cqw, 36px) !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .side-big {
+    font-size: clamp(32px, 28cqw, 56px) !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-head,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-head,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-value-row {
+    align-items: stretch;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-head > .feed-heading,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-head > strong {
+    flex: 1 1 100%;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-filter-select {
+    width: 100%;
+    max-width: none;
   }
 }

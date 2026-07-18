@@ -3,7 +3,7 @@ import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
 const FILTER_STORAGE_KEY = "phoneMonitorActivityFilter.v1";
 
 export function createActivityFeedController({ elements }) {
-  const { card, list, filters } = elements;
+  const { card, list, filters, select } = elements;
   let workItems = [];
   let notificationItems = [];
   let activeFilter = localStorage.getItem(FILTER_STORAGE_KEY) || "all";
@@ -159,12 +159,17 @@ export function createActivityFeedController({ elements }) {
   function setFilter(filter) {
     activeFilter = ["task", "notification"].includes(filter) ? filter : "all";
     localStorage.setItem(FILTER_STORAGE_KEY, activeFilter);
+    syncFilterControls();
+    render({ forceLatest: true });
+  }
+
+  function syncFilterControls() {
     filters.forEach(button => {
       const active = button.dataset.activityFilter === activeFilter;
       button.classList.toggle("active", active);
       button.setAttribute("aria-pressed", active ? "true" : "false");
     });
-    render({ forceLatest: true });
+    if (select) select.value = activeFilter;
   }
 
   list.addEventListener("scroll", () => {
@@ -172,6 +177,7 @@ export function createActivityFeedController({ elements }) {
     autoFollow = isAtLatest();
   }, { passive: true });
   filters.forEach(button => button.addEventListener("click", () => setFilter(button.dataset.activityFilter)));
+  select?.addEventListener("change", () => setFilter(select.value));
   setFilter(activeFilter);
   card?.classList.add("activity-feed-card");
 
@@ -183,11 +189,7 @@ export function createActivityFeedController({ elements }) {
       if (activeFilter === "task" && !workItems.length && notificationItems.length) {
         activeFilter = "all";
         localStorage.setItem(FILTER_STORAGE_KEY, activeFilter);
-        filters.forEach(button => {
-          const active = button.dataset.activityFilter === activeFilter;
-          button.classList.toggle("active", active);
-          button.setAttribute("aria-pressed", active ? "true" : "false");
-        });
+        syncFilterControls();
       }
       render();
     },
@@ -199,11 +201,7 @@ export function createActivityFeedController({ elements }) {
       if (activeFilter === "task" && !workItems.length && notificationItems.length) {
         activeFilter = "all";
         localStorage.setItem(FILTER_STORAGE_KEY, activeFilter);
-        filters.forEach(button => {
-          const active = button.dataset.activityFilter === activeFilter;
-          button.classList.toggle("active", active);
-          button.setAttribute("aria-pressed", active ? "true" : "false");
-        });
+        syncFilterControls();
       }
       render();
     },

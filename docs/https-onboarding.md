@@ -20,6 +20,21 @@ When the local PC records that URL in **進階連線資訊 → VibeDeck 安全�
 2. Safari, Chrome, Android, iPhone, and BOOX open without a certificate warning.
 3. Phone pairing still requires the existing six-digit code and an explicit **Allow** action on the PC.
 
+### E-paper readers without a camera
+
+When a trusted public URL is configured, the PC can create an eight-character, one-time **e-paper connection code**. On the reader, open the short shared address `https://vibedeck.pp.ua/`, enter the code, and the browser is redirected once to that PC's installation-specific secure URL. The reader then completes the normal PC-approved pairing flow and can be added to its home screen.
+
+The connection code lasts ten minutes and is deleted as soon as it resolves. It only reveals the already-configured VibeDeck URL; it cannot pair a device or bypass the PC's approval boundary.
+
+The shared landing address is implemented by `workers/vibedeck-connect-code`. It uses a Cloudflare Durable Object so a code is immediately available across edge locations and can only resolve once. Deploy it to the root route after authenticating Wrangler:
+
+```powershell
+cd workers\vibedeck-connect-code
+npx wrangler deploy
+```
+
+The Worker verifies `https://vd-<installation-id>.vibedeck.pp.ua/` through `/api/connect` before accepting a code registration. No Cloudflare credential or Worker secret is stored by VibeDeck Host or sent to the reader.
+
 The Host accepts a public pairing request only when all of these are true:
 
 - the request was forwarded by a connector on `127.0.0.1` or `::1`;

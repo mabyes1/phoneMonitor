@@ -1,0 +1,20 @@
+name = "vibedeck-connect-code"
+main = "src/worker.mjs"
+compatibility_date = "2026-07-18"
+workers_dev = false
+
+routes = [
+  { pattern = "vibedeck.pp.ua/*", zone_name = "vibedeck.pp.ua" }
+]
+
+[vars]
+PUBLIC_BASE_DOMAIN = "vibedeck.pp.ua"
+CODE_TTL_SECONDS = "600"
+
+[[durable_objects.bindings]]
+name = "CONNECTION_CODES"
+class_name = "ConnectionCodeBroker"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ConnectionCodeBroker"]

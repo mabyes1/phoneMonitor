@@ -17,6 +17,17 @@ It runs locally: the Windows Host creates and captures an optional virtual displ
 
 The Host must not run as a Windows Service. A service runs in Session 0 and cannot enumerate or capture displays belonging to the signed-in user. VibeDeck instead launches as a hidden background process in the interactive desktop session.
 
+## Judge Quick Start
+
+VibeDeck is a Windows x64 product. A modern browser is the only requirement on iPhone, Android, and BOOX; no native mobile client is installed.
+
+1. **Run the product.** For a release build, run `VibeDeck-Setup-<version>.exe`. To reproduce from source, install the .NET 8 SDK, stop any installed Host that owns ports 5000/5443, then run `start.bat`.
+2. **Open the PC console.** Visit `http://127.0.0.1:5000` and use **Device setup** to view the pairing route or create the optional virtual display.
+3. **Verify without physical devices.** Run `scripts\open-device-lab.ps1`, then switch among BOOX Go Color 7, Galaxy S23, and iPhone XS profiles. The lab loads the real VibeDeck client at its exact target viewport.
+4. **Run the checks.** Use `scripts\test-product-flow.ps1 -Source` for source validation, or `scripts\test-product-flow.ps1 -Installed` after Setup. Add `-RequireVirtualDisplay` only when testing Display mode.
+
+The most complete product path is Windows Setup → browser-trusted QR pairing → explicit six-digit approval on the PC → Display, Sideboard, or Quota on the paired device. Sideboard and Quota do not need the optional virtual display.
+
 ## Features
 
 - A real Windows virtual monitor that accepts normal desktop windows.
@@ -295,7 +306,17 @@ Build Week work includes:
 - configurable dashboard layouts, activity updates, quota cards, and optional Windows notification integration;
 - installed-product and source-product flow checks for packaging and release verification.
 
-Codex was used as an engineering partner for product planning, implementation, debugging, review, testing, and packaging. GPT-5.6 helped reason across Windows desktop-session behavior, display enumeration, browser-media constraints, mobile and e-paper layouts, and installer lifecycle.
+### Codex + GPT-5.6 evidence
+
+| Product decision | How Codex and GPT-5.6 accelerated the work | Verifiable result |
+|---|---|---|
+| Make the prototype installable | Reasoned through the signed-in desktop-session requirement, installer lifecycle, updates, and data ownership. | Windows Setup replaces app files while `%ProgramData%\VibeDeck` preserves pairings, layouts, diagnostics, and quota data. |
+| Keep one phone client across devices | Iterated responsive layouts, e-paper constraints, browser-media fallbacks, and first-run pairing flows. | One browser/PWA client serves iPhone, Android, and BOOX; Device Lab validates the exact S23, iPhone XS, and BOOX viewports. |
+| Turn debugging into product behavior | Planned and reviewed diagnostics, tests, product-path guardrails, and release checks. | Auditable diagnostic trail plus source, payload, and installed-product flow checks. |
+
+Codex was used as an engineering partner for planning, implementation, debugging, review, testing, packaging, and delivery assets. GPT-5.6 helped reason across Windows session behavior, display enumeration, browser-media constraints, mobile and e-paper layouts, and installer lifecycle. Faster model tiers handled repetitive layout and workflow passes; deeper reasoning was reserved for system design, larger refactors, and review. Human judgment remained responsible for trade-offs, real-device acceptance, and the final quality bar.
+
+The project is not a generic screen-mirroring clone: VibeDeck gives the same spare device a durable role as an optional Windows display, a glanceable sideboard, or an AI quota surface, while retaining browser-trusted pairing and persistent product state.
 
 Dated commits and Codex session logs document work completed during the event. The primary Build Week Codex session ID is:
 
@@ -303,9 +324,11 @@ Dated commits and Codex session logs document work completed during the event. T
 019f6890-877f-71e0-9ffa-7cf4d4457f2a
 ```
 
+See [`docs/build-week-submission.md`](docs/build-week-submission.md) for the ready-to-paste Devpost copy, required submission assets, and final submission checklist.
+
 ## Roadmap
 
-- Add a maintainable internationalization layer. The current interface is primarily Traditional Chinese; English is the first planned additional language.
+- Continue translation coverage and multilingual regression checks across newly added product flows.
 - Improve adaptive stream quality and latency handling.
 - Add more dashboard modules and integrations.
 - Make e-paper refresh behavior configurable.

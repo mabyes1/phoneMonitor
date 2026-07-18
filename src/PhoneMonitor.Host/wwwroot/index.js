@@ -11,7 +11,7 @@ import {
 } from "./modules/formatters.js?v=48";
 import { createDisplayInputController } from "./modules/display-input.js?v=48";
 import { createCustomCardsController } from "./modules/custom-cards.js?v=53";
-import { createActivityFeedController } from "./modules/activity-feed.js?v=54";
+import { createActivityFeedController } from "./modules/activity-feed.js?v=55";
 import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=59";
 import { createQuotaController } from "./modules/quota-controller.js?v=50";
 import { createQuotaMiniCardController } from "./modules/quota-mini-card.js?v=56";
@@ -19,7 +19,7 @@ import { createSideboardController } from "./modules/sideboard.js?v=50";
 import { createMobileOverviewController } from "./modules/mobile-overview.js?v=3";
 import { createStreamController } from "./modules/stream-controller.js?v=48";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
-import {
+﻿import {
   escapeHtml,
   extractQuotaEmail,
   extractQuotaTier,
@@ -81,6 +81,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     const publicEndpointUrl = document.getElementById("publicEndpointUrl");
     const savePublicEndpoint = document.getElementById("savePublicEndpoint");
     const clearPublicEndpoint = document.getElementById("clearPublicEndpoint");
+    const einkConnectionCodePanel = document.getElementById("einkConnectionCodePanel");
+    const einkConnectionCodeUrl = document.getElementById("einkConnectionCodeUrl");
+    const einkConnectionCode = document.getElementById("einkConnectionCode");
+    const einkConnectionCodeStatus = document.getElementById("einkConnectionCodeStatus");
+    const generateEinkConnectionCode = document.getElementById("generateEinkConnectionCode");
     const httpLink = document.getElementById("httpLink");
     const pairPhone = document.getElementById("pairPhone");
     const phonePairRequest = document.getElementById("phonePairRequest");
@@ -200,6 +205,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     const activityFeedCard = document.getElementById("activityFeedCard");
     const activityFeedList = document.getElementById("activityFeedList");
     const activityFeedFilters = [...document.querySelectorAll("[data-activity-filter]")];
+    const activityFeedFilterSelect = document.getElementById("activityFeedFilterSelect");
     const quotaMiniSource = document.getElementById("quotaMiniSource");
     const quotaMiniValue = document.getElementById("quotaMiniValue");
     const quotaMiniBar = document.getElementById("quotaMiniBar");
@@ -373,6 +379,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     let pairingQrActive = false;
     let usesTrustedPublicUrl = false;
     let resolvedPairingInfo = null;
+    let autoPairFromConnectionCode = new URLSearchParams(location.search).get("source") === "connection-code" &&
+      new URLSearchParams(location.search).get("autopair") === "1";
     let quotaSnapshotData = null;
     // Keep the initial quota view consistent across phone and E Ink clients.
     // Users can still switch tabs; the versioned key prevents an old device
@@ -390,8 +398,39 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     let latestAuditTrail = { entries: [], retentionDays: 30, generatedAt: "" };
     const touchLongPressMs = 460;
     const touchDragThresholdPx = 12;
+    const DEVICE_PREVIEW_KINDS = new Set(["boox-go-color-7", "galaxy-s23", "iphone-xs"]);
+    const devicePreviewKind = (() => {
+      if (!isLoopbackHost()) return "";
+      const value = new URLSearchParams(location.search).get("devicePreview") || "";
+      return DEVICE_PREVIEW_KINDS.has(value) ? value : "";
+    })();
+
+    function isDevicePreview(kind = "") {
+      return Boolean(devicePreviewKind) && (!kind || devicePreviewKind === kind);
+    }
+
+    function applyDevicePreviewEnvironment() {
+      const root = document.documentElement;
+      if (!isDevicePreview()) {
+        delete root.dataset.devicePreview;
+        root.style.removeProperty("--safe-area-inset-top");
+        root.style.removeProperty("--safe-area-inset-right");
+        root.style.removeProperty("--safe-area-inset-bottom");
+        root.style.removeProperty("--safe-area-inset-left");
+        return;
+      }
+
+      root.dataset.devicePreview = devicePreviewKind;
+      const landscape = window.innerWidth > window.innerHeight;
+      const iphone = isDevicePreview("iphone-xs");
+      root.style.setProperty("--safe-area-inset-top", iphone && !landscape ? "44px" : "0px");
+      root.style.setProperty("--safe-area-inset-right", iphone && landscape ? "44px" : "0px");
+      root.style.setProperty("--safe-area-inset-bottom", iphone ? (landscape ? "21px" : "34px") : "0px");
+      root.style.setProperty("--safe-area-inset-left", iphone && landscape ? "44px" : "0px");
+    }
 
     function isMobileClient() {
+      if (isDevicePreview()) return true;
       return isIos() || /Android|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
     }
 
@@ -414,6 +453,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function writeEinkPreference(value) {
+      if (isDevicePreview()) return;
       const flag = value ? "1" : "0";
       try {
         localStorage.setItem(EINK_PREF_KEY, flag);
@@ -462,6 +502,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function isEinkClient() {
+      if (isDevicePreview()) return isDevicePreview("boox-go-color-7");
       const query = readEinkQuery();
       if (query !== null) return query;
 
@@ -481,6 +522,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function ensureEinkPreferenceSticky() {
+      if (isDevicePreview()) return;
       // Once we know this device wants e-ink (hardware or explicit query), persist
       // so PWA home-screen launches (which drop ?eink=1) still open paper mode.
       const query = readEinkQuery();
@@ -592,23 +634,26 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function applyClientChrome() {
-      const localConsole = Boolean(deviceLocalRequest);
-      const phoneClient = !localConsole && isMobileClient();
+      const preview = isDevicePreview();
+      const localConsole = Boolean(deviceLocalRequest) && !preview;
+      const phoneClient = preview || (!localConsole && isMobileClient());
       const ios = isIos();
       const eink = isEinkClient();
+      const trusted = Boolean(deviceTrusted) || preview;
 
+      applyDevicePreviewEnvironment();
       document.documentElement.classList.toggle("eink-boot", eink);
       document.body.classList.toggle("eink-client", eink);
       const themeColor = document.querySelector('meta[name="theme-color"]');
       if (themeColor) themeColor.setAttribute("content", eink ? "#f2f0e8" : "#111820");
       document.body.classList.toggle("phone-client", phoneClient);
       document.body.classList.toggle("ios-client", ios && !localConsole);
-      document.body.classList.toggle("device-trusted", Boolean(deviceTrusted) && !localConsole);
+      document.body.classList.toggle("device-trusted", trusted && !localConsole);
       document.body.classList.toggle("pc-console", localConsole);
       document.body.classList.toggle("standalone-app", isStandaloneApp());
       if (publicEndpointPanel) publicEndpointPanel.hidden = !localConsole;
       const pairingRescue = document.getElementById("phonePairRescue");
-      if (pairingRescue) pairingRescue.hidden = !phoneClient || Boolean(deviceTrusted);
+      if (pairingRescue) pairingRescue.hidden = !phoneClient || trusted;
       customCardsController?.syncAccess?.();
       applyForcedLandscape();
       updateIosHomeTip();
@@ -618,26 +663,28 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     function updateIosHomeTip() {
       const tip = document.getElementById("iosHomeTip");
       if (!tip) return;
+      const trusted = Boolean(deviceTrusted) || isDevicePreview();
       tip.classList.toggle("show-install", isIos() && !isStandaloneApp());
       if (!isIos()) return;
-      if (usesTrustedPublicUrl && !deviceTrusted) {
+      if (usesTrustedPublicUrl && !trusted) {
         tip.textContent = t("secureEndpoint.iosPair");
         return;
       }
       if (location.protocol !== "https:") {
-        tip.innerHTML = "iPhone 必須用 <strong>HTTPS</strong>。第一次警告請按進階並繼續前往。";
+        tip.innerHTML = tLegacy("iPhone 必須用 <strong>HTTPS</strong>。第一次警告請按進階並繼續前往。");
         return;
       }
-      if (!deviceTrusted) {
-        tip.innerHTML = "HTTPS 就緒。回 PC 配對並掃 QR，成功後同一頁加入主畫面。";
+      if (!trusted) {
+        tip.innerHTML = tLegacy("HTTPS 就緒。回 PC 配對並掃 QR，成功後同一頁加入主畫面。");
       } else if (!isStandaloneApp()) {
-        tip.innerHTML = "已配對。分享 → <strong>加入主畫面</strong>，打開後點 <strong>長亮 ON</strong>。";
+        tip.innerHTML = tLegacy("已配對。分享 → <strong>加入主畫面</strong>，打開後點 <strong>長亮 ON</strong>。");
       } else {
-        tip.innerHTML = "主畫面模式。用副螢幕時點 <strong>長亮 ON</strong>。";
+        tip.innerHTML = tLegacy("主畫面模式。用副螢幕時點 <strong>長亮 ON</strong>。");
       }
     }
 
     function shouldForceLandscape() {
+      if (isDevicePreview()) return false;
       return orientation?.value === "landscape" &&
         !isDeckWindow() &&
         !deviceLocalRequest &&
@@ -721,11 +768,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function isIos() {
+      if (isDevicePreview()) return isDevicePreview("iphone-xs");
       return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     }
 
     function isIphone() {
+      if (isDevicePreview()) return isDevicePreview("iphone-xs");
       return /iPhone|iPod/.test(navigator.userAgent || "");
     }
 
@@ -734,6 +783,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function isStandaloneApp() {
+      if (isDevicePreview()) return true;
       return window.matchMedia("(display-mode: standalone)").matches ||
         window.navigator.standalone === true;
     }
@@ -744,6 +794,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function updateViewportSize() {
+      applyDevicePreviewEnvironment();
       const rawViewport = getRawViewportSize();
       let width = rawViewport.width;
       let height = rawViewport.height;
@@ -861,7 +912,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         button.classList.toggle("active", active);
         button.setAttribute("aria-pressed", active ? "true" : "false");
       });
-      localStorage.setItem("phoneMonitorViewMode", mode);
+      if (!isDevicePreview()) localStorage.setItem("phoneMonitorViewMode", mode);
 
       if (isSetup) {
         if (document.body.classList.contains("viewer-fullscreen") || document.body.classList.contains("dashboard-viewer")) {
@@ -1090,8 +1141,51 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       if (certificateSetupTitle) {
         certificateSetupTitle.hidden = usesTrustedPublicUrl;
       }
+      if (einkConnectionCodePanel) {
+        einkConnectionCodePanel.hidden = !usesTrustedPublicUrl;
+      }
+      if (einkConnectionCodeUrl) {
+        einkConnectionCodeUrl.textContent = baseDomain || "vibedeck.pp.ua";
+      }
+      if (!usesTrustedPublicUrl && einkConnectionCode) {
+        einkConnectionCode.textContent = "--------";
+      }
+      if (!usesTrustedPublicUrl && einkConnectionCodeStatus) {
+        einkConnectionCodeStatus.textContent = t("secureEndpoint.einkIdle");
+      }
       applyClientChrome();
       updateIosHomeTip();
+    }
+
+    function formatEinkConnectionCode(code) {
+      const normalized = String(code || "").replace(/[^A-Z2-9]/gi, "").toUpperCase();
+      return normalized.length === 8 ? `${normalized.slice(0, 4)}-${normalized.slice(4)}` : normalized || "--------";
+    }
+
+    async function createEinkConnectionCode() {
+      if (!deviceLocalRequest || !usesTrustedPublicUrl || !generateEinkConnectionCode) return;
+      const originalText = generateEinkConnectionCode.textContent;
+      generateEinkConnectionCode.disabled = true;
+      generateEinkConnectionCode.textContent = t("secureEndpoint.einkGenerating");
+      try {
+        const result = await fetchJsonOrThrow("/api/connect/eink-code", { method: "POST" });
+        const code = String(result.code || result.Code || "");
+        const expiresAt = String(result.expiresAt || result.ExpiresAt || "");
+        if (!code || !expiresAt) throw new Error("connection_code.invalid_response");
+        if (einkConnectionCode) einkConnectionCode.textContent = formatEinkConnectionCode(code);
+        if (einkConnectionCodeStatus) {
+          const expiry = new Date(expiresAt);
+          const time = Number.isNaN(expiry.getTime())
+            ? "--"
+            : expiry.toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit" });
+          einkConnectionCodeStatus.textContent = t("secureEndpoint.einkReady", { expiresAt: time });
+        }
+      } catch {
+        if (einkConnectionCodeStatus) einkConnectionCodeStatus.textContent = t("secureEndpoint.einkFailed");
+      } finally {
+        generateEinkConnectionCode.disabled = false;
+        generateEinkConnectionCode.textContent = originalText;
+      }
     }
 
     async function saveTrustedPublicEndpoint() {
@@ -1574,6 +1668,16 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       return true;
     }
 
+    function consumeConnectionCodeAutoPairing() {
+      if (!autoPairFromConnectionCode) return false;
+      autoPairFromConnectionCode = false;
+      const url = new URL(location.href);
+      url.searchParams.delete("source");
+      url.searchParams.delete("autopair");
+      history.replaceState({}, "", url.pathname + url.search + url.hash);
+      return true;
+    }
+
     function renderPendingApprovals(result) {
       const requests = result?.Requests || result?.requests || [];
       pendingPairingPanel.hidden = !requests.length;
@@ -1896,7 +2000,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
             const pending = JSON.parse(localStorage.getItem(storageKey) || "null");
             hasPendingRequest = Boolean(pending?.requestId && pending?.requestSecret);
           } catch { }
-          if (hasPendingRequest) {
+          if (consumeConnectionCodeAutoPairing()) {
+            if (approvalPollTimer) {
+              clearInterval(approvalPollTimer);
+              approvalPollTimer = null;
+            }
+            localStorage.removeItem(storageKey);
+            requestApprovalPairing({ allowCreate: true }).catch(error => setTrustState(error.message || "配對申請失敗。", false));
+          } else if (hasPendingRequest) {
             requestApprovalPairing().catch(error => setTrustState(error.message || "配對申請失敗。", false));
           } else {
             setTrustState(tLegacy("請按「連接這台電腦」，再回 PC 按允許。"), false);
@@ -2093,7 +2204,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     const activityFeedController = createActivityFeedController({
-      elements: { card: activityFeedCard, list: activityFeedList, filters: activityFeedFilters },
+      elements: {
+        card: activityFeedCard,
+        list: activityFeedList,
+        filters: activityFeedFilters,
+        select: activityFeedFilterSelect,
+      },
     });
     // Keep the merged activity card independent from custom-card rendering.
     // This guarantees the feed receives the Windows payload even when the
@@ -2376,9 +2492,17 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           const index = getQuotaAccountIndex("codex", codexProviders.length);
           const provider = codexProviders[index];
           if (provider) {
-            quotaGrid.append(renderSingleQuotaPage(provider, snapshot, { index, total: codexProviders.length, tabId: "codex" }));
+            if (isEinkQuotaClient()) {
+              quotaGrid.append(renderEinkCodexOverview(provider, snapshot, { index, total: codexProviders.length, tabId: "codex" }));
+            } else {
+              quotaGrid.append(
+                renderCodexAccountBar(),
+                renderSingleQuotaPage(provider, snapshot, { index, total: codexProviders.length, tabId: "codex" })
+              );
+            }
           }
         } else {
+          if (!isEinkQuotaClient()) quotaGrid.append(renderCodexAccountBar());
           quotaGrid.append(renderCodexSetupCard());
         }
       }
@@ -2523,7 +2647,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           <span class="quota-time">oauth/start</span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">＋ 登入</button>
+            <button type="button" title="${t("ui.agyAddQuotaAccountTitle")}" data-quota-action="agy-oauth">＋ ${t("ui.agyAddQuotaAccount")}</button>
             <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
           </div>
         </div>
@@ -2540,7 +2664,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           <span class="quota-time">POST /api/quotas/agy/oauth/start</span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">＋ 登入</button>
+            <button type="button" title="${t("ui.agyAddQuotaAccountTitle")}" data-quota-action="agy-oauth">＋ ${t("ui.agyAddQuotaAccount")}</button>
             <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
           </div>
         </div>
@@ -2592,6 +2716,178 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       applyQuotaCardStatus(card);
       wireQuotaToolbox(card);
       return card;
+    }
+
+    function renderCodexAccountBar(options = {}) {
+      const embedded = Boolean(options.embedded);
+      const card = document.createElement(embedded ? "div" : "article");
+      card.className = embedded
+        ? "quota-eink-account-controls"
+        : "quota-account-card quota-codex-switcher";
+      if (!embedded) card.dataset.statusKey = "codex:switcher";
+
+      if (!embedded) {
+        const head = document.createElement("div");
+        head.className = "quota-account-head";
+        const title = document.createElement("span");
+        title.className = "quota-account-email";
+        title.textContent = t("ui.codexAccountSwitcher");
+        head.append(title);
+        card.append(head);
+      }
+
+      const row = document.createElement("div");
+      row.className = "quota-codex-switch-row";
+      const select = document.createElement("select");
+      select.className = "quota-codex-select";
+      select.setAttribute("aria-label", t("ui.codexSelectAccount"));
+      const loadingOption = document.createElement("option");
+      loadingOption.value = "";
+      loadingOption.textContent = t("ui.codexProfilesLoading");
+      select.append(loadingOption);
+
+      const toolbox = document.createElement("div");
+      toolbox.className = "quota-toolbox";
+      toolbox.setAttribute("aria-label", t("ui.codexAccountActions"));
+      const makeButton = (action, text, titleText) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.quotaAction = action;
+        button.textContent = text;
+        button.title = titleText;
+        button.setAttribute("aria-label", titleText);
+        return button;
+      };
+      toolbox.append(
+        makeButton("codex-switch", `▶ ${t("ui.codexSwitch")}`, t("ui.codexSwitchTitle")),
+        makeButton("codex-reauth", `＋ ${t("ui.codexReauth")}`, t("ui.codexReauthTitle")),
+        makeButton("codex-profile-delete", `⌫ ${t("ui.codexDelete")}`, t("ui.codexDeleteTitle"))
+      );
+      row.append(select, toolbox);
+
+      card.append(row);
+      if (!embedded) {
+        const status = document.createElement("div");
+        status.className = "quota-action-status";
+        status.setAttribute("aria-live", "polite");
+        card.append(status);
+        applyQuotaCardStatus(card);
+      }
+      wireCodexAccountBar(card, options.statusCard || card);
+      return card;
+    }
+
+    function wireCodexAccountBar(card, statusCard = card) {
+      const select = card.querySelector(".quota-codex-select");
+      const switchButton = card.querySelector('[data-quota-action="codex-switch"]');
+      const reauthButton = card.querySelector('[data-quota-action="codex-reauth"]');
+      const deleteButton = card.querySelector('[data-quota-action="codex-profile-delete"]');
+
+      function selectedAccount() {
+        const option = select?.selectedOptions?.[0];
+        return {
+          accountId: option?.dataset.accountId || "",
+          email: option?.dataset.email || "",
+          label: option?.textContent || ""
+        };
+      }
+
+      async function populate() {
+        try {
+          const profiles = await fetchJsonOrThrow("/api/quotas/codex/profiles");
+          select.replaceChildren();
+          if (!Array.isArray(profiles) || !profiles.length) {
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = t("ui.codexNoProfiles");
+            select.append(option);
+            if (switchButton) switchButton.disabled = true;
+            if (deleteButton) deleteButton.disabled = true;
+            return;
+          }
+
+          if (switchButton) switchButton.disabled = false;
+          if (deleteButton) deleteButton.disabled = false;
+          for (const profile of profiles) {
+            const accountId = profile.AccountId || profile.accountId || "";
+            const email = profile.Email || profile.email || "";
+            const tier = profile.Tier || profile.tier || "";
+            const active = Boolean(profile.IsActive ?? profile.isActive);
+            const option = document.createElement("option");
+            option.dataset.accountId = accountId;
+            option.dataset.email = email;
+            option.value = accountId || email;
+            const parts = [email || accountId || t("ui.unknown")];
+            if (tier) parts.push(tier);
+            if (active) parts.push(t("ui.codexActive"));
+            option.textContent = parts.join(" · ");
+            option.selected = active;
+            select.append(option);
+          }
+        } catch (error) {
+          select.replaceChildren();
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = t("ui.codexProfilesUnavailable");
+          select.append(option);
+          if (switchButton) switchButton.disabled = true;
+          if (deleteButton) deleteButton.disabled = true;
+          setQuotaCardStatus(statusCard, error.message || t("ui.codexProfilesFailed"), "error");
+        }
+      }
+
+      if (switchButton) switchButton.addEventListener("click", async () => {
+        const target = selectedAccount();
+        if (!target.accountId && !target.email) {
+          setQuotaCardStatus(statusCard, t("ui.codexProfileRequired"), "error");
+          return;
+        }
+        if (!window.confirm(t("ui.codexSwitchConfirm", { account: target.label || target.email || target.accountId }))) return;
+        await runQuotaButton(switchButton, async () => {
+          const result = await fetchJsonOrThrow("/api/quotas/codex/switch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(target)
+          });
+          await refreshQuotas({ force: true });
+          return result;
+        }, {
+          pending: t("ui.codexSwitchPending"),
+          success: t("ui.codexSwitchSuccess")
+        });
+      });
+
+      if (reauthButton) reauthButton.addEventListener("click", async () => {
+        if (!window.confirm(t("ui.codexReauthConfirm"))) return;
+        await runQuotaButton(reauthButton, () =>
+          fetchJsonOrThrow("/api/quotas/codex/reauth", { method: "POST" }), {
+            pending: t("ui.codexReauthPending"),
+            success: t("ui.codexReauthSuccess")
+          });
+      });
+
+      if (deleteButton) deleteButton.addEventListener("click", async () => {
+        const target = selectedAccount();
+        if (!target.accountId && !target.email) {
+          setQuotaCardStatus(statusCard, t("ui.codexProfileRequired"), "error");
+          return;
+        }
+        if (!window.confirm(t("ui.codexDeleteConfirm", { account: target.label || target.email || target.accountId }))) return;
+        await runQuotaButton(deleteButton, async () => {
+          const result = await fetchJsonOrThrow("/api/quotas/codex/profile/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(target)
+          });
+          await populate();
+          return result;
+        }, {
+          pending: t("ui.codexDeletePending"),
+          success: t("ui.codexDeleteSuccess")
+        });
+      });
+
+      populate();
     }
 
     function renderQuotaTabs(tabs) {
@@ -2683,11 +2979,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
 
       const cliButton = card.querySelector('[data-quota-action="agy-cli"]');
       if (cliButton) cliButton.addEventListener("click", async () => {
+        if (!window.confirm(t("ui.agyCliOpenConfirm"))) return;
         await runQuotaButton(cliButton, async () => {
-          return await postQuotaAccountAction("/api/quotas/agy/cli/open", card);
+          const result = await fetchJsonOrThrow("/api/quotas/agy/cli/open", { method: "POST" });
+          result.Message = t("ui.agyCliOpenSuccess");
+          return result;
         }, {
-          pending: "正在開啟 AGY CLI...",
-          success: "AGY CLI 已開啟。"
+          pending: t("ui.agyCliOpenPending"),
+          success: t("ui.agyCliOpenSuccess")
         });
       });
 
@@ -2703,11 +3002,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           quotaController.startOAuthPolling();
           return {
             message: opened
-              ? "AGY 登入頁已在 PC 開啟。"
-              : "AGY 登入已準備好。"
+              ? t("ui.agyOauthOpened")
+              : t("ui.agyOauthReady")
           };
         }, {
-          pending: "正在啟動 AGY 登入..."
+          pending: t("ui.agyOauthPending")
         });
       });
 
@@ -2873,8 +3172,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           <span class="quota-time"></span>
           <span></span>
           <div class="quota-toolbox" aria-label="額度操作">
-            <button type="button" title="用這個帳號開啟 AGY CLI" data-quota-action="agy-cli">▶ 開啟</button>
-            <button type="button" title="登入 AGY" data-quota-action="agy-oauth">＋ 登入</button>
+            <button type="button" title="${t("ui.agyCliOpenTitle")}" data-quota-action="agy-cli">▶ ${t("ui.agyCliOpen")}</button>
+            <button type="button" title="${t("ui.agyAddQuotaAccountTitle")}" data-quota-action="agy-oauth">＋ ${t("ui.agyAddQuotaAccount")}</button>
             <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
             <button type="button" title="刪除 AGY 帳號" data-quota-action="agy-delete">⌫ 刪除</button>
           </div>
@@ -2935,6 +3234,71 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       wireQuotaSwitcher(card);
       wireQuotaToolbox(card);
       return card;
+    }
+
+    function renderEinkCodexOverview(provider, snapshot, pageInfo) {
+      const card = document.createElement("article");
+      card.className = "quota-account-card quota-eink-overview";
+      const label = provider.AccountEmail || provider.accountEmail || provider.Label || provider.label || provider.Id || provider.id || "AI";
+      const state = provider.State || provider.state || "unknown";
+      const family = getProviderFamily(provider);
+      const accountId = provider.AccountId || provider.accountId || provider.Id || provider.id || "";
+      const isActive = Boolean(provider.IsActive ?? provider.isActive);
+      const updated = provider.ObservedAt || provider.observedAt || snapshot?.GeneratedAt || snapshot?.generatedAt;
+      const updatedText = updated
+        ? new Date(updated).toLocaleString(getIntlLocale(), { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+        : "--";
+      const creditBalance = family === "codex" ? formatCodexCreditBalance(provider) : "";
+
+      card.dataset.statusKey = `${family}:${label}`;
+      card.dataset.accountId = accountId;
+      card.dataset.accountEmail = provider.AccountEmail || provider.accountEmail || "";
+      card.innerHTML = `
+        <div class="quota-eink-overview-head">
+          <div class="quota-account-head">
+            <span class="quota-check"></span>
+            <span class="quota-account-email"></span>
+            <span class="quota-pill"></span>
+          </div>
+          ${renderQuotaSwitcher(pageInfo?.index || 0, pageInfo?.total || 1, pageInfo?.tabId || family)}
+        </div>
+        ${renderEinkQuotaUsage(provider, provider.Label || provider.label || label)}
+        ${creditBalance ? `<div class="quota-credit-row quota-eink-credit"><span>${escapeHtml(tLegacy("剩餘 ChatGPT Credits："))}</span><strong>${escapeHtml(creditBalance)}</strong></div>` : ""}
+        <div class="quota-eink-overview-footer">
+          <span class="quota-time"></span>
+          <div class="quota-toolbox" aria-label="額度操作">
+            <button type="button" title="更新額度" data-quota-action="refresh">↻ 更新</button>
+          </div>
+        </div>
+        <details class="quota-eink-account-manager">
+          <summary></summary>
+        </details>
+        <div class="quota-action-status" aria-live="polite"></div>
+      `;
+
+      card.querySelector(".quota-account-email").textContent = label;
+      card.querySelector(".quota-pill").textContent = state;
+      card.querySelector(".quota-time").textContent = updatedText;
+      const manager = card.querySelector(".quota-eink-account-manager");
+      manager.querySelector("summary").textContent = t("ui.codexAccountSwitcher");
+      manager.append(renderCodexAccountBar({ embedded: true, statusCard: card }));
+      if (isActive) card.classList.add("quota-eink-active-account");
+      applyQuotaCardStatus(card);
+      wireQuotaSwitcher(card);
+      wireQuotaToolbox(card);
+      return card;
+    }
+
+    function renderEinkQuotaUsage(provider, title) {
+      const primary = provider.Primary || provider.primary || {};
+      const secondary = provider.Secondary || provider.secondary || {};
+      return `
+        <section class="quota-eink-usage">
+          <strong class="quota-provider-title">${escapeHtml(title)}</strong>
+          ${renderQuotaWindow(formatQuotaWindowLabel(primary, tLegacy("5 小時額度")), primary)}
+          ${renderQuotaWindow(formatQuotaWindowLabel(secondary, tLegacy("週額度")), secondary)}
+        </section>
+      `;
     }
 
     function formatCodexCreditBalance(provider) {
@@ -3832,6 +4196,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     clearPublicEndpoint?.addEventListener("click", () => {
       clearTrustedPublicEndpoint();
     });
+    generateEinkConnectionCode?.addEventListener("click", () => {
+      createEinkConnectionCode();
+    });
     openNewDevicePanel?.addEventListener("click", () => {
       if (newDeviceConnectPanel) {
         newDeviceConnectPanel.hidden = false;
@@ -4064,7 +4431,16 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       });
     }
     async function boot() {
-      await initLocale().catch(() => {});
+      const activeLocale = await initLocale().catch(() => "zh-Hant");
+      const pairingLocaleSelect = document.getElementById("pairingLocaleSelect");
+      if (pairingLocaleSelect) {
+        pairingLocaleSelect.value = activeLocale;
+        pairingLocaleSelect.addEventListener("change", () => {
+          const url = new URL(location.href);
+          url.searchParams.set("lang", pairingLocaleSelect.value || "zh-Hant");
+          location.assign(url.toString());
+        });
+      }
       await (window.phoneMonitorServiceWorkerCleanup || Promise.resolve());
       ensureEinkPreferenceSticky();
       // If hardware/cookie says e-ink but URL has no flag, stamp ?eink=1 so a later
@@ -4103,10 +4479,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       }
 
       applyClientChrome();
-      rotation.value = localStorage.getItem("phoneMonitorRotation") || "auto";
-      orientation.value = localStorage.getItem("phoneMonitorOrientation") || "auto";
+      rotation.value = isDevicePreview() ? "auto" : localStorage.getItem("phoneMonitorRotation") || "auto";
+      orientation.value = isDevicePreview() ? "auto" : localStorage.getItem("phoneMonitorOrientation") || "auto";
       if (isEinkClient()) {
-        fullscreen.textContent = "全螢幕面板";
+        fullscreen.textContent = tLegacy("全螢幕面板");
       }
       streamPreset.value = localStorage.getItem("phoneMonitorStreamPreset") || defaultStreamPreset();
       applyStreamPresetFields();
@@ -4174,7 +4550,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         connectInput();
       }
       if (isIos()) {
-        fullscreen.textContent = "全螢幕";
+        fullscreen.textContent = tLegacy("全螢幕");
       }
       updateKeepAwakeButton();
       updateWakeCapability();

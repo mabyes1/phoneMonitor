@@ -8,6 +8,7 @@ obj/
 certs/
 outputs/
 artifacts/
+workers/**/.wrangler/
 
 # Driver build output
 driver/**/x64/
