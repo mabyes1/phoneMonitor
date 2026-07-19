@@ -95,6 +95,8 @@ Name: "{commonappdata}\VibeDeck"; Permissions: users-modify
 Type: filesandordirs; Name: "{app}\wwwroot"
 Type: filesandordirs; Name: "{app}\Installers"
 Type: filesandordirs; Name: "{app}\runtimes"
+Type: filesandordirs; Name: "{app}\connectors"
+Type: filesandordirs; Name: "{app}\licenses"
 ; Remove the pre-0.1.1 binary name after upgrading.
 Type: files; Name: "{app}\PhoneMonitor.Host.*"
 ; Remove the pre-0.1.18 script launchers after upgrading.

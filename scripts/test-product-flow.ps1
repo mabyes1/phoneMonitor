@@ -75,6 +75,8 @@ if ($Payload) {
     Write-Check "Published payload at $PayloadPath"
     foreach ($relative in @(
         "VibeDeck.Host.exe",
+        "connectors\cloudflared.exe",
+        "licenses\cloudflared-LICENSE.txt",
         "product-install.json",
         "vibedeck.ico",
         "wwwroot\index.html",
@@ -86,6 +88,9 @@ if ($Payload) {
     foreach ($legacyLauncher in @("Open-VibeDeck.cmd", "Open-VibeDeck.vbs", "Start-VibeDeck-Host.vbs")) {
         Assert-Product (-not (Test-Path -LiteralPath (Join-Path $PayloadPath $legacyLauncher))) "Payload still contains legacy launcher: $legacyLauncher"
     }
+    $connectorSignature = Get-AuthenticodeSignature -FilePath (Join-Path $PayloadPath "connectors\cloudflared.exe")
+    Assert-Product ($connectorSignature.Status -eq [System.Management.Automation.SignatureStatus]::Valid) "Payload cloudflared signature is invalid."
+    Assert-Product ($connectorSignature.SignerCertificate.Subject -match 'O="?Cloudflare, Inc\."?') "Payload cloudflared signer is not Cloudflare, Inc."
     $projectText = Get-Content $project -Raw
     Assert-Product ($projectText -match "<OutputType>WinExe</OutputType>") "Host must be a native Windows background application."
     Assert-Product (-not (Get-ChildItem (Join-Path $PayloadPath "wwwroot") -Recurse -File -Include "*.apk","*.ipa" -ErrorAction SilentlyContinue)) "Payload contains a native mobile package."

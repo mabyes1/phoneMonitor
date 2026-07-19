@@ -2,7 +2,17 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
-## Unreleased
+## 0.1.30 - 2026-07-19
+
+- Windows Setup 內建經 SHA-256 驗證的 Cloudflare connector；VibeDeck Host 會在登入桌面工作階段隱藏啟動、健康檢查、失敗重試並在結束時一併關閉，不再建立獨立排程、顯示命令視窗或要求使用者安裝／操作 cloudflared。新安裝會由 `vibedeck.pp.ua` Worker 自動建立每台 PC 專屬 Tunnel、ingress 與 DNS；Cloudflare API token 僅存在 Worker secret，PC 只以 DPAPI 保存自己的 Tunnel token。舊版 `VibeDeck Cloudflare Connector` 排程會自動停止並移除，既有本機 Tunnel 設定可無痛接管。
+- 安全網址狀態新增自動配發、背景連線、已上線與區網 HTTPS 回退；一般安裝不再顯示手動網址欄位。一次性連線碼註冊／解析與新安裝配發均加入每 IP 節流，降低免費 Cloudflare Durable Object、Worker 與 Tunnel 額度被濫用的風險。
+- 修正背景 Tunnel 啟動後同步等待空白輸出而卡住，導致狀態永遠停在等待、錯誤回退區網網址並讓既有手機誤以為需要重新配對的問題；Hosted Service 與連線資訊也明確共用同一實例。
+- iOS／Android 直接開啟資訊板時啟用與 PC／Deck 相同的本機 Canvas 導光波浪；觸控滑動會驅動方向，閒置時持續呼吸。共通手機規則不依賴特定型號，電子紙與系統「減少動態效果」仍停用動畫。
+- 手機共通控制項最小高度統一為 36px，修正 Device Lab 在 iPhone XS 與 Galaxy S23 回報的六個 33–34px 操作控制；型號只作代表性 viewport 驗證，不作產品版面分支。
+- 修正 iOS 橫向全螢幕額度頁保留先前直向捲動位置、開啟時內容落在畫面外的問題；額度內容改由可用視窗高度捲動，卡片依內容展開，不再互相擠壓。使用者版面同時隱藏僅供診斷使用的資料來源說明卡，Device Lab 會偵測額度卡裁切或過窄。
+- 修正動態資訊模組載入不同版本的 i18n module 而各自持有未初始化語系狀態；額度週期、資訊板、串流與自訂卡等動態文案現在共用同一份繁中／English／日本語 catalog，不再顯示 `ui.…` 原始 key 或殘留繁中。
+- 修正同時讀取額度時競爭覆寫 Codex quota cache 的檔案鎖定；快取讀寫改為同程序同步，避免手機／桌機同步刷新時 `/api/quotas` 偶發失敗。
+- 手機額度週期標籤最低字級固定為 12px，讓 iPhone XS 與 Galaxy S23 橫向 Device Lab 可讀性驗收不再因 11.77px 文字失敗。
 
 ## 0.1.28 - 2026-07-19
 

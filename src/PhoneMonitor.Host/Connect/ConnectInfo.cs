@@ -23,6 +23,11 @@ namespace PhoneMonitor.Host.Connect
         public string InstallationId { get; set; }
         public string PublicBaseDomain { get; set; }
         public bool UsesTrustedPublicUrl { get; set; }
+        public bool PublicConnectorManaged { get; set; }
+        public string PublicConnectorState { get; set; }
+        public bool PublicConnectorRunning { get; set; }
+        public bool PublicConnectorHealthy { get; set; }
+        public string PublicConnectorError { get; set; }
         public bool IsHttpsRequest { get; set; }
         public bool WakeLockNeedsHttps { get; set; }
         public IReadOnlyList<string> Addresses { get; set; }

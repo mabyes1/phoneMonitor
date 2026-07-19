@@ -1,4 +1,4 @@
-import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+import { getIntlLocale, tLegacy } from "./i18n.js?v=4";
 
 const FILTER_STORAGE_KEY = "phoneMonitorActivityFilter.v1";
 

@@ -10,11 +10,21 @@ routes = [
 [vars]
 PUBLIC_BASE_DOMAIN = "vibedeck.pp.ua"
 CODE_TTL_SECONDS = "600"
+CLOUDFLARE_ACCOUNT_ID = "29ccf932b04b89e6c0290dc3a1416bd8"
+CLOUDFLARE_ZONE_ID = "d51e3a0fee8c26312579264e375e5e39"
 
 [[durable_objects.bindings]]
 name = "CONNECTION_CODES"
 class_name = "ConnectionCodeBroker"
 
+[[durable_objects.bindings]]
+name = "INSTALLATIONS"
+class_name = "InstallationBroker"
+
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["ConnectionCodeBroker"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["InstallationBroker"]

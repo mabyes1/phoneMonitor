@@ -1,4 +1,4 @@
-import { getIntlLocale, t, tLegacy } from "./i18n.js?v=3";
+import { getIntlLocale, t, tLegacy } from "./i18n.js?v=4";
 import { formatQuotaWindowLabel } from "./quota-formatters.js?v=51";
 
 const SOURCE_STORAGE_KEY = "phoneMonitorDashboardQuotaSource.v1";

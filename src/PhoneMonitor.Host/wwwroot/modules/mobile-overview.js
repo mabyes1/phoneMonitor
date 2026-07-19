@@ -1,4 +1,4 @@
-import { tLegacy } from "./i18n.js?v=3";
+import { tLegacy } from "./i18n.js?v=4";
 
 const STORAGE_KEY = "phoneMonitorMobileOverview.v1";
 const DEFAULT_SECTIONS = [

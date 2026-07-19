@@ -1,4 +1,4 @@
-import { tLegacy } from "./i18n.js?v=3";
+import { tLegacy } from "./i18n.js?v=4";
 
 const SYSTEM_CARD_TITLES = {
   "system-load": "系統狀態",

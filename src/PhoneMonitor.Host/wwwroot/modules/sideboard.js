@@ -1,4 +1,4 @@
-import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+import { getIntlLocale, tLegacy } from "./i18n.js?v=4";
 
 export function createSideboardController({
   elements,

@@ -18,6 +18,7 @@ namespace PhoneMonitor.Host.Quotas
     {
         private const int MaxSessionFiles = 120;
         private const int TailBytes = 768 * 1024;
+        private static readonly object CacheFileLock = new object();
 
         internal static IEnumerable<AiQuotaStatus> ReadCodexQuotas()
         {
@@ -283,41 +284,44 @@ namespace PhoneMonitor.Host.Quotas
 
         private static IEnumerable<AiQuotaStatus> ReadCodexQuotaCache(string cacheDirectory)
         {
-            if (!Directory.Exists(cacheDirectory))
+            lock (CacheFileLock)
             {
-                return Enumerable.Empty<AiQuotaStatus>();
-            }
-
-            var statuses = new List<AiQuotaStatus>();
-            foreach (var cacheFile in FindJsonFiles(cacheDirectory))
-            {
-                try
+                if (!Directory.Exists(cacheDirectory))
                 {
-                    var status = JsonSerializer.Deserialize<AiQuotaStatus>(File.ReadAllText(cacheFile), CacheJsonOptions);
-                    if (status == null)
+                    return Enumerable.Empty<AiQuotaStatus>();
+                }
+
+                var statuses = new List<AiQuotaStatus>();
+                foreach (var cacheFile in FindJsonFiles(cacheDirectory))
+                {
+                    try
                     {
-                        continue;
+                        var status = JsonSerializer.Deserialize<AiQuotaStatus>(File.ReadAllText(cacheFile), CacheJsonOptions);
+                        if (status == null)
+                        {
+                            continue;
+                        }
+
+                        status.Id = string.IsNullOrWhiteSpace(status.Id)
+                            ? BuildCodexStatusId(status.AccountId ?? status.AccountEmail ?? Path.GetFileNameWithoutExtension(cacheFile))
+                            : status.Id;
+                        status.Label = string.IsNullOrWhiteSpace(status.Label) ? "Codex" : status.Label;
+                        status.Family = "codex";
+                        status.Source = string.IsNullOrWhiteSpace(status.Source) ? cacheFile : status.Source;
+                        statuses.Add(status);
                     }
+                    catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
+                    {
+                    }
+                }
 
-                    status.Id = string.IsNullOrWhiteSpace(status.Id)
-                        ? BuildCodexStatusId(status.AccountId ?? status.AccountEmail ?? Path.GetFileNameWithoutExtension(cacheFile))
-                        : status.Id;
-                    status.Label = string.IsNullOrWhiteSpace(status.Label) ? "Codex" : status.Label;
-                    status.Family = "codex";
-                    status.Source = string.IsNullOrWhiteSpace(status.Source) ? cacheFile : status.Source;
-                    statuses.Add(status);
-                }
-                catch (Exception ex) when (ex is IOException || ex is UnauthorizedAccessException || ex is JsonException)
-                {
-                }
+                return statuses
+                    .GroupBy(status => status.AccountId ?? status.AccountEmail ?? status.Id ?? Guid.NewGuid().ToString("N"), StringComparer.OrdinalIgnoreCase)
+                    .Select(group => group
+                        .OrderByDescending(status => status.ObservedAt ?? DateTimeOffset.MinValue)
+                        .First())
+                    .ToList();
             }
-
-            return statuses
-                .GroupBy(status => status.AccountId ?? status.AccountEmail ?? status.Id ?? Guid.NewGuid().ToString("N"), StringComparer.OrdinalIgnoreCase)
-                .Select(group => group
-                    .OrderByDescending(status => status.ObservedAt ?? DateTimeOffset.MinValue)
-                    .First())
-                .ToList();
         }
 
         private static void WriteCodexQuotaCache(string cacheDirectory, AiQuotaStatus status)
@@ -327,10 +331,13 @@ namespace PhoneMonitor.Host.Quotas
                 return;
             }
 
-            Directory.CreateDirectory(cacheDirectory);
-            var accountKey = FirstNonEmpty(status.AccountId, status.AccountEmail, status.Id, "local");
-            var path = Path.Combine(cacheDirectory, $"{SafeFileName(accountKey)}.json");
-            File.WriteAllText(path, JsonSerializer.Serialize(status, CacheJsonOptions));
+            lock (CacheFileLock)
+            {
+                Directory.CreateDirectory(cacheDirectory);
+                var accountKey = FirstNonEmpty(status.AccountId, status.AccountEmail, status.Id, "local");
+                var path = Path.Combine(cacheDirectory, $"{SafeFileName(accountKey)}.json");
+                File.WriteAllText(path, JsonSerializer.Serialize(status, CacheJsonOptions));
+            }
         }
 
         private static IReadOnlyList<CodexAccountIdentity> ReadCodexAuthIdentities(string codexHome)

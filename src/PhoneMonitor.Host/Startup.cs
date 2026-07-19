@@ -72,7 +72,12 @@ namespace PhoneMonitor.Host
             services.AddSingleton<DashboardLayoutService>();
             services.AddSingleton<AuditTrailService>();
             services.AddSingleton<PublicEndpointService>();
-            services.AddSingleton<ConnectInfoProvider>();
+            services.AddHttpClient<CloudflareProvisioningClient>(client => client.Timeout = TimeSpan.FromSeconds(25));
+            services.AddSingleton<CloudflareConnectorService>();
+            services.AddSingleton<IHostedService>(sp => sp.GetRequiredService<CloudflareConnectorService>());
+            services.AddSingleton(sp => new ConnectInfoProvider(
+                sp.GetRequiredService<PublicEndpointService>(),
+                sp.GetRequiredService<CloudflareConnectorService>()));
             services.AddHttpClient<ConnectionCodeBrokerService>(client => client.Timeout = TimeSpan.FromSeconds(8));
             services.AddHostedService<DashboardChangeMonitor>();
             services.AddSingleton(sp =>

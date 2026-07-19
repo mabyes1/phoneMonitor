@@ -1371,12 +1371,14 @@ html[data-device-preview] body::-webkit-scrollbar {
 
     .device-connection-code output {
       min-width: 184px;
+      min-height: 1.2em;
       color: #ffffff;
       font-family: var(--mono);
       font-size: clamp(24px, 2.4vw, 34px);
       font-weight: 800;
       letter-spacing: .11em;
-      line-height: 1;
+      line-height: 1.2;
+      overflow: visible;
     }
 
     .device-connection-code button {
@@ -1683,16 +1685,37 @@ html[data-device-preview] body::-webkit-scrollbar {
       font-size: 13px;
     }
 
-    .trusted-devices-head button {
+    /* Icon-only controls in the device head. Do NOT apply this to labeled
+       buttons (＋ Add) — fixed 30×30 + padding:0 caused text breakout. */
+    .trusted-devices-head #refreshTrustedDevices,
+    .trusted-devices-head .device-management-more > summary {
+      display: grid;
+      place-items: center;
       min-width: 30px;
+      width: 30px;
       height: 30px;
       min-height: 30px;
       padding: 0;
       border-radius: 999px;
     }
 
+    /* Labeled actions: width follows content in every locale. */
+    .trusted-devices-head #openNewDevicePanel {
+      min-width: 0;
+      width: max-content;
+      max-width: 100%;
+      height: 30px;
+      min-height: 30px;
+      padding: 0 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+      letter-spacing: 0;
+    }
+
     .trusted-devices-head button[data-clear-trusted-devices] {
-      padding: 0 10px;
       border-color: rgba(255, 115, 115, .5);
       border-radius: 6px;
       color: #ffb4b4;
@@ -1704,12 +1727,7 @@ html[data-device-preview] body::-webkit-scrollbar {
     }
 
     .device-management-more > summary {
-      display: grid;
-      place-items: center;
-      width: 30px;
-      height: 30px;
       border: 1px solid #3a4a5f;
-      border-radius: 999px;
       background: #223040;
       color: var(--text);
       cursor: pointer;
@@ -1727,20 +1745,26 @@ html[data-device-preview] body::-webkit-scrollbar {
       top: calc(100% + 6px);
       right: 0;
       z-index: 20;
-      min-width: 150px;
+      min-width: max(150px, max-content);
+      max-width: min(280px, 80vw);
       padding: 6px;
       border: 1px solid rgba(255,255,255,.16);
       border-radius: 8px;
       background: #111922;
       box-shadow: 0 12px 30px rgba(0,0,0,.35);
+      box-sizing: border-box;
     }
 
     .device-management-more > div button {
       width: 100%;
       height: auto;
       min-height: 34px;
+      min-width: 0;
       padding: 7px 10px;
-      white-space: nowrap;
+      white-space: normal;
+      text-align: left;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
     }
 
     .trusted-device-list {
@@ -3927,8 +3951,9 @@ html[data-device-preview] body::-webkit-scrollbar {
       display: inline-flex !important;
     }
 
-    body.phone-client #keepAwake {
-      min-height: 34px;
+    body.phone-client #keepAwake,
+    body.phone-client #fullscreen {
+      min-height: 36px;
     }
 
     body.phone-client #keepAwake.active {
@@ -4407,6 +4432,18 @@ body.pc-console.pairing-active .connect-panel {
 
 body.pc-console.pairing-active .connect-qr {
   display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+body.pc-console.pairing-active .connect-qr img,
+body.pc-console.pairing-active #qrCode {
+  display: block !important;
+  visibility: visible !important;
+  width: 100%;
+  max-width: 252px;
+  aspect-ratio: 1;
+  background: #fff;
 }
 
 body.pc-console.pairing-active .pairing-guide,
@@ -4414,9 +4451,8 @@ body.pc-console.pairing-active .connect-status {
   display: grid !important;
 }
 
-body.pc-console.pairing-active #httpsCertLink {
-  display: inline-flex !important;
-}
+/* Cert install stays inside advanced connect details — do not promote it onto
+   the healthy pairing card. Failure path reuses .pairing-needs-advanced below. */
 
 body.trusted-public-endpoint #certificateSetupTitle,
 body.trusted-public-endpoint #httpsCertLink,
@@ -4435,13 +4471,19 @@ body.trusted-public-endpoint #androidCertHelp {
   }
 }
 
-body.pc-console.pairing-active .connect-links {
-  display: block !important;
+/* Healthy pairing: hide advanced connect entirely (summary row included). */
+body.pc-console.pairing-active:not(.pairing-needs-advanced) .connect-links {
+  display: none !important;
 }
 
-body.pc-console.pairing-active .connect-links[open],
-body.pc-console.pairing-active .connect-links {
-  border-color: var(--green);
+/* Endpoint repair during pairing: keep advanced visible and mark the surface. */
+body.pc-console.pairing-active.pairing-needs-advanced .connect-links {
+  display: block !important;
+  border-color: var(--yellow);
+}
+
+body.pc-console.pairing-active.pairing-needs-advanced .connect-links[open] {
+  border-color: var(--yellow);
 }
 
 body.pc-console .connect-copy {
@@ -4464,6 +4506,20 @@ body.pc-console:not(.deck-window) #fullscreen {
 
 body:not(.device-trusted):not(.pc-console) .display-empty-actions {
   display: none !important;
+}
+
+/* Phone cannot install the virtual display — only Sideboard/Quota escape hatches. */
+body.phone-client:not(.pc-console) #installVirtualDisplay {
+  display: none !important;
+}
+
+body.phone-client:not(.pc-console) #openSideboardFromEmpty {
+  min-width: min(100%, 280px);
+}
+
+/* PC keeps Device setup as the primary empty-state action. */
+body.pc-console .display-empty-actions #installVirtualDisplay {
+  order: -1;
 }
 
 body.phone-client:not(.eink-client) .quota-toolbox {
@@ -4590,7 +4646,7 @@ body.eink-client .quota-shell {
 
   .mobile-overview-actions button,
   .mobile-section-heading button {
-    min-height: 34px;
+    min-height: 36px;
     padding: 6px 10px;
     font-size: 14px;
     font-weight: 700;
@@ -6607,6 +6663,7 @@ body.phone-client:not(.eink-client) .quota-mini-credit {
   pointer-events: none;
   background: #000;
   isolation: isolate;
+  border-radius: inherit;
   opacity: 0;
   transition: opacity 420ms ease;
 }
@@ -6674,7 +6731,7 @@ body.phone-client:not(.eink-client) .quota-mini-credit {
     linear-gradient(180deg, rgba(0, 0, 0, 0.44), transparent 24%, transparent 72%, rgba(0, 0, 0, 0.56));
 }
 
-body.pc-console.mode-sideboard.energy-wave-active .sideboard-shell {
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell {
   --side-bg: #000;
   --side-panel: rgba(7, 13, 21, 0.57);
   background: #000;
@@ -6683,13 +6740,13 @@ body.pc-console.mode-sideboard.energy-wave-active .sideboard-shell {
   isolation: isolate;
 }
 
-body.pc-console.mode-sideboard.energy-wave-active .sideboard-shell::before {
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell::before {
   z-index: 1;
   opacity: 0.11;
   mix-blend-mode: screen;
 }
 
-body.pc-console.mode-sideboard.energy-wave-active .sideboard-shell::after {
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell::after {
   z-index: 2;
   pointer-events: none;
   background:
@@ -6697,27 +6754,33 @@ body.pc-console.mode-sideboard.energy-wave-active .sideboard-shell::after {
     radial-gradient(circle at 50% 47%, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.4) 78%);
 }
 
-body.pc-console.mode-sideboard.energy-wave-active .sideboard-shell > :not(.energy-wave-backdrop),
-body.pc-console.mode-sideboard.energy-wave-active #systemSideboardPage.dashboard-grid [data-dashboard-key] {
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell > :not(.energy-wave-backdrop),
+body.mode-sideboard.energy-wave-active:not(.eink-client) #systemSideboardPage.dashboard-grid [data-dashboard-key] {
   z-index: 3;
 }
 
-body.pc-console.mode-sideboard.energy-wave-active .side-panel,
-body.pc-console.mode-sideboard.energy-wave-active .metric-card,
-body.pc-console.mode-sideboard.energy-wave-active .custom-card {
+body.mode-sideboard.energy-wave-active:not(.eink-client) .side-panel,
+body.mode-sideboard.energy-wave-active:not(.eink-client) .metric-card,
+body.mode-sideboard.energy-wave-active:not(.eink-client) .custom-card {
   backdrop-filter: blur(10px) saturate(1.08);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 36px rgba(0, 0, 0, 0.28);
 }
 
-body.phone-client .energy-wave-backdrop,
 body.eink-client .energy-wave-backdrop {
   display: none !important;
 }
 
-@media (max-width: 900px) {
-  .energy-wave-backdrop {
-    display: none !important;
-  }
+body.phone-client:not(.eink-client).energy-wave-active .mobile-overview-section,
+body.phone-client:not(.eink-client).energy-wave-active .mobile-detail-block,
+body.phone-client:not(.eink-client).energy-wave-active .mobile-detail-host,
+body.phone-client:not(.eink-client).energy-wave-active .mobile-detail-metrics article {
+  background: linear-gradient(145deg, rgba(14, 34, 40, .78), rgba(7, 20, 25, .72));
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+}
+
+body.phone-client:not(.eink-client).energy-wave-active .mobile-metric-card {
+  background: rgba(8, 24, 29, .7);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -7322,6 +7385,10 @@ body.phone-client:not(.eink-client) #quotaMiniReset {
   font-size: 12px;
 }
 
+body.phone-client:not(.eink-client) .quota-window span {
+  font-size: 12px;
+}
+
 body.eink-client .phone-pair-rescue small,
 body.eink-client .phone-pair-rescue strong,
 body.eink-client .phone-pair-rescue > span,
@@ -7352,4 +7419,92 @@ body.eink-client .quota-account-switcher,
 body.eink-client .quota-account-switcher > span,
 body.eink-client .quota-pill {
   font-size: 16px !important;
+}
+
+body.mode-quota .quota-help {
+  display: none;
+}
+
+/* Phone quota must be governed by the usable viewport, not the desktop card
+ * minimum. This matters most on iPhone landscape where Safari leaves little
+ * vertical room after the safe areas and browser chrome. */
+@media (max-width: 960px) {
+  body.phone-client:not(.eink-client).mode-quota main {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-content: start;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-view {
+    width: 100%;
+    max-width: none;
+    height: auto;
+    min-height: 0;
+    justify-self: stretch;
+    align-self: start;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-shell {
+    min-height: 0;
+    height: auto;
+    grid-template-rows: auto auto;
+    align-content: start;
+    overflow: visible;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-grid,
+  body.phone-client:not(.eink-client).mode-quota .quota-account-page,
+  body.phone-client:not(.eink-client).mode-quota .quota-account-card {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-grid {
+    grid-auto-rows: max-content;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-account-card {
+    display: block;
+    min-height: max-content;
+    align-self: start;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-account-card > * + * {
+    margin-top: 10px;
+  }
+}
+
+@media (max-width: 960px) and (orientation: landscape) {
+  body.phone-client:not(.eink-client).mode-quota header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding-top: calc(6px + var(--safe-area-inset-top, env(safe-area-inset-top)));
+    padding-bottom: 6px;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .brand {
+    display: none;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .top-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    width: 100%;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .utility-controls {
+    gap: 5px;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .utility-controls button {
+    min-height: 36px;
+    padding-inline: 8px;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota main {
+    padding-top: 8px;
+  }
 }
