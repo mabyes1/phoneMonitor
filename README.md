@@ -328,6 +328,7 @@ See [`docs/build-week-submission.md`](docs/build-week-submission.md) for the rea
 
 ## Roadmap
 
+- Current refactoring priorities and first-run UX acceptance criteria are documented in [`docs/technical-debt-roadmap.md`](docs/technical-debt-roadmap.md) and [`docs/ui-ux-pairing-review.md`](docs/ui-ux-pairing-review.md).
 - Continue translation coverage and multilingual regression checks across newly added product flows.
 - Improve adaptive stream quality and latency handling.
 - Add more dashboard modules and integrations.

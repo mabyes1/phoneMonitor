@@ -33,6 +33,7 @@ let labMessages = {};
 const deviceSelect = document.getElementById("deviceSelect");
 const orientationSelect = document.getElementById("orientationSelect");
 const modeSelect = document.getElementById("modeSelect");
+const trustStateSelect = document.getElementById("trustStateSelect");
 const languageSelect = document.getElementById("languageSelect");
 const scaleSelect = document.getElementById("scaleSelect");
 const reloadPreview = document.getElementById("reloadPreview");
@@ -93,12 +94,16 @@ function previewUrl() {
     mode: modeSelect.value,
     lang: languageSelect.value,
     devicePreview: deviceSelect.value,
+    previewTrust: trustStateSelect.value,
     eink: deviceSelect.value === "boox-go-color-7" ? "1" : "0",
     source: "device-lab",
     preview: String(Date.now()),
   });
   if (deviceSelect.value === "boox-go-color-7" && ["sideboard", "quota"].includes(modeSelect.value)) {
     parameters.set("viewer", "1");
+  }
+  if (trustStateSelect.value === "local" && modeSelect.value === "setup") {
+    parameters.delete("mode");
   }
   return `/index.html?${parameters.toString()}`;
 }
@@ -157,19 +162,50 @@ function inspectLayout() {
     const contentWidth = Math.max(root.scrollWidth, body?.scrollWidth || 0);
     const exact = actualWidth === expectedWidth && actualHeight === expectedHeight;
     const overflow = contentWidth > actualWidth + 1;
+    const isBoox = deviceSelect.value === "boox-go-color-7";
+    const minimumTextSize = isBoox ? 16 : 12;
+    const minimumControlHeight = isBoox ? 44 : 36;
+    const isVisible = element => {
+      const style = previewWindow.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return style.display !== "none" && style.visibility !== "hidden" && Number(style.opacity) !== 0 && rect.width > 0 && rect.height > 0;
+    };
+    const controls = Array.from(previewDocument.querySelectorAll("button, select, input:not([type='hidden']), summary"))
+      .filter(isVisible);
+    const undersizedControls = controls.filter(element => element.getBoundingClientRect().height + 0.5 < minimumControlHeight);
+    const textElements = Array.from(previewDocument.querySelectorAll("small, span, p, li, label, strong, b, time, code"))
+      .filter(element => isVisible(element) && element.textContent.trim());
+    const undersizedText = textElements.filter(element => parseFloat(previewWindow.getComputedStyle(element).fontSize) + 0.05 < minimumTextSize);
+    const qualityIssue = undersizedControls.length > 0 || undersizedText.length > 0;
     const values = {
       actual: `${actualWidth} × ${actualHeight}`,
       expected: `${expectedWidth} × ${expectedHeight}`,
       content: contentWidth,
+      controls: undersizedControls.length,
+      text: undersizedText.length,
+      controlHeight: minimumControlHeight,
+      textSize: minimumTextSize,
     };
 
-    layoutStatus.className = `status-badge ${exact && !overflow ? "pass" : "fail"}`;
-    layoutStatus.textContent = text(exact && !overflow ? "pass" : "fail");
+    const passed = exact && !overflow && !qualityIssue;
+    layoutStatus.className = `status-badge ${passed ? "pass" : "fail"}`;
+    layoutStatus.textContent = text(passed ? "pass" : qualityIssue && !overflow ? "qualityFail" : "fail");
     layoutDetail.textContent = overflow
       ? text("overflow", values)
+      : qualityIssue
+        ? text("quality", values)
       : exact
         ? text("exact", values)
         : text("mismatch", values);
+    const controlSamples = undersizedControls.slice(0, 6).map(element => {
+      const rect = element.getBoundingClientRect();
+      return `${element.tagName.toLowerCase()}#${element.id || "-"} ${Math.round(rect.height)}px ${element.textContent.trim().slice(0, 30)}`;
+    });
+    const textSamples = undersizedText.slice(0, 6).map(element => {
+      const size = previewWindow.getComputedStyle(element).fontSize;
+      return `${element.tagName.toLowerCase()}#${element.id || "-"} ${size} ${element.textContent.trim().slice(0, 30)}`;
+    });
+    layoutDetail.title = [...controlSamples, ...textSamples].join("\n");
   } catch {
     setChecking();
   }
@@ -181,6 +217,7 @@ deviceSelect.addEventListener("change", () => {
 });
 orientationSelect.addEventListener("change", () => configureFrame());
 modeSelect.addEventListener("change", () => configureFrame());
+trustStateSelect.addEventListener("change", () => configureFrame());
 languageSelect.addEventListener("change", async () => {
   await loadLanguage();
   configureFrame();
@@ -199,6 +236,8 @@ async function start() {
   if (!["zh-Hant", "en", "ja"].includes(languageSelect.value)) languageSelect.value = "zh-Hant";
   deviceSelect.value = parameters.get("device") || "boox-go-color-7";
   if (!devices[deviceSelect.value]) deviceSelect.value = "boox-go-color-7";
+  trustStateSelect.value = parameters.get("trust") || "paired";
+  if (!["paired", "unpaired", "pending", "local"].includes(trustStateSelect.value)) trustStateSelect.value = "paired";
   orientationSelect.value = currentDevice().defaultOrientation;
   await loadLanguage();
   configureFrame();

@@ -8,8 +8,8 @@ const LANDING_SUBMIT_GUARD_CSP_HASH = "'sha256-bfXKPBvv3fl+jHsvWGd3kmxKB0McbscPT
 const translations = {
   "zh-Hant": {
     title: "連接 VibeDeck",
-    eyebrow: "VIBEDECK · 電子紙連線",
-    intro: "在 Windows 電腦上產生一次性連線碼，並在這裡輸入。",
+    eyebrow: "VIBEDECK · 裝置連線",
+    intro: "在 Windows 電腦上產生一次性裝置連線碼，並在這裡輸入。",
     label: "8 位連線碼",
     placeholder: "例如 ABCD-EFGH",
     submit: "開啟這台電腦",
@@ -20,7 +20,7 @@ const translations = {
   },
   en: {
     title: "Connect VibeDeck",
-    eyebrow: "VIBEDECK · E-PAPER CONNECTION",
+    eyebrow: "VIBEDECK · DEVICE CONNECTION",
     intro: "Create a one-time connection code on the Windows PC and enter it here.",
     label: "8-character connection code",
     placeholder: "For example ABCD-EFGH",
@@ -32,7 +32,7 @@ const translations = {
   },
   ja: {
     title: "VibeDeck に接続",
-    eyebrow: "VIBEDECK · E-INK 接続",
+    eyebrow: "VIBEDECK · デバイス接続",
     intro: "Windows PC で一時接続コードを作成し、ここに入力します。",
     label: "8 文字の接続コード",
     placeholder: "例: ABCD-EFGH",
@@ -149,7 +149,6 @@ async function resolveConnectionCode(request, env) {
   const payload = await response.json();
   const target = new URL(payload.targetUrl);
   target.pathname = "/index.html";
-  target.searchParams.set("eink", "1");
   target.searchParams.set("source", "connection-code");
   target.searchParams.set("autopair", "1");
   target.searchParams.set("lang", locale);

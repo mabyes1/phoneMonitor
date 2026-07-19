@@ -47,6 +47,15 @@
         </select>
       </label>
       <label>
+        <span data-i18n="trustState">配對狀態</span>
+        <select id="trustStateSelect">
+          <option value="paired" data-i18n="paired">已配對</option>
+          <option value="unpaired" data-i18n="unpaired">未配對</option>
+          <option value="pending" data-i18n="pending">等待 PC 核准</option>
+          <option value="local" data-i18n="local">本機控制</option>
+        </select>
+      </label>
+      <label>
         <span data-i18n="language">語言</span>
         <select id="languageSelect">
           <option value="zh-Hant">繁體中文</option>
@@ -88,6 +97,6 @@
     <span id="deviceSource"></span>
   </footer>
 
-  <script src="/device-lab.js?v=2" defer></script>
+  <script src="/device-lab.js?v=4" defer></script>
 </body>
 </html>

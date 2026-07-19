@@ -81,14 +81,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     const publicEndpointUrl = document.getElementById("publicEndpointUrl");
     const savePublicEndpoint = document.getElementById("savePublicEndpoint");
     const clearPublicEndpoint = document.getElementById("clearPublicEndpoint");
-    const einkConnectionCodePanel = document.getElementById("einkConnectionCodePanel");
-    const einkConnectionCodeUrl = document.getElementById("einkConnectionCodeUrl");
-    const einkConnectionCode = document.getElementById("einkConnectionCode");
-    const einkConnectionCodeStatus = document.getElementById("einkConnectionCodeStatus");
-    const generateEinkConnectionCode = document.getElementById("generateEinkConnectionCode");
+    const deviceConnectionCodePanel = document.getElementById("deviceConnectionCodePanel");
+    const deviceConnectionCodeUrl = document.getElementById("deviceConnectionCodeUrl");
+    const deviceConnectionCode = document.getElementById("deviceConnectionCode");
+    const deviceConnectionCodeStatus = document.getElementById("deviceConnectionCodeStatus");
+    const generateDeviceConnectionCode = document.getElementById("generateDeviceConnectionCode");
     const httpLink = document.getElementById("httpLink");
-    const pairPhone = document.getElementById("pairPhone");
     const phonePairRequest = document.getElementById("phonePairRequest");
+    const phonePairIntro = document.getElementById("phonePairIntro");
     const launchDeckWindow = document.getElementById("launchDeckWindow");
     const pairingStepInstall = document.getElementById("pairingStepInstall");
     const pairingStepPair = document.getElementById("pairingStepPair");
@@ -394,19 +394,30 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     let approvalPollTimer = null;
     let pendingApprovalTimer = null;
     let deviceManagementDefaultApplied = false;
+    let shouldDefaultToFirstDeviceSetup = false;
     let diagnosticsLoading = false;
     let latestAuditTrail = { entries: [], retentionDays: 30, generatedAt: "" };
     const touchLongPressMs = 460;
     const touchDragThresholdPx = 12;
     const DEVICE_PREVIEW_KINDS = new Set(["boox-go-color-7", "galaxy-s23", "iphone-xs"]);
+    const DEVICE_PREVIEW_TRUST_STATES = new Set(["paired", "unpaired", "pending", "local"]);
     const devicePreviewKind = (() => {
       if (!isLoopbackHost()) return "";
       const value = new URLSearchParams(location.search).get("devicePreview") || "";
       return DEVICE_PREVIEW_KINDS.has(value) ? value : "";
     })();
+    let devicePreviewTrustState = (() => {
+      if (!devicePreviewKind) return "";
+      const value = new URLSearchParams(location.search).get("previewTrust") || "paired";
+      return DEVICE_PREVIEW_TRUST_STATES.has(value) ? value : "paired";
+    })();
 
     function isDevicePreview(kind = "") {
       return Boolean(devicePreviewKind) && (!kind || devicePreviewKind === kind);
+    }
+
+    function isDevicePreviewTrust(state) {
+      return isDevicePreview() && devicePreviewTrustState === state;
     }
 
     function applyDevicePreviewEnvironment() {
@@ -635,11 +646,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
 
     function applyClientChrome() {
       const preview = isDevicePreview();
-      const localConsole = Boolean(deviceLocalRequest) && !preview;
-      const phoneClient = preview || (!localConsole && isMobileClient());
+      const previewLocal = isDevicePreviewTrust("local");
+      const localConsole = Boolean(deviceLocalRequest) && (!preview || previewLocal);
+      const phoneClient = (preview && !previewLocal) || (!localConsole && isMobileClient());
       const ios = isIos();
       const eink = isEinkClient();
-      const trusted = Boolean(deviceTrusted) || preview;
+      const trusted = Boolean(deviceTrusted) || isDevicePreviewTrust("paired");
 
       applyDevicePreviewEnvironment();
       document.documentElement.classList.toggle("eink-boot", eink);
@@ -663,7 +675,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     function updateIosHomeTip() {
       const tip = document.getElementById("iosHomeTip");
       if (!tip) return;
-      const trusted = Boolean(deviceTrusted) || isDevicePreview();
+      const trusted = Boolean(deviceTrusted) || isDevicePreviewTrust("paired");
       tip.classList.toggle("show-install", isIos() && !isStandaloneApp());
       if (!isIos()) return;
       if (usesTrustedPublicUrl && !trusted) {
@@ -790,7 +802,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
 
     function isDeckWindow() {
       const value = new URLSearchParams(location.search).get("deck");
-      return value === "1" || value === "true";
+      return isLoopbackHost() && (value === "1" || value === "true");
     }
 
     function updateViewportSize() {
@@ -940,6 +952,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         return isEinkClient() && requestedMode === "display" ? "sideboard" : requestedMode;
       }
 
+      if (shouldDefaultToFirstDeviceSetup) return "setup";
       const stored = localStorage.getItem("phoneMonitorViewMode") || "";
       if (isEinkClient() && (stored === "display" || !stored)) return "sideboard";
       return stored || "display";
@@ -1051,9 +1064,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function setPairingProgress(percent, message) {
-      const value = Math.max(0, Math.min(100, Number(percent) || 0));
+      const idle = percent == null;
+      const value = idle ? 0 : Math.max(0, Math.min(100, Number(percent) || 0));
       document.querySelectorAll("[data-pair-progress]").forEach(element => {
         element.style.setProperty("--pair-progress", `${value}%`);
+        element.classList.toggle("idle", idle);
         element.classList.toggle("complete", value >= 100);
         const meter = element.querySelector("[data-pair-progress-bar]");
         const label = element.querySelector("[data-pair-progress-label]");
@@ -1074,13 +1089,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
 
     function updatePairingGuide(state) {
       const normalized = state || "pair";
-      setPairingStep(pairingStepInstall, normalized === "pair" || normalized === "scan" ? "active" : "done");
-      const publicPairStepActive = usesTrustedPublicUrl && (normalized === "pair" || normalized === "scan");
+      setPairingStep(pairingStepInstall, normalized === "scan" ? "active" : "done");
       setPairingStep(
         pairingStepPair,
-        usesTrustedPublicUrl
-          ? publicPairStepActive ? "active" : normalized === "approve" || normalized === "paired" ? "done" : ""
-          : normalized === "warning" ? "active" : normalized === "approve" || normalized === "paired" ? "done" : ""
+        normalized === "pair" || normalized === "warning"
+          ? "active"
+          : normalized === "approve" || normalized === "paired" ? "done" : ""
       );
       setPairingStep(pairingStepOpen, normalized === "approve" ? "active" : normalized === "paired" ? "done" : "");
       if (normalized === "paired") {
@@ -1103,6 +1117,17 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         : "";
       usesTrustedPublicUrl = Boolean(info.UsesTrustedPublicUrl ?? info.usesTrustedPublicUrl) && Boolean(publicUrl);
       document.body.classList.toggle("trusted-public-endpoint", usesTrustedPublicUrl);
+      const advancedLinks = document.querySelector(".connect-links");
+      if (usesTrustedPublicUrl && advancedLinks) advancedLinks.open = false;
+      if (pairingQrActive) {
+        setTrustState(
+          usesTrustedPublicUrl
+            ? t("secureEndpoint.pairPrompt")
+            : tLegacy("請用手機掃描 QR Code；若出現警告，按「進階」→「繼續前往」，再於手機按「連接這台電腦」。"),
+          true
+        );
+        updatePairingGuide("scan");
+      }
 
       if (pairingStepInstallTitle) {
         pairingStepInstallTitle.textContent = t("secureEndpoint.localScanTitle");
@@ -1141,50 +1166,50 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       if (certificateSetupTitle) {
         certificateSetupTitle.hidden = usesTrustedPublicUrl;
       }
-      if (einkConnectionCodePanel) {
-        einkConnectionCodePanel.hidden = !usesTrustedPublicUrl;
+      if (deviceConnectionCodePanel) {
+        deviceConnectionCodePanel.hidden = !usesTrustedPublicUrl;
       }
-      if (einkConnectionCodeUrl) {
-        einkConnectionCodeUrl.textContent = baseDomain || "vibedeck.pp.ua";
+      if (deviceConnectionCodeUrl) {
+        deviceConnectionCodeUrl.textContent = baseDomain || "vibedeck.pp.ua";
       }
-      if (!usesTrustedPublicUrl && einkConnectionCode) {
-        einkConnectionCode.textContent = "--------";
+      if (!usesTrustedPublicUrl && deviceConnectionCode) {
+        deviceConnectionCode.textContent = "--------";
       }
-      if (!usesTrustedPublicUrl && einkConnectionCodeStatus) {
-        einkConnectionCodeStatus.textContent = t("secureEndpoint.einkIdle");
+      if (!usesTrustedPublicUrl && deviceConnectionCodeStatus) {
+        deviceConnectionCodeStatus.textContent = t("secureEndpoint.deviceCodeIdle");
       }
       applyClientChrome();
       updateIosHomeTip();
     }
 
-    function formatEinkConnectionCode(code) {
+    function formatDeviceConnectionCode(code) {
       const normalized = String(code || "").replace(/[^A-Z2-9]/gi, "").toUpperCase();
       return normalized.length === 8 ? `${normalized.slice(0, 4)}-${normalized.slice(4)}` : normalized || "--------";
     }
 
-    async function createEinkConnectionCode() {
-      if (!deviceLocalRequest || !usesTrustedPublicUrl || !generateEinkConnectionCode) return;
-      const originalText = generateEinkConnectionCode.textContent;
-      generateEinkConnectionCode.disabled = true;
-      generateEinkConnectionCode.textContent = t("secureEndpoint.einkGenerating");
+    async function createDeviceConnectionCode() {
+      if (!deviceLocalRequest || !usesTrustedPublicUrl || !generateDeviceConnectionCode) return;
+      const originalText = generateDeviceConnectionCode.textContent;
+      generateDeviceConnectionCode.disabled = true;
+      generateDeviceConnectionCode.textContent = t("secureEndpoint.deviceCodeGenerating");
       try {
-        const result = await fetchJsonOrThrow("/api/connect/eink-code", { method: "POST" });
+        const result = await fetchJsonOrThrow("/api/connect/device-code", { method: "POST" });
         const code = String(result.code || result.Code || "");
         const expiresAt = String(result.expiresAt || result.ExpiresAt || "");
         if (!code || !expiresAt) throw new Error("connection_code.invalid_response");
-        if (einkConnectionCode) einkConnectionCode.textContent = formatEinkConnectionCode(code);
-        if (einkConnectionCodeStatus) {
+        if (deviceConnectionCode) deviceConnectionCode.textContent = formatDeviceConnectionCode(code);
+        if (deviceConnectionCodeStatus) {
           const expiry = new Date(expiresAt);
           const time = Number.isNaN(expiry.getTime())
             ? "--"
             : expiry.toLocaleTimeString(getIntlLocale(), { hour: "2-digit", minute: "2-digit" });
-          einkConnectionCodeStatus.textContent = t("secureEndpoint.einkReady", { expiresAt: time });
+          deviceConnectionCodeStatus.textContent = t("secureEndpoint.deviceCodeReady", { expiresAt: time });
         }
       } catch {
-        if (einkConnectionCodeStatus) einkConnectionCodeStatus.textContent = t("secureEndpoint.einkFailed");
+        if (deviceConnectionCodeStatus) deviceConnectionCodeStatus.textContent = t("secureEndpoint.deviceCodeFailed");
       } finally {
-        generateEinkConnectionCode.disabled = false;
-        generateEinkConnectionCode.textContent = originalText;
+        generateDeviceConnectionCode.disabled = false;
+        generateDeviceConnectionCode.textContent = originalText;
       }
     }
 
@@ -1227,9 +1252,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       }
     }
 
-    function showInstallQr() {
-      pairingQrActive = false;
-      setPairingUiActive(false);
+    function showInstallQr({ activate = pairingQrActive } = {}) {
+      pairingQrActive = Boolean(activate);
+      setPairingUiActive(pairingQrActive);
       if (qrCode) {
         if (qrCode.dataset.blobUrl) {
           URL.revokeObjectURL(qrCode.dataset.blobUrl);
@@ -1242,13 +1267,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         setPairingProgress(100, `${resolvedPairingInfo?.name || pairingDeviceName()} 可繼續使用`);
         return true;
       }
-      updatePairingGuide("pair");
-      setPairingProgress(
-        isMobileClient() && !isLoopbackHost() ? 35 : 20,
-        isMobileClient() && !isLoopbackHost()
-          ? tLegacy("頁面已開啟，可以開始連接")
-          : tLegacy("HTTPS 與 QR Code 已準備")
-      );
+      updatePairingGuide(pairingQrActive ? "scan" : "pair");
+      if (pairingQrActive) setPairingProgress(null, t("pairingUx.waitingForPhone"));
       return true;
     }
 
@@ -1293,6 +1313,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           deviceManagementDefaultApplied = false;
         } else if (!deviceManagementDefaultApplied) {
           newDeviceConnectPanel.open = deviceCount === 0;
+          if (deviceCount === 0) startPhonePairing();
           deviceManagementDefaultApplied = true;
         }
       }
@@ -1339,7 +1360,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         `;
         row.querySelector("strong").textContent = name;
         row.querySelector(".trusted-device-status").textContent = connected ? "連線中" : "未連線";
-        row.querySelector("span").textContent = `${formatDeviceTime(lastSeen)} · ${remote}`;
+        row.querySelector("span").textContent = t("deviceManagement.lastSeen", { time: formatDeviceTime(lastSeen) });
+        row.querySelector("span").title = t("deviceManagement.address", { address: remote });
         const button = row.querySelector("button");
         button.dataset.deviceRevoke = id;
         trustedDeviceList.append(row);
@@ -1361,6 +1383,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         minute: "2-digit",
         second: "2-digit"
       });
+    }
+
+    function formatVerificationCode(value) {
+      const normalized = String(value || "").replace(/\D/g, "");
+      return normalized.length === 6
+        ? `${normalized.slice(0, 3)} ${normalized.slice(3)}`
+        : normalized || "------";
     }
 
     function auditSeverityLabel(value) {
@@ -1534,18 +1563,19 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     function pairingPlatform() {
-      if (isEinkClient()) return "BOOX / 電子紙";
-      if (isIos()) return "iPhone / iPad";
+      if (isEinkClient()) return "E-paper";
+      if (isIos()) return "iOS";
       if (/Android/i.test(navigator.userAgent || "")) return "Android";
-      return "瀏覽器";
+      return "Web";
     }
 
     function pairingDeviceName() {
       if (resolvedPairingInfo?.name) return resolvedPairingInfo.name;
-      if (isEinkClient()) return "BOOX Go Color 7";
+      if (isDevicePreview("boox-go-color-7")) return "BOOX Go Color 7";
+      if (isEinkClient()) return "E-paper device";
       if (isIos()) return "iPhone";
-      if (/Android/i.test(navigator.userAgent || "")) return "Android 裝置";
-      return navigator.platform || "新裝置";
+      if (/Android/i.test(navigator.userAgent || "")) return "Android device";
+      return navigator.platform || "Web device";
     }
 
     function getOrCreateClientInstanceId() {
@@ -1600,14 +1630,15 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       let pending = null;
       try { pending = JSON.parse(localStorage.getItem(storageKey) || "null"); } catch { }
 
-      if (!pending?.requestId || !pending?.requestSecret) {
+        if (!pending?.requestId || !pending?.requestSecret) {
         if (!allowCreate) {
-          setPairingProgress(25, "Host 已連線，等待你開始配對");
+          setPairingProgress(null, t("pairingUx.readyToConnect"));
           setTrustState(tLegacy("請按「連接這台電腦」，再回 PC 按允許。"), false);
+          if (phonePairIntro) phonePairIntro.textContent = t("pairingUx.phoneIntro");
           updatePairingGuide("pair");
           return false;
         }
-        setPairingProgress(40, "正在辨識裝置名稱");
+        setPairingProgress(40, t("pairingUx.identifyingDevice"));
         const deviceInfo = await resolvePairingDeviceInfo();
         const response = await fetch("/api/devices/pairing/request", {
           method: "POST", cache: "no-store", headers: { "Content-Type": "application/json" },
@@ -1623,8 +1654,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         localStorage.setItem(storageKey, JSON.stringify(pending));
       }
 
-      setPairingProgress(70, `等待 PC 核准 · ${pending.verificationCode || "------"}`);
-      setTrustState(`${tLegacy("申請已送出；請回 PC 核對驗證碼並按允許：")}${pending.verificationCode || "------"}`, false);
+      const verificationCode = formatVerificationCode(pending.verificationCode);
+      setPairingProgress(70, t("pairingUx.waitingForApprovalCode", { code: verificationCode }));
+      setTrustState(t("pairingUx.waitingForApprovalCode", { code: verificationCode }), false);
+      if (phonePairIntro) phonePairIntro.textContent = t("pairingUx.phoneWaitingApproval", { code: verificationCode });
+      if (phonePairRequest) {
+        phonePairRequest.disabled = true;
+        phonePairRequest.textContent = t("pairingUx.requestSent");
+      }
       const poll = async () => {
         try {
           const response = await fetch("/api/devices/pairing/poll", {
@@ -1634,7 +1671,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           const result = parseJsonResponse(await response.text(), "/api/devices/pairing/poll");
           const status = result.Status || result.status;
           if (response.ok && status === "approved") {
-            setPairingProgress(90, "核准成功，正在保存配對");
+            setPairingProgress(90, t("pairingUx.savingPairing"));
             persistDeviceCredentials(result.DeviceToken || result.deviceToken, result.DeviceId || result.deviceId);
             localStorage.removeItem(storageKey);
             clearInterval(approvalPollTimer);
@@ -1645,7 +1682,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
               setTrustState("配對 token 已取得，正在重新載入驗證。", true);
             }
             showPairSuccessBanner(`裝置：${result.DeviceName || result.deviceName || pairingDeviceName()}`);
-            setPairingProgress(100, (result.Continued ?? result.continued) ? "已恢復既有配對" : "配對完成");
+            setPairingProgress(100, (result.Continued ?? result.continued)
+              ? t("pairingUx.resumedPairing")
+              : t("pairingUx.pairingComplete"));
             // Reload from the Host after approval so every controller starts
             // from the newly trusted state. The cache-busting query also
             // escapes stale installed-PWA module caches.
@@ -1658,8 +1697,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
             localStorage.removeItem(storageKey);
             clearInterval(approvalPollTimer);
             approvalPollTimer = null;
-            setPairingProgress(0, status === "denied" ? "配對已被拒絕" : "配對已逾時");
-            setTrustState(status === "denied" ? "PC 已拒絕這次配對。" : "配對申請已逾時，重新整理可再試。", false);
+            const denied = status === "denied";
+            setPairingProgress(null, t(denied ? "pairingUx.denied" : "pairingUx.expired"));
+            setTrustState(t(denied ? "pairingUx.deniedDetail" : "pairingUx.expiredDetail"), false);
+            if (phonePairIntro) phonePairIntro.textContent = t(denied ? "pairingUx.deniedDetail" : "pairingUx.expiredDetail");
+            if (phonePairRequest) {
+              phonePairRequest.disabled = false;
+              phonePairRequest.textContent = t("pairingUx.tryAgain");
+            }
           }
         } catch { }
       };
@@ -1682,6 +1727,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       const requests = result?.Requests || result?.requests || [];
       pendingPairingPanel.hidden = !requests.length;
       if (requests.length) {
+        setPairingUiActive(true);
         setPairingProgress(75, tLegacy("手機申請已送達，等待 PC 核准"));
         updatePairingGuide("approve");
       }
@@ -1690,10 +1736,19 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         const row = document.createElement("div");
         row.className = "pending-pairing-row";
         const requestId = request.RequestId || request.requestId;
-        row.innerHTML = `<div><strong></strong><span></span><b></b></div><button data-pair-approve>允許</button><button data-pair-deny>拒絕</button>`;
+        row.innerHTML = `<div><strong></strong><span></span><b></b></div><button data-pair-approve></button><button data-pair-deny></button>`;
         row.querySelector("strong").textContent = request.Name || request.name || "新裝置";
-        row.querySelector("span").textContent = `${request.Platform || request.platform || ""} · ${request.RemoteAddress || request.remoteAddress || ""}`;
-        row.querySelector("b").textContent = `驗證碼 ${request.VerificationCode || request.verificationCode || "------"}`;
+        const platform = request.Platform || request.platform || "";
+        const remoteAddress = request.RemoteAddress || request.remoteAddress || "";
+        row.querySelector("span").textContent = platform;
+        row.querySelector("span").title = remoteAddress
+          ? t("deviceManagement.address", { address: remoteAddress })
+          : "";
+        row.querySelector("b").textContent = t("pairingUx.verificationCode", {
+          code: formatVerificationCode(request.VerificationCode || request.verificationCode)
+        });
+        row.querySelector("[data-pair-approve]").textContent = t("pairingUx.allow");
+        row.querySelector("[data-pair-deny]").textContent = t("pairingUx.deny");
         row.querySelector("[data-pair-approve]").dataset.requestId = requestId;
         row.querySelector("[data-pair-deny]").dataset.requestId = requestId;
         pendingPairingList.append(row);
@@ -1806,13 +1861,6 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         setupMode.hidden = !localConsole;
         if (localConsole) setupMode.removeAttribute("hidden");
         else setupMode.setAttribute("hidden", "");
-      }
-      if (pairPhone) {
-        pairPhone.hidden = !localConsole;
-        if (localConsole) pairPhone.removeAttribute("hidden");
-        else pairPhone.setAttribute("hidden", "");
-        pairPhone.textContent = "配對新手機";
-        pairPhone.disabled = false;
       }
       if (launchDeckWindow) {
         launchDeckWindow.hidden = !localConsole;
@@ -1969,17 +2017,60 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
             }
           }
         }
-        deviceLocalRequest = Boolean(result.LocalRequest ?? result.localRequest) || isLoopbackHost();
+        if (isDevicePreview()) {
+          const previewTrusted = isDevicePreviewTrust("paired");
+          const previewLocal = isDevicePreviewTrust("local");
+          result = {
+            ...result,
+            Trusted: previewTrusted,
+            LocalRequest: previewLocal,
+            PairedDeviceCount: previewTrusted ? 1 : 0,
+            CurrentDevice: previewTrusted ? { Name: pairingDeviceName() } : null,
+            Devices: []
+          };
+          deviceTrusted = previewTrusted;
+        }
+        deviceLocalRequest = isDevicePreview()
+          ? isDevicePreviewTrust("local")
+          : Boolean(result.LocalRequest ?? result.localRequest) || isLoopbackHost();
+        const pairedDeviceCount = Number(result.PairedDeviceCount ?? result.pairedDeviceCount ?? 0);
+        let storedViewMode = "";
+        if (!isDevicePreview()) {
+          try { storedViewMode = localStorage.getItem("phoneMonitorViewMode") || ""; } catch { }
+        }
+        shouldDefaultToFirstDeviceSetup = deviceLocalRequest &&
+          pairedDeviceCount === 0 &&
+          !new URLSearchParams(location.search).get("mode") &&
+          !storedViewMode;
         const currentDevice = result.CurrentDevice || result.currentDevice;
         setPairControlsVisible(deviceLocalRequest);
         renderTrustedDevices(result);
 
         if (deviceLocalRequest) {
           setTrustState("信任狀態：本機控制。", true);
-          if (!pairingQrActive) setPairingProgress(0, "按「配對新手機」開始");
+          if (!pairingQrActive) setPairingProgress(null, t("pairingUx.readyForNewDevice"));
           if (!pairingQrActive) updatePairingGuide("pair");
           loadPendingApprovals();
           if (!pendingApprovalTimer) pendingApprovalTimer = setInterval(loadPendingApprovals, 2000);
+        } else if (isDevicePreviewTrust("pending")) {
+          const previewCode = "245 731";
+          setTrustState(t("pairingUx.waitingForApprovalCode", { code: previewCode }), false);
+          setPairingProgress(70, t("pairingUx.waitingForApprovalCode", { code: previewCode }));
+          updatePairingGuide("approve");
+          if (phonePairIntro) phonePairIntro.textContent = t("pairingUx.phoneWaitingApproval", { code: previewCode });
+          if (phonePairRequest) {
+            phonePairRequest.disabled = true;
+            phonePairRequest.textContent = t("pairingUx.requestSent");
+          }
+        } else if (isDevicePreviewTrust("unpaired")) {
+          setTrustState(tLegacy("請按「連接這台電腦」，再回 PC 按允許。"), false);
+          setPairingProgress(null, t("pairingUx.readyToConnect"));
+          updatePairingGuide("pair");
+          if (phonePairIntro) phonePairIntro.textContent = t("pairingUx.phoneIntro");
+          if (phonePairRequest) {
+            phonePairRequest.disabled = false;
+            phonePairRequest.textContent = t("pairingUx.phoneTitle");
+          }
         } else if (hostAuthenticated) {
           setTrustState("遠端 Host 登入成功。", true);
           setPairingProgress(100, "遠端登入完成");
@@ -2011,7 +2102,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
             requestApprovalPairing().catch(error => setTrustState(error.message || "配對申請失敗。", false));
           } else {
             setTrustState(tLegacy("請按「連接這台電腦」，再回 PC 按允許。"), false);
-            setPairingProgress(25, "Host 已連線，等待你開始配對");
+            setPairingProgress(null, t("pairingUx.readyToConnect"));
             updatePairingGuide("pair");
           }
         }
@@ -2028,7 +2119,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         setPairControlsVisible(deviceLocalRequest);
         if (!deviceTrusted) renderTrustedDevices(null);
         setTrustState(error.message || "信任狀態暫時無法取得，沿用上次狀態。", deviceTrusted);
-        if (!deviceTrusted) setPairingProgress(10, "正在重新連接 Host");
+        if (!deviceTrusted) setPairingProgress(null, t("pairingUx.reconnecting"));
         applyClientChrome();
         syncDeviceStatusPolling();
         return null;
@@ -2041,46 +2132,33 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         newDeviceConnectPanel.hidden = false;
         newDeviceConnectPanel.open = true;
       }
-      // PC 本機預設藏 QR 區；配對時強制打開進階連線區顯示連結
       const links = document.querySelector(".connect-links");
       if (links && active) {
-        links.open = true;
         links.hidden = false;
         links.removeAttribute("hidden");
       }
     }
 
-    async function startPhonePairing() {
-      if (pairPhone) {
-        pairPhone.disabled = true;
-        pairPhone.textContent = "正在準備…";
-      }
+    function startPhonePairing() {
+      pairingQrActive = true;
       setPairingUiActive(true);
-      setPairingProgress(10, "正在準備配對流程");
-      try {
-        showInstallQr();
-        setPairingUiActive(true);
-        setTrustState(
-          usesTrustedPublicUrl
-            ? t("secureEndpoint.pairPrompt")
-            : tLegacy("請用手機掃描 QR Code；若出現警告，按「進階」→「繼續前往」，再於手機按「連接這台電腦」。"),
-          true
-        );
-        setStatus("手機 QR Code 已顯示", true);
-        updatePairingGuide("scan");
-      } finally {
-        if (pairPhone) {
-          pairPhone.disabled = false;
-          pairPhone.textContent = "配對新手機";
-        }
-      }
+      setPairingProgress(null, t("pairingUx.preparingQr"));
+      showInstallQr({ activate: true });
+      setTrustState(
+        usesTrustedPublicUrl
+          ? t("secureEndpoint.pairPrompt")
+          : tLegacy("請用手機掃描 QR Code；若出現警告，按「進階」→「繼續前往」，再於手機按「連接這台電腦」。"),
+        true
+      );
+      setStatus("手機 QR Code 已顯示", true);
+      updatePairingGuide("scan");
     }
 
     async function launchDeckOnVirtualDisplay() {
       const mode = activeMode === "quota" ? "quota" : "sideboard";
       const originalText = launchDeckWindow.textContent;
       launchDeckWindow.disabled = true;
-      launchDeckWindow.textContent = "開啟中";
+      launchDeckWindow.textContent = t("ui.launchDeckOpening");
 
       try {
         const result = await fetchJsonOrThrow("/api/deck/launch", {
@@ -2088,9 +2166,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ mode })
         });
-        setAppState(result.Message || result.message || "資訊板已開到副螢幕。", true);
+        setAppState(result.Message || result.message || t("ui.launchDeckSuccess"), true);
       } catch (error) {
-        setAppState(error.message || "無法把資訊板開到副螢幕。", false);
+        setAppState(error.message || t("ui.launchDeckFailed"), false);
       } finally {
         launchDeckWindow.disabled = false;
         launchDeckWindow.textContent = originalText;
@@ -2765,7 +2843,16 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       );
       row.append(select, toolbox);
 
-      card.append(row);
+      if (!embedded && isMobileClient() && !isEinkQuotaClient()) {
+        const manager = document.createElement("details");
+        manager.className = "quota-mobile-account-manager";
+        const summary = document.createElement("summary");
+        summary.textContent = t("ui.codexManageAccounts");
+        manager.append(summary, row);
+        card.append(manager);
+      } else {
+        card.append(row);
+      }
       if (!embedded) {
         const status = document.createElement("div");
         status.className = "quota-action-status";
@@ -4187,17 +4274,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     applyStream.addEventListener("click", applyStreamSettings);
     modePreset.addEventListener("change", applyPresetFields);
     applyMode.addEventListener("click", applyDisplayMode);
-    pairPhone?.addEventListener("click", () => {
-      startPhonePairing();
-    });
     savePublicEndpoint?.addEventListener("click", () => {
       saveTrustedPublicEndpoint();
     });
     clearPublicEndpoint?.addEventListener("click", () => {
       clearTrustedPublicEndpoint();
     });
-    generateEinkConnectionCode?.addEventListener("click", () => {
-      createEinkConnectionCode();
+    generateDeviceConnectionCode?.addEventListener("click", () => {
+      createDeviceConnectionCode();
     });
     openNewDevicePanel?.addEventListener("click", () => {
       if (newDeviceConnectPanel) {
@@ -4209,7 +4293,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     });
     // 流程圖第 2 步也可點，避免按鈕被藏時完全沒入口
     document.getElementById("pairingStepPair")?.addEventListener("click", () => {
-      if (pairPhone?.hidden && !isLoopbackHost() && !deviceLocalRequest) return;
+      if (!isLoopbackHost() && !deviceLocalRequest) return;
       setPairControlsVisible(true);
       startPhonePairing();
     });
@@ -4217,12 +4301,19 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       phonePairRequest.disabled = true;
       phonePairRequest.textContent = tLegacy("連接中…");
       try {
+        if (isDevicePreview()) {
+          devicePreviewTrustState = "pending";
+          await loadDeviceTrustStatus();
+          return;
+        }
         await requestApprovalPairing({ allowCreate: true });
       } catch (error) {
         setTrustState(error.message || "配對申請失敗。", false);
       } finally {
-        phonePairRequest.disabled = false;
-        phonePairRequest.textContent = tLegacy("連接這台電腦");
+        if (!approvalPollTimer && !isDevicePreviewTrust("pending")) {
+          phonePairRequest.disabled = false;
+          phonePairRequest.textContent = t("pairingUx.phoneTitle");
+        }
       }
     });
     displaySettingsToggle?.addEventListener("click", () => {

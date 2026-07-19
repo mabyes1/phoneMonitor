@@ -63,7 +63,8 @@ test("a connection code resolves once and is then deleted", async () => {
   }), environment);
   const redirectPage = await firstUse.text();
   assert.equal(firstUse.status, 200);
-  assert.match(redirectPage, /http-equiv="refresh" content="0;url=https:\/\/vd-1234567890abcdef\.vibedeck\.pp\.ua\/index\.html\?eink=1&amp;source=connection-code&amp;autopair=1&amp;lang=en"/);
+  assert.match(redirectPage, /http-equiv="refresh" content="0;url=https:\/\/vd-1234567890abcdef\.vibedeck\.pp\.ua\/index\.html\?source=connection-code&amp;autopair=1&amp;lang=en"/);
+  assert.doesNotMatch(redirectPage, /[?&]eink=/);
   assert.match(redirectPage, /Opening this PC securely/);
 
   const replay = await handleRequest(new Request("https://vibedeck.pp.ua/connect?lang=en", {

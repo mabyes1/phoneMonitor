@@ -1318,22 +1318,20 @@ html[data-device-preview] body::-webkit-scrollbar {
 
     .certificate-install-help[hidden] { display: none; }
 
-    .connect-actions .primary-action,
-    #pairPhone {
+    .connect-actions .primary-action {
       background: var(--text);
       color: var(--surface);
       border-color: var(--text);
       font-weight: 750;
     }
 
-    .connect-actions .primary-action:hover,
-    #pairPhone:hover {
+    .connect-actions .primary-action:hover {
       background: #ffffff;
       border-color: #ffffff;
       box-shadow: 0 0 18px rgba(245, 247, 251, .28), 0 4px 14px rgba(0, 0, 0, .25);
     }
 
-    .eink-connection-code {
+    .device-connection-code {
       display: grid;
       gap: 10px;
       padding: 13px;
@@ -1342,36 +1340,36 @@ html[data-device-preview] body::-webkit-scrollbar {
       background: rgba(47, 207, 114, .06);
     }
 
-    .eink-connection-code[hidden] { display: none; }
+    .device-connection-code[hidden] { display: none; }
 
-    .eink-connection-code strong {
+    .device-connection-code strong {
       color: #dff8e6;
       font-size: 15px;
     }
 
-    .eink-connection-code p,
-    .eink-connection-code small {
+    .device-connection-code p,
+    .device-connection-code small {
       margin: 3px 0 0;
       color: var(--muted);
       font-size: 12px;
       line-height: 1.45;
     }
 
-    .eink-connection-code p code {
+    .device-connection-code p code {
       color: #dff8e6;
       font-family: var(--mono);
       font-size: 1em;
       user-select: all;
     }
 
-    .eink-connection-code-value {
+    .device-connection-code-value {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
       align-items: center;
     }
 
-    .eink-connection-code output {
+    .device-connection-code output {
       min-width: 184px;
       color: #ffffff;
       font-family: var(--mono);
@@ -1381,7 +1379,7 @@ html[data-device-preview] body::-webkit-scrollbar {
       line-height: 1;
     }
 
-    .eink-connection-code button {
+    .device-connection-code button {
       min-height: 38px;
       padding: 8px 12px;
       border: 1px solid rgba(141, 230, 166, .42);
@@ -1391,7 +1389,7 @@ html[data-device-preview] body::-webkit-scrollbar {
       font-weight: 700;
     }
 
-    body.phone-client .eink-connection-code { display: none !important; }
+    body.phone-client .device-connection-code { display: none !important; }
 
     .pairing-guide {
       display: grid;
@@ -1443,6 +1441,15 @@ html[data-device-preview] body::-webkit-scrollbar {
       background: linear-gradient(90deg, #579fd4, #8fd1ff);
       border-radius: 999px;
       transition: width .25s ease;
+    }
+
+    .pairing-progress.idle > div {
+      justify-content: flex-start;
+    }
+
+    .pairing-progress.idle [data-pair-progress-label],
+    .pairing-progress.idle progress {
+      display: none;
     }
 
     .pairing-progress.complete progress::-webkit-progress-value {
@@ -1686,8 +1693,54 @@ html[data-device-preview] body::-webkit-scrollbar {
 
     .trusted-devices-head button[data-clear-trusted-devices] {
       padding: 0 10px;
-      border-radius: 999px;
+      border-color: rgba(255, 115, 115, .5);
+      border-radius: 6px;
+      color: #ffb4b4;
       font-size: 12px;
+    }
+
+    .device-management-more {
+      position: relative;
+    }
+
+    .device-management-more > summary {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid #3a4a5f;
+      border-radius: 999px;
+      background: #223040;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      list-style: none;
+    }
+
+    .device-management-more > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .device-management-more > div {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      z-index: 20;
+      min-width: 150px;
+      padding: 6px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 8px;
+      background: #111922;
+      box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    }
+
+    .device-management-more > div button {
+      width: 100%;
+      height: auto;
+      min-height: 34px;
+      padding: 7px 10px;
+      white-space: nowrap;
     }
 
     .trusted-device-list {
@@ -3558,7 +3611,6 @@ html[data-device-preview] body::-webkit-scrollbar {
     body.phone-client:not(.device-trusted) .connect-title,
     body.phone-client:not(.device-trusted) .connect-links,
     body.phone-client:not(.device-trusted) .trusted-devices,
-    body.phone-client:not(.device-trusted) .connect-actions #pairPhone,
     body.phone-client:not(.device-trusted) .connect-actions #launchDeckWindow {
       display: none !important;
     }
@@ -3998,6 +4050,13 @@ html[data-device-preview] body::-webkit-scrollbar {
       line-height: 1.55;
     }
 
+    .phone-pair-rescue .phone-pair-benefit {
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 230, 176, .2);
+      color: #d6c397;
+      font-size: 13px;
+    }
+
     .pairing-locale-control {
       display: grid;
       grid-template-columns: auto minmax(0, 1fr);
@@ -4395,6 +4454,33 @@ body.pc-console .connect-title strong {
 
 body.pc-console .connect-title span {
   font-size: 15px;
+}
+
+body.pc-console:not(.deck-window) #einkModeToggle,
+body.pc-console:not(.deck-window) #keepAwake,
+body.pc-console:not(.deck-window) #fullscreen {
+  display: none !important;
+}
+
+body:not(.device-trusted):not(.pc-console) .display-empty-actions {
+  display: none !important;
+}
+
+body.phone-client:not(.eink-client) .quota-toolbox {
+  justify-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  border-radius: 8px;
+}
+
+body.phone-client:not(.eink-client) .quota-toolbox button {
+  flex: 1 1 calc(50% - 4px);
+  min-width: min(128px, 100%);
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: normal;
 }
 
 /* Final E Ink legibility pass. Keep this block last so phone/skin rules cannot
@@ -6116,6 +6202,15 @@ body.phone-client.viewport-portrait:not(.eink-client) .dashboard-view-controls {
   justify-content: flex-start;
 }
 
+@media (max-width: 960px) {
+  body.ios-client.phone-client:not(.eink-client).dashboard-viewer.mode-sideboard .sideboard-shell {
+    padding-top: calc(8px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+    padding-right: calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+    padding-bottom: calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    padding-left: calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  }
+}
+
 /* The large load number is reserved for an actual bottleneck. Idle systems
    get a quiet animated companion; multiple warnings rotate in the same spot. */
 .side-load-normal,
@@ -7151,4 +7246,110 @@ body.eink-client #systemSideboardPage.dashboard-grid [data-dashboard-key] {
     width: 100%;
     max-width: none;
   }
+}
+
+.phone-pair-rescue small {
+  font-size: 12px;
+}
+
+body.phone-client:not(.eink-client) .quota-tab,
+body.phone-client:not(.eink-client) .quota-page-button {
+  min-height: 36px;
+}
+
+body.phone-client:not(.eink-client) .quota-page-button {
+  width: 32px;
+  height: 36px;
+}
+
+body.phone-client:not(.eink-client) .quota-codex-select {
+  min-height: 40px;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .035);
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 9px 11px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager > summary::after {
+  content: "＋";
+  font-size: 18px;
+  line-height: 1;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager[open] > summary {
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager[open] > summary::after {
+  content: "−";
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager .quota-codex-switch-row {
+  padding: 10px;
+}
+
+body.phone-client:not(.eink-client) #quotaSummary,
+body.phone-client:not(.eink-client) #quotaUpdated,
+body.phone-client:not(.eink-client) .quota-help-block,
+body.phone-client:not(.eink-client) .quota-help-block li,
+body.phone-client:not(.eink-client) .quota-help-summary-hint,
+body.phone-client:not(.eink-client) .quota-action-status,
+body.phone-client:not(.eink-client) .quota-account-switcher,
+body.phone-client:not(.eink-client) .quota-pill,
+body.phone-client:not(.eink-client) .quota-active-badge,
+body.phone-client:not(.eink-client) .quota-window small,
+body.phone-client:not(.eink-client) .quota-time,
+body.phone-client:not(.eink-client) #quotaMiniReset {
+  font-size: 12px;
+}
+
+body.eink-client .phone-pair-rescue small,
+body.eink-client .phone-pair-rescue strong,
+body.eink-client .phone-pair-rescue > span,
+body.eink-client .phone-pair-rescue [data-pair-progress-detail],
+body.eink-client .phone-pair-rescue [data-pair-progress-label] {
+  font-size: 16px !important;
+}
+
+body.eink-client .dashboard-view-switch button,
+body.eink-client .dashboard-mode-switch button,
+body.eink-client .activity-feed-filter-select,
+body.eink-client #quotaMiniSource,
+body.eink-client .quota-tab,
+body.eink-client .quota-page-button,
+body.eink-client .quota-codex-select {
+  min-height: 44px !important;
+}
+
+body.eink-client .quota-page-button {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+body.eink-client .quota-help-summary-hint,
+body.eink-client .quota-action-status,
+body.eink-client .quota-action-status span,
+body.eink-client .quota-account-switcher,
+body.eink-client .quota-account-switcher > span,
+body.eink-client .quota-pill {
+  font-size: 16px !important;
 }

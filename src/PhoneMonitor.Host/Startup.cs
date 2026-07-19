@@ -61,7 +61,6 @@ namespace PhoneMonitor.Host
             services.AddSingleton<H264StreamMetrics>();
             services.AddSingleton<H264AnnexBStreamer>();
             services.AddSingleton<WebRtcH264Service>();
-            services.AddSingleton<DisplayViewerTracker>();
             services.AddSingleton<WindowsInputController>();
             services.AddSingleton<DeckWindowLauncher>();
             services.AddSingleton<DisplayModeController>();
@@ -387,7 +386,7 @@ namespace PhoneMonitor.Host
                     }
                 });
 
-                endpoints.MapPost("/api/connect/eink-code", async context =>
+                RequestDelegate issueConnectionCode = async context =>
                 {
                     if (!await RequireActionTokenAsync(context) || !await RequireLocalRequestAsync(context))
                     {
@@ -423,7 +422,9 @@ namespace PhoneMonitor.Host
                         expiresAt = result.ExpiresAt == default ? "" : result.ExpiresAt.ToString("O"),
                         error = result.IsSuccess ? null : new { code = result.ErrorCode }
                     }));
-                });
+                };
+                endpoints.MapPost("/api/connect/device-code", issueConnectionCode);
+                endpoints.MapPost("/api/connect/eink-code", issueConnectionCode);
 
                 endpoints.MapDelete("/api/connect/public-endpoint", async context =>
                 {
@@ -646,10 +647,6 @@ namespace PhoneMonitor.Host
                     var deckUrl = BuildLocalDeckUrl(mode);
                     var launcher = context.RequestServices.GetRequiredService<DeckWindowLauncher>();
                     var result = launcher.Launch(deckUrl, mode);
-                    if (result.Success)
-                    {
-                        context.RequestServices.GetRequiredService<DisplayViewerTracker>().ScheduleReturnIfIdle();
-                    }
 
                     context.Response.StatusCode = result.Success
                         ? StatusCodes.Status200OK
@@ -1032,8 +1029,6 @@ namespace PhoneMonitor.Host
                     var fps = ParseInt(context.Request.Query["fps"], 10, 1, 60);
                     var quality = ParseInt(context.Request.Query["quality"], 55, 25, 85);
                     var frameSource = context.RequestServices.GetRequiredService<DisplayFrameSource>();
-                    var tracker = context.RequestServices.GetRequiredService<DisplayViewerTracker>();
-                    using var viewerLease = TrackRemoteViewerIfNeeded(context, tracker);
                     using var socket = await context.WebSockets.AcceptWebSocketAsync();
                     await StreamDisplayAsync(socket, frameSource, deviceName, fps, quality, context.RequestAborted);
                 });
@@ -1286,25 +1281,6 @@ namespace PhoneMonitor.Host
                     await context.Response.SendFileAsync(Path.Combine(env.WebRootPath, "index.html"));
                 });
             });
-        }
-
-        private static IDisposable TrackRemoteViewerIfNeeded(HttpContext context, DisplayViewerTracker tracker)
-        {
-            if (IsLocalRequest(context) || string.IsNullOrWhiteSpace(ReadDeviceToken(context)))
-            {
-                return NullDisposable.Instance;
-            }
-
-            return tracker.TrackRemoteViewer();
-        }
-
-        private sealed class NullDisposable : IDisposable
-        {
-            public static readonly NullDisposable Instance = new NullDisposable();
-
-            public void Dispose()
-            {
-            }
         }
 
         private static Task WriteStreamCapabilitiesAsync(HttpContext context)

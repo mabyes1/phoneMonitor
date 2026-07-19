@@ -19,11 +19,13 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=102">
+  <link rel="stylesheet" href="/index.css?v=103">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
     #phonePairRescue { display: grid; }
+    #phonePairRescue[hidden],
+    body.deck-window #phonePairRescue,
     body.device-trusted #phonePairRescue,
     body.pc-console #phonePairRescue { display: none; }
   </style>
@@ -220,15 +222,16 @@
       </details>
     </div>
     <div id="trustedDevicesPanel" class="trusted-devices device-management-panel" hidden>
-      <div id="pendingPairingPanel" class="pending-pairings" hidden>
-        <strong>等待你的允許</strong>
-        <div id="pendingPairingList"></div>
-      </div>
       <div class="trusted-devices-head">
         <strong>已配對裝置</strong>
         <button id="openNewDevicePanel" type="button" title="連接新裝置">＋ 新增</button>
-        <button id="clearTrustedDevices" type="button" data-clear-trusted-devices title="清空所有配對">清空</button>
         <button id="refreshTrustedDevices" type="button" title="重新整理裝置">↻</button>
+        <details class="device-management-more">
+          <summary data-i18n-attr="title:deviceManagement.moreActions" title="更多裝置動作">⋯</summary>
+          <div>
+            <button id="clearTrustedDevices" type="button" data-clear-trusted-devices data-i18n="deviceManagement.clearAll">清空所有配對</button>
+          </div>
+        </details>
       </div>
       <div id="trustedDeviceList" class="trusted-device-list"></div>
     </div>
@@ -251,9 +254,13 @@
           <strong>裝置連線</strong>
           <span id="connectTitleHint">不必安裝憑證。第一次開啟時，在瀏覽器警告頁按「進階」→「繼續前往」。</span>
         </div>
-        <div class="pairing-progress" data-pair-progress style="--pair-progress:0%">
-          <div><strong data-pair-progress-detail>準備配對</strong><b data-pair-progress-label>0%</b></div>
+        <div class="pairing-progress idle" data-pair-progress style="--pair-progress:0%">
+          <div><strong data-pair-progress-detail data-i18n="pairingUx.waitingForPhone">等待手機提出申請</strong><b data-pair-progress-label>0%</b></div>
           <progress data-pair-progress-bar max="100" value="0" aria-label="配對進度"></progress>
+        </div>
+        <div id="pendingPairingPanel" class="pending-pairings" role="status" aria-live="polite" hidden>
+          <strong data-i18n="pairingUx.pendingTitle">手機申請已送達</strong>
+          <div id="pendingPairingList"></div>
         </div>
         <div class="pairing-guide" aria-label="手機配對流程">
           <div id="pairingStepInstall" class="pairing-step active">
@@ -268,25 +275,21 @@
           </div>
           <div id="pairingStepOpen" class="pairing-step">
             <b>3</b>
-            <strong>允許這台手機</strong>
-            <span>手機按「連接這台電腦」，再回 PC 核對驗證碼並按「允許」。</span>
+            <strong data-i18n="pairingUx.approveTitle">PC 核對並允許</strong>
+            <span data-i18n="pairingUx.approveHint">確認 PC 與手機顯示相同六位數碼，再按「允許」。</span>
           </div>
         </div>
-        <section id="einkConnectionCodePanel" class="eink-connection-code" hidden>
+        <section id="deviceConnectionCodePanel" class="device-connection-code" hidden>
           <div>
-            <strong data-i18n="secureEndpoint.einkTitle">電子紙沒有相機？</strong>
-            <p><span data-i18n="secureEndpoint.einkHintBefore">在電子紙瀏覽器輸入</span> <code id="einkConnectionCodeUrl">vibedeck.pp.ua</code> <span data-i18n="secureEndpoint.einkHintAfter">，再輸入下方一次性連線碼。</span></p>
+            <strong data-i18n="secureEndpoint.deviceCodeTitle">不方便掃描 QR Code？</strong>
+            <p><span data-i18n="secureEndpoint.deviceCodeHintBefore">在另一台裝置輸入</span> <code id="deviceConnectionCodeUrl">vibedeck.pp.ua</code> <span data-i18n="secureEndpoint.deviceCodeHintAfter">，再輸入下方一次性連線碼。</span></p>
           </div>
-          <div class="eink-connection-code-value">
-            <output id="einkConnectionCode">--------</output>
-            <button id="generateEinkConnectionCode" type="button" data-i18n="secureEndpoint.einkGenerate">產生電子紙連線碼</button>
+          <div class="device-connection-code-value">
+            <output id="deviceConnectionCode">--------</output>
+            <button id="generateDeviceConnectionCode" type="button" data-i18n="secureEndpoint.deviceCodeGenerate">產生裝置連線碼</button>
           </div>
-          <small id="einkConnectionCodeStatus" aria-live="polite" data-i18n="secureEndpoint.einkIdle">連線碼有效 10 分鐘，使用一次後即失效。</small>
+          <small id="deviceConnectionCodeStatus" aria-live="polite" data-i18n="secureEndpoint.deviceCodeIdle">連線碼有效 10 分鐘，使用一次後即失效。</small>
         </section>
-        <div class="connect-actions">
-          <button id="pairPhone" class="primary-action" type="button" hidden>配對新手機</button>
-          <button id="launchDeckWindow" type="button" hidden>把資訊板開到副螢幕</button>
-        </div>
         <div class="connect-status">
           <span id="trustState" class="trust-state"></span>
           <span id="streamCapabilityState" class="stream-capability-state"></span>
@@ -343,9 +346,9 @@
   <main>
     <div id="pairSuccessBanner" class="pair-success-banner" role="status" aria-live="polite"></div>
     <div id="phonePairRescue" class="phone-pair-rescue">
-      <small>VIBEDECK · 手機設定</small>
-      <strong>連接這台電腦</strong>
-      <span>你已經開啟正確頁面。按下方按鈕，再回 PC 核對六位數驗證碼並按「允許」。</span>
+      <small data-i18n="pairingUx.phoneKicker">VIBEDECK · 手機設定</small>
+      <strong data-i18n="pairingUx.phoneTitle">連接這台電腦</strong>
+      <span id="phonePairIntro" data-i18n="pairingUx.phoneIntro">按下方按鈕，再回 PC 核對六位數驗證碼並按「允許」。</span>
       <label class="pairing-locale-control" for="pairingLocaleSelect">
         <span data-i18n="ui.language">語言</span>
         <select id="pairingLocaleSelect" aria-label="語言">
@@ -354,17 +357,18 @@
           <option value="ja">日本語</option>
         </select>
       </label>
-      <div class="pairing-progress" data-pair-progress style="--pair-progress:0%">
-        <div><strong data-pair-progress-detail>準備配對</strong><b data-pair-progress-label>0%</b></div>
+      <div class="pairing-progress idle" data-pair-progress style="--pair-progress:0%">
+        <div><strong data-pair-progress-detail data-i18n="pairingUx.readyToConnect">準備連線</strong><b data-pair-progress-label>0%</b></div>
         <progress data-pair-progress-bar max="100" value="0" aria-label="配對進度"></progress>
       </div>
-      <button id="phonePairRequest" type="button">連接這台電腦</button>
+      <button id="phonePairRequest" type="button" data-i18n="pairingUx.phoneTitle">連接這台電腦</button>
+      <span class="phone-pair-benefit" data-i18n="pairingUx.displayBenefit">配對完成後，資訊板與 AI 額度不需安裝虛擬螢幕。</span>
     </div>
     <section id="displayView" class="app-view display-view active">
       <div id="displayEmptyState" class="display-empty-state">
         <span class="display-empty-icon">▱</span>
         <strong id="displayEmptyTitle">正在尋找虛擬螢幕</strong>
-        <span id="displayEmptyMessage">資訊板與 AI 額度不需要虛擬螢幕，可以直接使用。</span>
+        <span id="displayEmptyMessage" data-i18n="pairingUx.displayBenefit">配對完成後，資訊板與 AI 額度不需安裝虛擬螢幕。</span>
         <div class="display-empty-actions">
           <button id="installVirtualDisplay" type="button">前往裝置設定</button>
           <button id="openSideboardFromEmpty" class="secondary" type="button">改用資訊板</button>
@@ -409,6 +413,7 @@
               <button type="button" data-dashboard-mode="quota" aria-pressed="false">額度</button>
             </div>
             <span class="eink-connection-state connecting" data-eink-connection-state role="status">正在連線</span>
+            <button id="launchDeckWindow" type="button" hidden data-i18n="ui.launchDeck">在虛擬螢幕顯示資訊板</button>
             <button id="dashboardEditToggle" class="dashboard-edit-toggle" type="button" aria-pressed="false">編輯版面</button>
           </div>
           <div class="skin-picker" aria-label="Sideboard skin">
@@ -769,6 +774,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=110"></script>
+  <script type="module" src="/index.js?v=111"></script>
 </body>
 </html>
