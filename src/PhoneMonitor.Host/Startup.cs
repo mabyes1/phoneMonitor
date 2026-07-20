@@ -60,6 +60,8 @@ namespace PhoneMonitor.Host
             services.AddSingleton<DisplayFrameSource>();
             services.AddSingleton<H264StreamMetrics>();
             services.AddSingleton<H264AnnexBStreamer>();
+            services.AddSingleton<CloudflareTurnSettingsStore>();
+            services.AddHttpClient<CloudflareTurnCredentialService>(client => client.Timeout = TimeSpan.FromSeconds(12));
             services.AddSingleton<WebRtcH264Service>();
             services.AddSingleton<WindowsInputController>();
             services.AddSingleton<DeckWindowLauncher>();
@@ -253,6 +255,7 @@ namespace PhoneMonitor.Host
                 MapCustomSourceEndpoints(endpoints);
                 MapDashboardLayoutEndpoints(endpoints);
                 MapDiagnosticsEndpoints(endpoints);
+                MapStreamTransportEndpoints(endpoints);
                 MapProductUpdateEndpoints(endpoints);
                 MapWindowsNotificationEndpoints(endpoints);
 
@@ -1233,7 +1236,8 @@ namespace PhoneMonitor.Host
                             request.Sdp,
                             request.DeviceName ?? string.Empty,
                             Math.Max(1, Math.Min(60, request.Fps)),
-                            Math.Max(25, Math.Min(85, request.Quality)));
+                            Math.Max(25, Math.Min(85, request.Quality)),
+                            context.RequestAborted);
                         context.Response.ContentType = "application/json";
                         context.Response.Headers["Cache-Control"] = "no-store";
                         await context.Response.WriteAsync(JsonSerializer.Serialize(answer));
@@ -1321,7 +1325,7 @@ namespace PhoneMonitor.Host
                     signalling = "/api/stream/webrtc/offer",
                     transport = "webrtc-h264",
                     next = webrtc.IsAvailable
-                        ? "Safari uses WebRTC H.264 first; JPEG remains the automatic fallback."
+                        ? "WebRTC uses direct STUN candidates first, optional Cloudflare TURN relay, and a stable JPEG fallback."
                         : "Install FFmpeg or set VIBEDECK_FFMPEG to an ffmpeg.exe path."
                 }
             }));

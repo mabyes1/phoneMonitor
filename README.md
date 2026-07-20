@@ -16,7 +16,7 @@ VibeDeck gives a spare phone, tablet, or e-paper reader a real job: stream a ded
 | Remote control from anywhere |
 |:---:|
 | ![Remote — touch, scroll, and type on your physical monitor from outside](.codex-media/mode-remote.png) |
-| Leave home, stay connected through a managed HTTPS route — no VPN, no port forwarding |
+| Leave home, stay connected through a managed HTTPS route — no VPN, no port forwarding. The stream tries a direct WebRTC path first, uses an optional Cloudflare TURN relay when the network blocks direct UDP, and falls back to JPEG so control stays stable |
 
 ## Why VibeDeck
 
@@ -67,7 +67,7 @@ No sample dataset or external account is required for the core experience. Devic
 - **Three roles, one device.** The same paired phone can be a dedicated extra display (for a CLI, a build log, or a game running AFK), a glanceable system board, or an AI quota view—switch anytime without re-pairing.
 - **One client everywhere.** Safari, Chrome, and an installable PWA share one code path across iPhone, Android, and BOOX; there is no native mobile package to install.
 - **PC-controlled trust.** A public route can carry encrypted traffic, but it cannot approve a device. Pairing and revocation remain local PC decisions.
-- **Ships as a real product, not a demo.** VibeDeck handles Windows interactive-session boundaries, WebRTC fallback on constrained networks, e-paper-specific layouts, persistent state across reboots, silent in-place updates, auditable diagnostics, and multilingual UI—because these are where prototypes normally stop.
+- **Ships as a real product, not a demo.** VibeDeck handles Windows interactive-session boundaries, adaptive remote streaming (direct WebRTC first, an optional Cloudflare TURN relay for restricted networks, and a stable JPEG fallback), e-paper-specific layouts, persistent state across reboots, silent in-place updates, auditable diagnostics, and multilingual UI—because these are where prototypes normally stop.
 - **Useful without the driver.** Existing-monitor control, Sideboard, Quota, pairing, and Device Lab work before the optional virtual display is installed.
 
 ## OpenAI Build Week
@@ -112,7 +112,7 @@ Human judgment remained responsible for product scope, security trade-offs, real
 
 ```text
 Approved browser / PWA
-  ├─ Display: WebRTC H.264 → JPEG fallback
+  ├─ Display: direct WebRTC H.264 → optional Cloudflare TURN relay → JPEG fallback
   ├─ Input: pointer + Unicode keyboard bridge
   ├─ Sideboard / Quota / custom cards
   └─ Pairing request + device credential
@@ -142,6 +142,7 @@ More detail: [product architecture](docs/product-architecture.md), [protocol](do
 - VibeDeck has no cloud user account and does not upload display frames, quota data, or dashboard state to an application database.
 - Quota integrations read local metadata/cache state; users are not asked to paste Codex tokens into the UI.
 - Administrative actions such as virtual-display installation and product updates are local-PC-only.
+- Optional Cloudflare TURN is configured only on the local PC; the long-lived API token is encrypted at rest with Windows DPAPI and never leaves the Host—paired browsers receive only short-lived ICE credentials.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled/downloaded components. Production code signing is planned for a future release.
 
@@ -177,7 +178,7 @@ Display mode can control an existing physical monitor without a driver. To creat
 
 ## Validation
 
-Verified on Windows x64 on 2026-07-20: **59/59 .NET tests passed**, **7/7 managed-connector Worker tests passed**, all browser JavaScript and shipped PowerShell parsed successfully, and `VibeDeck-Setup-0.1.31.exe` was produced with matching `0.1.31` file/product metadata. The release workflow publishes a SHA-256 sidecar for the tagged build.
+Verified on Windows x64 on 2026-07-20: **62/62 .NET tests passed** (including Cloudflare TURN credential and DPAPI-at-rest tests), **7/7 managed-connector Worker tests passed**, all browser JavaScript and shipped PowerShell parsed successfully, and `VibeDeck-Setup-0.1.32.exe` was produced with matching `0.1.32` file/product metadata. The release workflow publishes a SHA-256 sidecar for the tagged build.
 
 The source gate restores dependencies and checks:
 

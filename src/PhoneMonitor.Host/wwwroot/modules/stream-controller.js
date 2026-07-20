@@ -1,5 +1,11 @@
 import { tLegacy } from "./i18n.js?v=4";
 
+const WEBRTC_DISCONNECT_GRACE_MS = 12000;
+const WEBRTC_RESTART_SETTLE_MS = 8000;
+const AUTO_WEBRTC_COOLDOWN_MS = 120000;
+const PREFER_WEBRTC_COOLDOWN_MS = 30000;
+const JPEG_RECONNECT_MAX_MS = 15000;
+
 export function createStreamController({
   elements,
   getWsBase,
@@ -16,6 +22,7 @@ export function createStreamController({
   recordJpegFrame,
   fetchJsonOrThrow,
   tuneVideoReceiver,
+  reportDiagnostic = () => {},
 }) {
   let videoSocket = null;
   let rtcPeer = null;
@@ -23,18 +30,69 @@ export function createStreamController({
   let connectGeneration = 0;
   let fallbackReason = "";
   let disconnectTimer = null;
+  let restartSettleTimer = null;
+  let jpegReconnectTimer = null;
   let statsTimer = null;
   let pendingJpegFrame = null;
   let activeJpegObjectUrl = null;
   let jpegFrameDecoding = false;
+  let jpegReconnectAttempts = 0;
+  let webrtcCooldownUntil = 0;
+  let restartingIce = false;
+  let selectedPath = "";
+  let lastDiagnosticKey = "";
 
   function getActiveStreamElement() {
     return rtcActive ? elements.rtcScreen : elements.screen;
   }
 
+  function transportMode() {
+    const mode = String(getStreamSettings().transportMode || "auto").toLowerCase();
+    return ["auto", "webrtc", "jpeg"].includes(mode) ? mode : "auto";
+  }
+
+  function clearRtcRecoveryTimers() {
+    if (disconnectTimer) {
+      clearTimeout(disconnectTimer);
+      disconnectTimer = null;
+    }
+    if (restartSettleTimer) {
+      clearTimeout(restartSettleTimer);
+      restartSettleTimer = null;
+    }
+    restartingIce = false;
+  }
+
+  function clearJpegReconnectTimer() {
+    if (jpegReconnectTimer) {
+      clearTimeout(jpegReconnectTimer);
+      jpegReconnectTimer = null;
+    }
+  }
+
+  function report(event, state, details = {}, force = false) {
+    const payload = {
+      event,
+      state,
+      mode: transportMode(),
+      path: details.path || selectedPath || "",
+      connectionState: details.connectionState || rtcPeer?.connectionState || "",
+      iceState: details.iceState || rtcPeer?.iceConnectionState || "",
+      reason: details.reason || "",
+    };
+    const key = [payload.event, payload.state, payload.mode, payload.path, payload.connectionState, payload.iceState, payload.reason].join("|");
+    if (!force && key === lastDiagnosticKey) return;
+    lastDiagnosticKey = key;
+    try { reportDiagnostic(payload); } catch { }
+  }
+
   function closeJpegStream() {
-    if (videoSocket) videoSocket.close();
-    videoSocket = null;
+    clearJpegReconnectTimer();
+    if (videoSocket) {
+      const socket = videoSocket;
+      videoSocket = null;
+      try { socket.close(); } catch { }
+    }
     clearJpegFrameQueue();
   }
 
@@ -43,12 +101,9 @@ export function createStreamController({
     const peer = rtcPeer;
     rtcPeer = null;
     rtcActive = false;
+    clearRtcRecoveryTimers();
     if (peer) {
       try { peer.close(); } catch { }
-    }
-    if (disconnectTimer) {
-      clearTimeout(disconnectTimer);
-      disconnectTimer = null;
     }
     if (statsTimer) {
       clearInterval(statsTimer);
@@ -105,6 +160,10 @@ export function createStreamController({
   async function connect() {
     const generation = ++connectGeneration;
     fallbackReason = "";
+    selectedPath = "";
+    lastDiagnosticKey = "";
+    jpegReconnectAttempts = 0;
+    clearJpegReconnectTimer();
     closeJpegStream();
     closeRtcStream(false);
 
@@ -115,23 +174,44 @@ export function createStreamController({
     if (!getSelectedDisplayName()) await loadPhoneDisplay();
     if (generation !== connectGeneration || !getSelectedDisplayName()) return;
 
-    if (prefersWebRtcDisplay() && !window.RTCPeerConnection) {
-      fallbackReason = tLegacy("WebRTC API 不可用");
-    } else if (prefersWebRtcDisplay() && window.RTCPeerConnection) {
-      try {
-        const connected = await connectRtcVideo(generation);
-        if (connected && generation === connectGeneration) return;
-      } catch (error) {
-        console.warn("WebRTC negotiation failed; using JPEG fallback", error);
-        if (generation === connectGeneration) setStatus(`${tLegacy("WebRTC 無法連線，切回 JPEG：")}${error.message || tLegacy("未知錯誤")}`, false);
-        fallbackReason = `WebRTC fallback: ${error.message || tLegacy("未知錯誤")}`;
-        closeRtcStream(false);
-      }
+    const mode = transportMode();
+    const shouldTryWebRtc = mode !== "jpeg" && (mode === "webrtc" || prefersWebRtcDisplay());
+    if (!shouldTryWebRtc) {
+      fallbackReason = mode === "jpeg" ? tLegacy("穩定 JPEG 模式") : "";
+      report("stream", "jpeg", { path: "jpeg", reason: fallbackReason });
+      connectJpegVideo(fallbackReason);
+      return;
     }
-    if (generation === connectGeneration) connectJpegVideo();
+    if (mode === "auto" && Date.now() < webrtcCooldownUntil) {
+      const remaining = Math.ceil((webrtcCooldownUntil - Date.now()) / 1000);
+      fallbackReason = `${tLegacy("WebRTC 暫停重試，保持 JPEG 穩定串流")} (${remaining}s)`;
+      report("webrtc", "cooldown", { path: "jpeg", reason: fallbackReason });
+      connectJpegVideo(fallbackReason);
+      return;
+    }
+    if (!window.RTCPeerConnection) {
+      fallbackReason = tLegacy("WebRTC API 不可用");
+      report("webrtc", "unavailable", { path: "jpeg", reason: fallbackReason });
+      connectJpegVideo(fallbackReason);
+      return;
+    }
+
+    try {
+      const connected = await connectRtcVideo(generation);
+      if (connected && generation === connectGeneration) return;
+    } catch (error) {
+      console.warn("WebRTC negotiation failed; using JPEG fallback", error);
+      if (generation === connectGeneration) {
+        fallbackToJpeg(generation, `WebRTC ${tLegacy("無法連線，切回 JPEG")}：${error.message || tLegacy("未知錯誤")}`);
+      }
+      return;
+    }
+    if (generation === connectGeneration) {
+      fallbackToJpeg(generation, tLegacy("WebRTC negotiation did not complete"));
+    }
   }
 
-  function waitForIceGatheringComplete(peer, timeoutMs = 1800) {
+  function waitForIceGatheringComplete(peer, timeoutMs = 3500) {
     if (peer.iceGatheringState === "complete") return Promise.resolve();
     return new Promise(resolve => {
       let finished = false;
@@ -150,13 +230,35 @@ export function createStreamController({
     });
   }
 
+  function normalizeIceServers(value) {
+    const candidates = value?.iceServers || value?.IceServers || [];
+    if (!Array.isArray(candidates)) return [];
+    return candidates.map(server => ({
+      urls: server?.urls || server?.Urls || [],
+      username: server?.username || server?.Username || undefined,
+      credential: server?.credential || server?.Credential || undefined,
+    })).filter(server => Array.isArray(server.urls) ? server.urls.length > 0 : Boolean(server.urls));
+  }
+
+  async function loadIceServers() {
+    const result = await fetchJsonOrThrow("/api/stream/ice");
+    const iceServers = normalizeIceServers(result);
+    const turnAvailable = Boolean(result?.turnAvailable ?? result?.TurnAvailable);
+    const warning = String(result?.warning || result?.Warning || "");
+    return { iceServers, turnAvailable, warning };
+  }
+
   async function connectRtcVideo(generation) {
     if (generation !== connectGeneration) return false;
     if (!window.isSecureContext && !isLoopbackHost()) throw new Error(tLegacy("WebRTC 需要 HTTPS"));
 
-    const peer = new RTCPeerConnection({ iceServers: [] });
+    const ice = await loadIceServers();
+    if (generation !== connectGeneration) return false;
+    const peer = new RTCPeerConnection({ iceServers: ice.iceServers });
     rtcPeer = peer;
     rtcActive = true;
+    selectedPath = ice.turnAvailable ? "direct-or-turn" : "direct-stun";
+    report("webrtc", "negotiating", { path: selectedPath, reason: ice.warning || "" });
     elements.screen.hidden = true;
     elements.rtcScreen.hidden = false;
     elements.rtcScreen.onloadedmetadata = () => {
@@ -174,37 +276,39 @@ export function createStreamController({
     };
     peer.onconnectionstatechange = () => {
       if (generation !== connectGeneration || rtcPeer !== peer) return;
-      if (peer.connectionState === "disconnected") {
-        if (disconnectTimer) clearTimeout(disconnectTimer);
-        disconnectTimer = setTimeout(() => {
-          disconnectTimer = null;
-          if (generation !== connectGeneration || rtcPeer !== peer || peer.connectionState !== "disconnected") return;
-          closeRtcStream(false);
-          setStatus(tLegacy("WebRTC 中斷（ICE disconnected），切回 JPEG"), false);
-          connectJpegVideo("WebRTC ICE disconnected");
-        }, 3000);
+      report("webrtc", peer.connectionState, { path: selectedPath });
+      if (peer.connectionState === "connected") {
+        clearRtcRecoveryTimers();
+        webrtcCooldownUntil = 0;
         return;
       }
-      if (["failed", "closed"].includes(peer.connectionState)) {
-        closeRtcStream(false);
-        setStatus(`${tLegacy("WebRTC 中斷（")}${peer.connectionState}${tLegacy("），切回 JPEG")}`, false);
-        connectJpegVideo(`WebRTC ${peer.connectionState}`);
+      if (peer.connectionState === "disconnected" || peer.connectionState === "failed") {
+        scheduleRtcRecovery(peer, generation, peer.connectionState);
+        return;
+      }
+      if (peer.connectionState === "closed") {
+        fallbackToJpeg(generation, `WebRTC ${tLegacy("中斷（")}${peer.connectionState}${tLegacy("），切回 JPEG")}`);
       }
     };
     peer.oniceconnectionstatechange = () => {
       if (generation !== connectGeneration || rtcPeer !== peer) return;
-      if (peer.iceConnectionState === "failed") setStatus(tLegacy("WebRTC ICE failed，切回 JPEG"), false);
+      report("ice", peer.iceConnectionState, { path: selectedPath });
+      if (peer.iceConnectionState === "failed") {
+        scheduleRtcRecovery(peer, generation, "ice-failed");
+      }
     };
 
     peer.addTransceiver("video", { direction: "recvonly" });
-    const offer = await peer.createOffer();
-    if (generation !== connectGeneration || rtcPeer !== peer) {
-      try { peer.close(); } catch { }
-      return false;
-    }
+    await negotiateRtc(peer, generation, false);
+    return true;
+  }
+
+  async function negotiateRtc(peer, generation, iceRestart) {
+    const offer = await peer.createOffer(iceRestart ? { iceRestart: true } : undefined);
+    if (generation !== connectGeneration || rtcPeer !== peer || peer.signalingState === "closed") return false;
     await peer.setLocalDescription(offer);
     await waitForIceGatheringComplete(peer);
-    if (generation !== connectGeneration || rtcPeer !== peer) return false;
+    if (generation !== connectGeneration || rtcPeer !== peer || peer.signalingState === "closed") return false;
 
     const settings = getStreamSettings();
     const answer = await fetchJsonOrThrow("/api/stream/webrtc/offer", {
@@ -217,15 +321,84 @@ export function createStreamController({
         quality: settings.quality
       })
     });
-    if (generation !== connectGeneration || rtcPeer !== peer || peer.signalingState === "closed") {
-      try { peer.close(); } catch { }
-      return false;
-    }
+    if (generation !== connectGeneration || rtcPeer !== peer || peer.signalingState === "closed") return false;
     await peer.setRemoteDescription({
       type: answer.Type || answer.type || "answer",
       sdp: answer.Sdp || answer.sdp || ""
     });
     return true;
+  }
+
+  function scheduleRtcRecovery(peer, generation, reason) {
+    if (disconnectTimer || restartingIce || generation !== connectGeneration || rtcPeer !== peer) return;
+    const waitSeconds = Math.round(WEBRTC_DISCONNECT_GRACE_MS / 1000);
+    setStatus(`${tLegacy("WebRTC 路徑中斷，保留連線並於")}${waitSeconds}s ${tLegacy("後嘗試恢復")}`, false);
+    report("webrtc", "recovering", { path: selectedPath, reason });
+    disconnectTimer = setTimeout(async () => {
+      disconnectTimer = null;
+      if (generation !== connectGeneration || rtcPeer !== peer || peer.connectionState === "connected") return;
+      restartingIce = true;
+      try {
+        if (typeof peer.restartIce === "function") peer.restartIce();
+        report("ice", "restart", { path: selectedPath, reason });
+        await negotiateRtc(peer, generation, true);
+        if (generation !== connectGeneration || rtcPeer !== peer) return;
+        setStatus(tLegacy("WebRTC 正在重新建立網路路徑…"), false);
+        restartSettleTimer = setTimeout(() => {
+          restartSettleTimer = null;
+          if (generation !== connectGeneration || rtcPeer !== peer || peer.connectionState === "connected") return;
+          fallbackToJpeg(generation, tLegacy("WebRTC ICE restart 未恢復，保持 JPEG 穩定串流"));
+        }, WEBRTC_RESTART_SETTLE_MS);
+      } catch (error) {
+        if (generation === connectGeneration && rtcPeer === peer) {
+          fallbackToJpeg(generation, `${tLegacy("WebRTC ICE restart 失敗")}：${error.message || tLegacy("未知錯誤")}`);
+        }
+      } finally {
+        restartingIce = false;
+      }
+    }, WEBRTC_DISCONNECT_GRACE_MS);
+  }
+
+  function fallbackToJpeg(generation, reason) {
+    if (generation !== connectGeneration) return;
+    const mode = transportMode();
+    const cooldown = mode === "webrtc" ? PREFER_WEBRTC_COOLDOWN_MS : AUTO_WEBRTC_COOLDOWN_MS;
+    if (mode !== "jpeg") webrtcCooldownUntil = Date.now() + cooldown;
+    fallbackReason = reason || tLegacy("WebRTC 暫時不可用");
+    report("webrtc", "fallback", { path: "jpeg", reason: fallbackReason }, true);
+    closeRtcStream(false);
+    setStatus(`${fallbackReason} · ${tLegacy("JPEG 備援")}`, false);
+    connectJpegVideo(fallbackReason);
+  }
+
+  function resolveSelectedPath(reports) {
+    let selectedPair = null;
+    let localCandidate = null;
+    reports.forEach(report => {
+      if (report.type === "transport" && report.selectedCandidatePairId) selectedPair = report.selectedCandidatePairId;
+    });
+    reports.forEach(report => {
+      if (report.type !== "candidate-pair") return;
+      if (report.id === selectedPair || (report.nominated && report.state === "succeeded")) {
+        selectedPair = report;
+      }
+    });
+    if (!selectedPair || typeof selectedPair !== "object") return "";
+    reports.forEach(report => {
+      if (report.type === "local-candidate" && report.id === selectedPair.localCandidateId) localCandidate = report;
+    });
+    const candidateType = String(localCandidate?.candidateType || "").toLowerCase();
+    if (candidateType === "relay") return "turn-relay";
+    if (candidateType === "srflx" || candidateType === "prflx") return "direct-stun";
+    if (candidateType === "host") return "direct-lan";
+    return "direct";
+  }
+
+  function pathLabel(path) {
+    if (path === "turn-relay") return "TURN relay";
+    if (path === "direct-stun") return "WebRTC direct";
+    if (path === "direct-lan") return "WebRTC LAN";
+    return "WebRTC H.264";
   }
 
   function startRtcStats(peer, generation) {
@@ -235,6 +408,11 @@ export function createStreamController({
       if (generation !== connectGeneration || rtcPeer !== peer || peer.connectionState === "closed") return;
       try {
         const reports = await peer.getStats();
+        const path = resolveSelectedPath(reports);
+        if (path && path !== selectedPath) {
+          selectedPath = path;
+          report("transport", "selected", { path }, true);
+        }
         let inbound = null;
         reports.forEach(report => {
           if (report.type === "inbound-rtp" && (report.kind === "video" || report.mediaType === "video")) inbound = report;
@@ -251,7 +429,7 @@ export function createStreamController({
           const bufferMs = emitted > 0 ? Number(inbound.jitterBufferDelay || 0) / emitted * 1000 : 0;
           const decoded = Number(inbound.framesDecoded || 0);
           const decodeMs = decoded > 0 ? Number(inbound.totalDecodeTime || 0) / decoded * 1000 : 0;
-          setStatus(`H.264 ${fps.toFixed(0)}fps ${mbps.toFixed(1)}Mbps · jitter ${jitterMs.toFixed(0)}ms · buffer ${bufferMs.toFixed(0)}ms · decode ${decodeMs.toFixed(1)}ms${dropped ? ` · drop ${dropped}` : ""}`, fps >= 20 && bufferMs < 250);
+          setStatus(`${pathLabel(selectedPath)} ${fps.toFixed(0)}fps ${mbps.toFixed(1)}Mbps · jitter ${jitterMs.toFixed(0)}ms · buffer ${bufferMs.toFixed(0)}ms · decode ${decodeMs.toFixed(1)}ms${dropped ? ` · drop ${dropped}` : ""}`, fps >= 20 && bufferMs < 250);
         }
         previous = {
           time: now,
@@ -263,8 +441,27 @@ export function createStreamController({
     }, 1000);
   }
 
+  function scheduleJpegReconnect(socket) {
+    if (jpegReconnectTimer || videoSocket !== socket) return;
+    const delay = Math.min(JPEG_RECONNECT_MAX_MS, 1000 * (2 ** Math.min(jpegReconnectAttempts, 4)));
+    jpegReconnectAttempts += 1;
+    setStatus(`${tLegacy("JPEG 重新連線中")} (${Math.ceil(delay / 1000)}s)`, false);
+    report("jpeg", "reconnecting", { path: "jpeg", reason: `retry-${jpegReconnectAttempts}` });
+    jpegReconnectTimer = setTimeout(() => {
+      jpegReconnectTimer = null;
+      if (videoSocket !== socket && videoSocket !== null) return;
+      connectJpegVideo(fallbackReason || tLegacy("JPEG 備援"));
+    }, delay);
+  }
+
   function connectJpegVideo(reason = "") {
     fallbackReason = reason || fallbackReason;
+    clearJpegReconnectTimer();
+    if (videoSocket) {
+      const current = videoSocket;
+      videoSocket = null;
+      try { current.close(); } catch { }
+    }
     elements.screen.hidden = false;
     applyRotation();
     const params = appendDeviceToken(new URLSearchParams({
@@ -276,13 +473,21 @@ export function createStreamController({
     videoSocket = socket;
     socket.binaryType = "blob";
     resetJpegStats();
-    socket.onopen = () => setStatus(fallbackReason ? `${fallbackReason} · JPEG` : tLegacy("影像已連線"), true);
+    socket.onopen = () => {
+      if (videoSocket !== socket) return;
+      jpegReconnectAttempts = 0;
+      report("jpeg", "connected", { path: "jpeg", reason: fallbackReason });
+      setStatus(fallbackReason ? `${fallbackReason} · ${tLegacy("JPEG 備援")}` : tLegacy("影像已連線"), true);
+    };
     socket.onclose = () => {
       if (videoSocket !== socket) return;
-      setStatus(tLegacy("重新連線中"), false);
-      setTimeout(connect, 1000);
+      scheduleJpegReconnect(socket);
     };
-    socket.onerror = () => setStatus(tLegacy("影像連線錯誤"), false);
+    socket.onerror = () => {
+      if (videoSocket !== socket) return;
+      setStatus(tLegacy("影像連線錯誤"), false);
+      report("jpeg", "error", { path: "jpeg" });
+    };
     socket.onmessage = event => {
       pendingJpegFrame = event.data;
       presentPendingJpegFrame();

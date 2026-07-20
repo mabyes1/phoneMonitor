@@ -2,6 +2,13 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
+## 0.1.32 - 2026-07-20
+
+- 遠端顯示串流改為分層傳輸：先嘗試直連 WebRTC，網路封鎖直連 UDP 時可自動改走 Cloudflare TURN 中繼，仍不通則回退 JPEG，讓行動網路（CGNAT）或跨網路情境下的畫面與遠端控制維持穩定。
+- 修正遠端連線在 WebRTC 斷線時 JPEG 一抖就重新協商 WebRTC、造成畫面反覆重連的循環：WebRTC 斷線改為保留連線並在數秒後嘗試 ICE restart，失敗才切 JPEG 並進入冷卻期，JPEG 重連改為獨立指數退避，不再互相拉扯。
+- 顯示器設定新增串流傳輸模式（自動／偏好 WebRTC／穩定 JPEG），並提供本機 TURN 診斷與連線狀態顯示。
+- 新增可選的 Cloudflare TURN 設定：Key ID 與 API Token 僅在本機主控台設定，長效 API Token 以 Windows DPAPI 加密保存、不離開 Host，已配對瀏覽器只會取得短效 ICE 憑證。未設定時維持 STUN 直連與 JPEG 備援。
+
 ## 0.1.31 - 2026-07-20
 
 - 顯示器頁籤新增 Windows 畫面來源切換：已配對裝置可在 VibeDeck 延伸螢幕、主螢幕與其他實體螢幕間切換，選擇會保存在該瀏覽器；實體螢幕沿用 DXGI 擷取、WebRTC H.264／JPEG fallback 與既有觸控滑鼠控制。手機端新增軟鍵盤入口，以 Windows Unicode `SendInput` 傳送 Android／iOS 輸入法完成後的文字，並支援 Enter、Backspace、方向鍵、Delete、Tab、功能鍵與 Ctrl／Alt／Shift／Meta 組合鍵。

@@ -207,8 +207,31 @@
           </select>
           <input id="streamFps" type="number" min="1" max="60" step="1" value="45" aria-label="FPS">
           <input id="streamQuality" type="number" min="25" max="85" step="1" value="56" aria-label="Stream quality">
+          <label class="field">傳輸
+            <select id="streamTransport" aria-label="串流傳輸模式">
+              <option value="auto">自動（WebRTC 優先）</option>
+              <option value="webrtc">偏好 WebRTC</option>
+              <option value="jpeg">穩定 JPEG</option>
+            </select>
+          </label>
           <button id="applyStream" type="button">套用串流</button>
         </div>
+      </details>
+      <details id="turnSettingsPanel" class="panel" hidden>
+        <summary>遠端 WebRTC 與 Cloudflare TURN</summary>
+        <div class="controls turn-settings-controls">
+          <label class="field">TURN Key ID
+            <input id="turnKeyId" type="text" autocomplete="off" spellcheck="false" placeholder="Cloudflare TURN Key ID">
+          </label>
+          <label class="field">API Token
+            <input id="turnApiToken" type="password" autocomplete="new-password" spellcheck="false" placeholder="只保存在這台 PC">
+          </label>
+          <button id="saveTurnSettings" type="button">儲存 TURN</button>
+          <button id="testTurnSettings" class="secondary" type="button">測試憑證</button>
+          <button id="clearTurnSettings" class="secondary" type="button">移除</button>
+        </div>
+        <small id="turnSettingsStatus" class="turn-settings-status">未設定：維持 STUN 直連與 JPEG 備援。</small>
+        <small id="turnDiagnosticsStatus" class="turn-settings-status">遠端手機開啟顯示器後，這裡會顯示目前 Host WebRTC 狀態。</small>
       </details>
       <details class="panel">
         <summary>虛擬螢幕尺寸</summary>
@@ -791,6 +814,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=119"></script>
+  <script type="module" src="/index.js?v=120"></script>
 </body>
 </html>

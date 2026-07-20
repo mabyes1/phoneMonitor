@@ -17,7 +17,7 @@ import { createQuotaController } from "./modules/quota-controller.js?v=50";
 import { createQuotaMiniCardController } from "./modules/quota-mini-card.js?v=56";
 import { createSideboardController } from "./modules/sideboard.js?v=50";
 import { createMobileOverviewController } from "./modules/mobile-overview.js?v=3";
-import { createStreamController } from "./modules/stream-controller.js?v=48";
+import { createStreamController } from "./modules/stream-controller.js?v=49";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
 ﻿import {
   escapeHtml,
@@ -65,7 +65,16 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     const streamPreset = document.getElementById("streamPreset");
     const streamFps = document.getElementById("streamFps");
     const streamQuality = document.getElementById("streamQuality");
+    const streamTransport = document.getElementById("streamTransport");
     const applyStream = document.getElementById("applyStream");
+    const turnSettingsPanel = document.getElementById("turnSettingsPanel");
+    const turnKeyId = document.getElementById("turnKeyId");
+    const turnApiToken = document.getElementById("turnApiToken");
+    const saveTurnSettings = document.getElementById("saveTurnSettings");
+    const testTurnSettings = document.getElementById("testTurnSettings");
+    const clearTurnSettings = document.getElementById("clearTurnSettings");
+    const turnSettingsStatus = document.getElementById("turnSettingsStatus");
+    const turnDiagnosticsStatus = document.getElementById("turnDiagnosticsStatus");
     const modePreset = document.getElementById("modePreset");
     const modeWidth = document.getElementById("modeWidth");
     const modeHeight = document.getElementById("modeHeight");
@@ -679,6 +688,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       document.body.classList.toggle("pc-console", localConsole);
       document.body.classList.toggle("standalone-app", isStandaloneApp());
       if (publicEndpointPanel) publicEndpointPanel.hidden = !localConsole;
+      if (turnSettingsPanel) turnSettingsPanel.hidden = !localConsole;
       const pairingRescue = document.getElementById("phonePairRescue");
       if (pairingRescue) pairingRescue.hidden = !phoneClient || trusted;
       customCardsController?.syncAccess?.();
@@ -4290,7 +4300,101 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     function applyStreamSettings() {
       localStorage.setItem("phoneMonitorStreamFps", streamFps.value);
       localStorage.setItem("phoneMonitorStreamQuality", streamQuality.value);
+      localStorage.setItem("phoneMonitorStreamTransport", streamTransport?.value || "auto");
       connectVideo();
+    }
+
+    function renderTurnSettings(settings = {}) {
+      const configured = Boolean(settings.configured ?? settings.Configured);
+      const keyId = String(settings.keyId || settings.KeyId || "");
+      const updatedAt = String(settings.updatedAt || settings.UpdatedAt || "");
+      if (turnKeyId) {
+        turnKeyId.value = "";
+        turnKeyId.placeholder = configured && keyId ? `已設定：${keyId}` : "Cloudflare TURN Key ID";
+      }
+      if (turnApiToken) turnApiToken.value = "";
+      if (turnSettingsStatus) {
+        turnSettingsStatus.textContent = configured
+          ? `TURN 已設定（${keyId || "Key 已隱藏"}）。API Token 已使用 Windows 加密保存${updatedAt ? ` · ${new Date(updatedAt).toLocaleString()}` : ""}。`
+          : "未設定：維持 STUN 直連與 JPEG 備援。";
+      }
+      if (clearTurnSettings) clearTurnSettings.disabled = !configured;
+      if (testTurnSettings) testTurnSettings.disabled = !configured;
+    }
+
+    function renderTurnDiagnostics(snapshot = {}) {
+      if (!turnDiagnosticsStatus) return;
+      const sessions = snapshot.webRtc?.activeSessions || snapshot.WebRtc?.ActiveSessions || [];
+      if (!Array.isArray(sessions) || sessions.length === 0) {
+        turnDiagnosticsStatus.textContent = "目前沒有活動中的 Host WebRTC 連線。從外部手機打開顯示器後，連線狀態會顯示於此。";
+        return;
+      }
+      const session = sessions[0] || {};
+      const state = session.connectionState || session.ConnectionState || "unknown";
+      const ice = session.iceState || session.IceState || "unknown";
+      const plan = session.transportPlan || session.TransportPlan || "direct-stun";
+      turnDiagnosticsStatus.textContent = `Host WebRTC：${state} · ICE ${ice} · ${plan}`;
+    }
+
+    async function loadTurnSettings() {
+      if (!deviceLocalRequest) return;
+      const [settings, diagnostics] = await Promise.all([
+        fetchJsonOrThrow("/api/stream/turn/settings"),
+        fetchJsonOrThrow("/api/stream/diagnostics")
+      ]);
+      renderTurnSettings(settings);
+      renderTurnDiagnostics(diagnostics);
+    }
+
+    async function saveTurnConfiguration() {
+      const keyId = turnKeyId?.value?.trim() || "";
+      const apiToken = turnApiToken?.value?.trim() || "";
+      if (!keyId || !apiToken) {
+        if (turnSettingsStatus) turnSettingsStatus.textContent = "請同時貼上 Cloudflare TURN Key ID 與 API Token。";
+        return;
+      }
+      saveTurnSettings.disabled = true;
+      try {
+        const settings = await fetchJsonOrThrow("/api/stream/turn/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ keyId, apiToken })
+        });
+        renderTurnSettings(settings);
+        if (turnSettingsStatus) turnSettingsStatus.textContent += " 可以按「測試憑證」確認 Cloudflare 設定。";
+      } catch (error) {
+        if (turnSettingsStatus) turnSettingsStatus.textContent = error.message || "TURN 設定儲存失敗。";
+      } finally {
+        saveTurnSettings.disabled = false;
+      }
+    }
+
+    async function testTurnConfiguration() {
+      if (!testTurnSettings) return;
+      testTurnSettings.disabled = true;
+      const oldText = testTurnSettings.textContent;
+      testTurnSettings.textContent = "測試中…";
+      try {
+        const result = await fetchJsonOrThrow("/api/stream/turn/test", { method: "POST" });
+        const urls = Array.isArray(result.urls || result.Urls) ? (result.urls || result.Urls) : [];
+        if (turnSettingsStatus) turnSettingsStatus.textContent = `TURN 憑證已取得。候選：${urls.join(" · ") || "已就緒"}`;
+      } catch (error) {
+        if (turnSettingsStatus) turnSettingsStatus.textContent = error.message || "TURN 憑證測試失敗。";
+      } finally {
+        testTurnSettings.disabled = false;
+        testTurnSettings.textContent = oldText;
+      }
+    }
+
+    async function clearTurnConfiguration() {
+      if (!window.confirm("移除本機儲存的 Cloudflare TURN 設定？遠端將回到 STUN 直連與 JPEG 備援。")) return;
+      try {
+        const settings = await fetchJsonOrThrow("/api/stream/turn/settings", { method: "DELETE" });
+        renderTurnSettings(settings);
+        renderTurnDiagnostics({});
+      } catch (error) {
+        if (turnSettingsStatus) turnSettingsStatus.textContent = error.message || "TURN 設定移除失敗。";
+      }
     }
 
     async function loadDisplayStatus() {
@@ -4460,6 +4564,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
         getStreamSettings: () => ({
           fps: Number(streamFps.value),
           quality: Number(streamQuality.value),
+          transportMode: streamTransport?.value || "auto",
           rotationIsAuto: rotation.value === "auto",
         }),
         canUseProtectedConnection,
@@ -4472,6 +4577,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
         recordJpegFrame: recordFrame,
         fetchJsonOrThrow,
         tuneVideoReceiver,
+        reportDiagnostic: report => {
+          fetchJsonOrThrow("/api/stream/diagnostics", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(report)
+          }).catch(() => {});
+        },
       });
     } catch (error) {
       console.error("stream controller failed", error);
@@ -4521,6 +4633,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       applyStreamSettings();
     });
     applyStream.addEventListener("click", applyStreamSettings);
+    streamTransport?.addEventListener("change", applyStreamSettings);
+    saveTurnSettings?.addEventListener("click", saveTurnConfiguration);
+    testTurnSettings?.addEventListener("click", testTurnConfiguration);
+    clearTurnSettings?.addEventListener("click", clearTurnConfiguration);
     modePreset.addEventListener("change", applyPresetFields);
     applyMode.addEventListener("click", applyDisplayMode);
     displaySource?.addEventListener("change", () => {
@@ -4847,6 +4963,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       applyStreamPresetFields();
       streamFps.value = localStorage.getItem("phoneMonitorStreamFps") || streamFps.value;
       streamQuality.value = localStorage.getItem("phoneMonitorStreamQuality") || streamQuality.value;
+      if (streamTransport) streamTransport.value = localStorage.getItem("phoneMonitorStreamTransport") || "auto";
       updateViewportSize();
       applyRotation();
       applyOrientation();
@@ -4901,6 +5018,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
         setTrustState(error.message || "連線資訊讀取失敗。", false);
         setStatus(error.message || "連線資訊讀取失敗", false);
       });
+      if (deviceLocalRequest) {
+        loadTurnSettings().catch(error => {
+          if (turnSettingsStatus) turnSettingsStatus.textContent = error.message || "無法讀取 TURN 設定。";
+        });
+      }
       if (deviceLocalRequest && !connectInfoTimer) {
         connectInfoTimer = setInterval(() => loadConnectInfo().catch(() => {}), 5000);
       }
