@@ -523,9 +523,9 @@ body.eink-client .quota-page-button {
 
     /* Immersive secondary-display chrome: fade out after idle. */
     .display-toolbar.is-idle {
-      opacity: 0;
-      pointer-events: none;
-      transform: translateX(-50%) translateY(-6px);
+      opacity: 0 !important;
+      pointer-events: none !important;
+      transform: translateX(-50%) translateY(-8px);
     }
 
     .display-source-control {
@@ -749,9 +749,9 @@ body.eink-client .quota-page-button {
       position: fixed;
       left: 50%;
       top: 50%;
-      /* Leave safe-area so notch / home indicator do not clip desktop content. */
-      width: calc(var(--viewer-width) - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
-      height: calc(var(--viewer-height) - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+      /* Letterbox instead of crop/stretch; keep full viewport box (safe-area is black margin). */
+      width: var(--viewer-width);
+      height: var(--viewer-height);
       max-width: none;
       aspect-ratio: auto;
       object-fit: contain;
@@ -762,8 +762,8 @@ body.eink-client .quota-page-button {
 
     body.viewer-fullscreen.mode-display.rotate-90 .screen-media,
     body.viewer-fullscreen.mode-display.rotate-270 .screen-media {
-      width: calc(var(--viewer-height) - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
-      height: calc(var(--viewer-width) - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+      width: var(--viewer-height);
+      height: var(--viewer-width);
     }
 
     .exit-viewer {
@@ -4108,8 +4108,8 @@ html[data-device-preview] body::-webkit-scrollbar {
      * dimensions though, capping a landscape viewer at portrait 100dvw.
      */
     body.ios-client.phone-client.device-trusted.viewer-fullscreen.mode-display .screen-media {
-      width: calc(var(--viewer-width) - var(--safe-area-inset-left, env(safe-area-inset-left, 0px)) - var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
-      height: calc(var(--viewer-height) - var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) - var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+      width: var(--viewer-width);
+      height: var(--viewer-height);
       max-width: none;
       max-height: none;
       aspect-ratio: auto;

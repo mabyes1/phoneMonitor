@@ -2,11 +2,17 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
+## 0.1.35 - 2026-07-20
+
+- 修正 0.1.34 在 PC Web 端整頁掛掉：`revealDisplayToolbar` 在 `displayInputController` 宣告前就被 `loadPhoneDisplay` 呼叫，觸發 TDZ `ReferenceError` 讓 `index.js` 中斷；控制器改為檔案開頭先宣告，並修正雙擊全螢幕的空引用。
+- 修正顯示器工具列「約 3 秒隱藏」無效：鍵盤按鈕曾用 `hold` 清掉 idle timer 且不再排程，點過一次鍵盤後工具列會永遠卡住；改為僅在鍵盤／畫面選單真正 focused 時延後隱藏，否則固定重新計時淡出。
+- 工具列自動隱藏僅用於手機／全螢幕 viewer；本機 PC 主控台（`pc-console`）保持常駐。
+
 ## 0.1.34 - 2026-07-20
 
 - 顯示器模式虛擬鍵盤可正常收合：點串流畫面、旋轉螢幕時會 blur 隱藏輸入框；viewport 加上 `interactive-widget=resizes-content`，減少軟鍵盤與版面脫節。
 - 顯示器頂部工具列（畫面來源／鍵盤）閒置約 2.6 秒自動淡出，觸控或滑鼠移動再顯示；鍵盤開啟或下拉選單操作中維持可見。
-- 全螢幕串流改為 `object-fit: contain`（含 iOS 覆寫，不再 `fill`/`cover` 裁切），並扣除 safe-area，避免瀏海與底線吃掉 Windows 畫面邊緣。
+- 全螢幕串流改為 `object-fit: contain`（含 iOS 覆寫，不再 `fill`/`cover` 裁切），避免全螢幕時裁掉 Windows 畫面邊緣。
 
 ## 0.1.33 - 2026-07-20
 
