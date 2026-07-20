@@ -139,7 +139,11 @@ export function createDisplayInputController({
     });
   }
 
-  function updateKeyboardButton(active = document.activeElement === keyboardInput) {
+  function isKeyboardFocused() {
+    return Boolean(keyboardInput && document.activeElement === keyboardInput);
+  }
+
+  function updateKeyboardButton(active = isKeyboardFocused()) {
     if (!keyboardButton) return;
     keyboardButton.setAttribute("aria-pressed", active ? "true" : "false");
     keyboardButton.textContent = translate(active ? "ui.remoteKeyboardActive" : "ui.remoteKeyboard");
@@ -149,13 +153,25 @@ export function createDisplayInputController({
     if (keyboardInput) keyboardInput.value = "";
   }
 
+  function dismissKeyboard() {
+    if (!keyboardInput) return false;
+    keyboardComposing = false;
+    if (isKeyboardFocused()) {
+      keyboardInput.blur();
+      return true;
+    }
+    resetKeyboardInput();
+    updateKeyboardButton(false);
+    return false;
+  }
+
   function wireKeyboard() {
     if (keyboardWired || !keyboardButton || !keyboardInput) return;
     keyboardWired = true;
 
     keyboardButton.addEventListener("click", () => {
-      if (document.activeElement === keyboardInput) {
-        keyboardInput.blur();
+      if (isKeyboardFocused()) {
+        dismissKeyboard();
         return;
       }
       resetKeyboardInput();
@@ -307,6 +323,11 @@ export function createDisplayInputController({
     target.addEventListener("dragstart", event => event.preventDefault());
     target.addEventListener("contextmenu", event => event.preventDefault());
     target.addEventListener("pointerdown", event => {
+      // Soft keyboard stays open until focus leaves the hidden textarea.
+      // Tapping the stream surface is the natural dismiss gesture on phones.
+      if (isKeyboardFocused()) {
+        dismissKeyboard();
+      }
       target.setPointerCapture(event.pointerId);
       if (event.pointerType === "touch") return beginTouch(event);
       sendPointer("pointerdown", event);
@@ -339,6 +360,8 @@ export function createDisplayInputController({
       wireKeyboard();
     },
     clearTouchState,
+    dismissKeyboard,
+    isKeyboardFocused,
     focusKeyboard() {
       keyboardInput?.focus({ preventScroll: true });
     },

@@ -49,11 +49,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     const fullscreen = document.getElementById("fullscreen");
     const displaySettingsToggle = document.getElementById("displaySettingsToggle");
     const displayToolbar = document.getElementById("displayToolbar");
+    const displayView = document.getElementById("displayView");
     const displaySource = document.getElementById("displaySource");
     const displaySourceKind = document.getElementById("displaySourceKind");
     const remoteKeyboardButton = document.getElementById("remoteKeyboardButton");
     const remoteKeyboardInput = document.getElementById("remoteKeyboardInput");
     const displayEmptyState = document.getElementById("displayEmptyState");
+    const DISPLAY_TOOLBAR_IDLE_MS = 2600;
+    let displayToolbarIdleTimer = null;
     const displayEmptyTitle = document.getElementById("displayEmptyTitle");
     const displayEmptyMessage = document.getElementById("displayEmptyMessage");
     const installVirtualDisplay = document.getElementById("installVirtualDisplay");
@@ -4054,6 +4057,44 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       displaySource.value = selectedDisplayName;
     }
 
+    function isDisplayToolbarPinned() {
+      if (displayInputController?.isKeyboardFocused?.()) return true;
+      const active = document.activeElement;
+      if (active && displayToolbar?.contains(active)) return true;
+      if (displaySource && displaySource.matches(":focus, :focus-within")) return true;
+      // Open <select> menus keep focus quirks; keep chrome visible while interacting.
+      if (active === displaySource) return true;
+      return false;
+    }
+
+    function clearDisplayToolbarIdleTimer() {
+      if (displayToolbarIdleTimer) {
+        clearTimeout(displayToolbarIdleTimer);
+        displayToolbarIdleTimer = null;
+      }
+    }
+
+    function scheduleDisplayToolbarIdle() {
+      clearDisplayToolbarIdleTimer();
+      if (!displayToolbar || displayToolbar.hidden) return;
+      if (isDisplayToolbarPinned()) return;
+      displayToolbarIdleTimer = setTimeout(() => {
+        displayToolbarIdleTimer = null;
+        if (!displayToolbar || displayToolbar.hidden || isDisplayToolbarPinned()) return;
+        displayToolbar.classList.add("is-idle");
+      }, DISPLAY_TOOLBAR_IDLE_MS);
+    }
+
+    function revealDisplayToolbar(options = {}) {
+      if (!displayToolbar || displayToolbar.hidden) return;
+      displayToolbar.classList.remove("is-idle");
+      if (options.hold) {
+        clearDisplayToolbarIdleTimer();
+        return;
+      }
+      scheduleDisplayToolbarIdle();
+    }
+
     function applySelectedDisplay(display, persist = true) {
       if (!display) return false;
       selectedDisplay = display;
@@ -4061,6 +4102,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       if (persist) storeDisplaySource(display);
       if (displaySource) displaySource.value = display.DeviceName;
       if (displayToolbar) displayToolbar.hidden = false;
+      revealDisplayToolbar();
       document.body.classList.toggle("physical-display-source", !display.IsPhoneMonitor);
       if (displaySourceKind) {
         displaySourceKind.textContent = t(display.IsPhoneMonitor
@@ -4257,9 +4299,20 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
 
     function setDisplayAvailability(available, title = "", message = "") {
       document.body.classList.toggle("display-unavailable", !available);
-      if (displayToolbar) displayToolbar.hidden = !available || availableDisplays.length === 0;
+      if (displayToolbar) {
+        displayToolbar.hidden = !available || availableDisplays.length === 0;
+        if (displayToolbar.hidden) {
+          clearDisplayToolbarIdleTimer();
+          displayToolbar.classList.remove("is-idle");
+        } else {
+          revealDisplayToolbar();
+        }
+      }
       if (remoteKeyboardButton) remoteKeyboardButton.disabled = !available;
-      if (!available) remoteKeyboardInput?.blur();
+      if (!available) {
+        displayInputController?.dismissKeyboard?.();
+        remoteKeyboardInput?.blur();
+      }
       if (displayEmptyState) displayEmptyState.hidden = Boolean(available);
       if (displayEmptyTitle && title) displayEmptyTitle.textContent = title;
       if (displayEmptyMessage && (title || message)) {
@@ -4642,10 +4695,25 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     displaySource?.addEventListener("change", () => {
       const display = availableDisplays.find(item => item.DeviceName === displaySource.value);
       if (!display || display.DeviceName === selectedDisplayName) return;
+      displayInputController?.dismissKeyboard?.();
       remoteKeyboardInput?.blur();
       applySelectedDisplay(display);
       connectVideo();
     });
+    displaySource?.addEventListener("focus", () => revealDisplayToolbar({ hold: true }));
+    displaySource?.addEventListener("blur", () => revealDisplayToolbar());
+    displayView?.addEventListener("pointerdown", event => {
+      // Any intentional contact on the display surface reveals chrome.
+      if (event.target === remoteKeyboardInput) return;
+      revealDisplayToolbar();
+    }, { passive: true });
+    displayView?.addEventListener("pointermove", event => {
+      if (event.pointerType === "touch") return;
+      revealDisplayToolbar();
+    }, { passive: true });
+    remoteKeyboardInput?.addEventListener("focus", () => revealDisplayToolbar({ hold: true }));
+    remoteKeyboardInput?.addEventListener("blur", () => revealDisplayToolbar());
+    remoteKeyboardButton?.addEventListener("click", () => revealDisplayToolbar({ hold: true }));
     savePublicEndpoint?.addEventListener("click", () => {
       saveTrustedPublicEndpoint();
     });
@@ -4872,9 +4940,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       applyRotation();
     });
     window.addEventListener("orientationchange", () => {
+      // Soft keyboard often sticks across rotation; force dismiss so layout can settle.
+      displayInputController?.dismissKeyboard?.();
+      remoteKeyboardInput?.blur();
       setTimeout(() => {
         updateViewportSize();
         applyRotation();
+        revealDisplayToolbar();
       }, 120);
     });
     window.addEventListener("offline", () => setDashboardConnectionState("connecting"));

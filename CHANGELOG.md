@@ -2,6 +2,12 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
+## 0.1.34 - 2026-07-20
+
+- 顯示器模式虛擬鍵盤可正常收合：點串流畫面、旋轉螢幕時會 blur 隱藏輸入框；viewport 加上 `interactive-widget=resizes-content`，減少軟鍵盤與版面脫節。
+- 顯示器頂部工具列（畫面來源／鍵盤）閒置約 2.6 秒自動淡出，觸控或滑鼠移動再顯示；鍵盤開啟或下拉選單操作中維持可見。
+- 全螢幕串流改為 `object-fit: contain`（含 iOS 覆寫，不再 `fill`/`cover` 裁切），並扣除 safe-area，避免瀏海與底線吃掉 Windows 畫面邊緣。
+
 ## 0.1.33 - 2026-07-20
 
 - 修正 WebRTC 協商偶發失敗：Host 在 ICE gathering 提早完成時對尚未結束的 timeout Task 呼叫 `Dispose()`，會讓 `/api/stream/webrtc/offer` 回 500 並把畫面打回 JPEG；改為 `Task.WhenAny` 等待完成或逾時，不再 Dispose 未完成的 Task。
