@@ -1,350 +1,229 @@
 # VibeDeck
 
-VibeDeck turns a spare phone or e-paper device into a private Windows work surface you can securely reach from the next room or another network: a wireless second screen, system dashboard, and AI-usage sideboard in one browser/PWA.
+**A trusted second surface for your Windows work—not another tiny mirrored desktop.**
 
-The display, dashboard data, input, and pairing authority stay on the Windows Host. iPhone, Android, and BOOX devices connect through Safari, Chrome, or an installable PWA. After explicit approval on the PC, a paired browser can reconnect through the PC's automatically assigned HTTPS address even when it is no longer on the same LAN. VibeDeck's hosted control plane routes the encrypted connection but never receives a VibeDeck account or gains the authority to approve a device; users do not need a Cloudflare account, VPN, or router port forwarding.
+VibeDeck turns a spare phone, tablet, or e-paper reader into a secure Windows display, system sideboard, and AI-usage companion. One browser/PWA works across iPhone, Android, and BOOX. Pairing authority, display capture, input, and private data stay on the Windows PC.
 
-## Product Architecture
+[Download the latest Windows release](https://github.com/mabyes1/phoneMonitor/releases/latest) · [Build Week submission notes](docs/build-week-submission.md) · [Changelog](CHANGELOG.md) · [MIT License](LICENSE)
 
-| Component | Supported product path |
+| Wireless display and remote control | Phone-first information board |
 |---|---|
-| Windows Host | Install with `VibeDeck-Setup-<version>.exe`; it starts in the signed-in desktop session |
-| Phone and e-paper clients | Safari, Chrome, or Add to Home Screen/PWA |
-| Virtual display | Optional; required only for second-screen mode |
-| Windows notifications | Optional packaged companion; it forwards notifications to the Host |
-| Product updates | Run a newer Setup with the same AppId |
-| Trusted HTTPS | Setup includes a hidden connector; VibeDeck automatically assigns and maintains the PC URL |
-| Source development | Use `start.bat` or `scripts\dev-run.ps1` |
+| ![VibeDeck wireless display](.codex-media/vibedeck-monitor.png) | ![VibeDeck information board](.codex-media/vibedeck-board.png) |
 
-The Host must not run as a Windows Service. A service runs in Session 0 and cannot enumerate or capture displays belonging to the signed-in user. VibeDeck instead launches as a hidden background process in the interactive desktop session.
+## Why VibeDeck
+
+A spare phone is technically a screen, but shrinking a full desktop onto it is rarely useful. VibeDeck gives that screen a role that fits its size:
+
+| Mode | What it does | Extra hardware or setup |
+|---|---|---|
+| **Display** | Streams a Windows virtual display or an existing physical monitor; supports touch/mouse and mobile keyboard input | Existing-monitor control works immediately; the extended display is optional |
+| **Sideboard** | Shows CPU, GPU, memory, storage, network, weather, processes, activity, and custom cards | None |
+| **Quota** | Keeps Codex and AGY usage, reset windows, accounts, and remaining credits visible | Local CLI/account data on the Host PC |
+
+The same approved browser can move among all three roles. It can reconnect on the LAN or through its installation-specific HTTPS address without a VibeDeck account, VPN, or router port forwarding. Every new browser still requires an explicit six-digit approval on the PC.
 
 ## Judge Quick Start
 
-VibeDeck is a Windows x64 product. A modern browser is the only requirement on iPhone, Android, and BOOX; no native mobile client is installed.
+### Option A — product path
 
-1. **Run the product.** For a release build, run `VibeDeck-Setup-<version>.exe`. To reproduce from source, install the .NET 8 SDK, stop any installed Host that owns ports 5000/5443, then run `start.bat`.
-2. **Open the PC console.** Visit `http://127.0.0.1:5000` and use **Device setup** to view the pairing route or create the optional virtual display.
-3. **Verify without physical devices.** Run `scripts\open-device-lab.ps1`, then switch among BOOX Go Color 7, Galaxy S23, and iPhone XS profiles. The lab loads the real VibeDeck client at its exact target viewport.
-4. **Run the checks.** Use `scripts\test-product-flow.ps1 -Source` for source validation, or `scripts\test-product-flow.ps1 -Installed` after Setup. Add `-RequireVirtualDisplay` only when testing Display mode.
+1. Open the [latest release](https://github.com/mabyes1/phoneMonitor/releases/latest) and download `VibeDeck-Setup-<version>.exe` plus its `.sha256` file.
+2. Run Setup on Windows 10 or 11 x64. VibeDeck starts in the signed-in desktop session.
+3. Open `http://127.0.0.1:5000` on the PC.
+4. Select **Device setup** to pair a real browser, or run `scripts\open-device-lab.ps1` to inspect the actual client at BOOX Go Color 7, Galaxy S23, and iPhone XS viewports without owning those devices.
+5. Try **Sideboard** and **Quota** first; neither requires the optional virtual display.
 
-The most complete product path is Windows Setup → browser-trusted QR pairing → explicit six-digit approval on the PC → Display, Sideboard, or Quota from the same paired browser, on the local Wi-Fi or later from another network. Sideboard and Quota do not need the optional virtual display.
+Setup may show the normal Windows publisher warning until the project has a production code-signing certificate. It does not enable test-signing mode or disable Secure Boot.
 
-## Features
+### Option B — reproduce from source
 
-- A real Windows virtual monitor that accepts normal desktop windows.
-- A trusted remote-screen selector for viewing and controlling the PC's existing physical displays.
-- Touch/mouse control plus a mobile soft-keyboard bridge for Unicode text and common Windows keys.
-- Low-latency WebRTC H.264 streaming with a JPEG compatibility fallback.
-- Responsive phone, tablet, and e-paper layouts from one browser/PWA client.
-- Live CPU, GPU, memory, storage, network, weather, and process information.
-- AI-tool usage and quota cards.
-- Configurable dashboard layouts and activity updates.
-- Optional Windows notification integration.
-- Persistent trusted-device access across networks, without a VPN or router port forwarding.
-- Local device approval remains authoritative; the cloud control plane cannot approve a phone.
-- Automatic browser-trusted HTTPS without certificate installation, command windows, or a user Cloudflare account.
-- Windows Setup, in-place updates, autostart, and persistent product data.
-
-## Showcase
-
-### Wireless second-screen mode
-
-VibeDeck streams a live Windows virtual display to an approved browser on the local network or through its secure public route.
-
-![VibeDeck wireless second-screen mode](.codex-media/vibedeck-monitor.png)
-
-### Information Board
-
-The same device can become a focused desktop sideboard with live system telemetry, process insights, and AI-usage information.
-
-![VibeDeck Information Board](.codex-media/vibedeck-board.png)
-
-## Requirements
-
-For an installed build:
-
-- Windows 10 or Windows 11 on x64.
-- A phone or e-paper device with Internet access, using the automatically assigned VibeDeck secure URL. Local Wi-Fi and private VPN routes remain available as fallbacks.
-- The optional virtual display only when using second-screen mode.
-
-Building from source additionally requires the .NET 8 SDK. Creating the Windows installer requires Inno Setup 6.
-
-## Install VibeDeck
-
-For a complete build + install from this repository, double-click `install.bat`. It builds the canonical Setup, requests administrator permission once, installs silently, starts the Host hidden, and verifies the running product.
-
-Run the packaged installer:
-
-```text
-VibeDeck-Setup-<version>.exe
-```
-
-Setup performs the complete product installation:
-
-- installs the application under `C:\Program Files\VibeDeck`;
-- stores persistent product data under `%ProgramData%\VibeDeck`;
-- creates Start menu and desktop shortcuts;
-- configures hidden autostart in the signed-in desktop session;
-- creates the firewall rules required for LAN access;
-- removes obsolete VibeDeck Windows Service registrations.
-- installs the verified background HTTPS connector managed by the Host.
-
-After installation, open:
-
-```text
-http://127.0.0.1:5000
-```
-
-### Build the installer from source
+Prerequisites: Windows 10/11 x64 and the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0). Node.js is only required for the repository validation command.
 
 ```powershell
-scripts\package-windows-setup.ps1
+git clone https://github.com/mabyes1/phoneMonitor.git
+cd phoneMonitor
+.\start.bat
 ```
 
-The default version comes from `src/PhoneMonitor.Host/PhoneMonitor.Host.csproj`. To specify it explicitly:
+Then open `http://127.0.0.1:5000`.
+
+Run the complete source gate:
 
 ```powershell
-scripts\package-windows-setup.ps1 -Version 0.1.1
+.\scripts\test-product-flow.ps1 -Source
 ```
 
-Output:
+No sample dataset or external account is required for the core experience. Device Lab supplies deterministic viewport and trust-state previews; live Quota cards are optional and read only the corresponding tools already used on the Host PC.
+
+## What Makes It Different
+
+- **Role-specific, not mirror-only.** A spare screen can be a real extended display, a remote-control surface, a glanceable system board, or an AI quota view.
+- **One client everywhere.** Safari, Chrome, and an installable PWA share one code path across iPhone, Android, and BOOX; there is no native mobile package to install.
+- **PC-controlled trust.** A public route can carry encrypted traffic, but it cannot approve a device. Pairing and revocation remain local PC decisions.
+- **Built for awkward real constraints.** VibeDeck handles Windows interactive-session boundaries, WebRTC fallback, e-paper layouts, persistent state, installation, updates, diagnostics, and multilingual UI instead of stopping at a demo.
+- **Useful without the driver.** Existing-monitor control, Sideboard, Quota, pairing, and Device Lab work before the optional virtual display is installed.
+
+## OpenAI Build Week
+
+VibeDeck entered OpenAI Build Week as an existing Windows virtual-display and browser-streaming prototype. Only work completed after the official submission-period cutoff is presented as Build Week work.
+
+### Verifiable development window
+
+| Evidence | Value |
+|---|---|
+| Official cutoff | `2026-07-13 09:00 PDT` / `2026-07-14 00:00 UTC+8` |
+| Pre-event baseline | [`872a985`](https://github.com/mabyes1/phoneMonitor/commit/872a985c27dbb8c486aef50b7e76a2b1c67d5f8d), committed `2026-07-13 23:52 UTC+8` |
+| First eligible commit | [`21c27e3`](https://github.com/mabyes1/phoneMonitor/commit/21c27e3), committed `2026-07-14 00:02 UTC+8` |
+| Core submission range | [`21c27e3..fc81cce`](https://github.com/mabyes1/phoneMonitor/compare/872a985...fc81cce) — 21 commits after the baseline |
+| Primary Codex `/feedback` session | `019f6890-877f-71e0-9ffa-7cf4d4457f2a` |
+
+### What existed before vs. what was built during Build Week
+
+| Before the event | Built or meaningfully extended during the event |
+|---|---|
+| Windows virtual-display and web-streaming prototype | Canonical Windows Setup, in-place updates, autostart, persistent product data, and release checks |
+| Early browser client and dashboard experiments | One responsive/PWA product path for iPhone, Android, and BOOX, including multilingual and e-paper-specific layouts |
+| LAN-oriented pairing and display flow | Explicit six-digit PC approval, persistent browser identity, revocation, managed HTTPS routing, and reconnect across networks |
+| Basic display viewing | Existing-monitor selector, WebRTC H.264/JPEG fallback, touch/mouse control, and mobile Unicode keyboard bridge |
+| Prototype telemetry and quota ideas | Configurable Sideboard layouts, activity, custom cards, Codex/AGY quota workflows, Device Lab, diagnostics, and regression gates |
+
+### How Codex and GPT-5.6 contributed
+
+Codex was used as an engineering partner for planning, implementation, debugging, review, testing, packaging, and delivery preparation. GPT-5.6 was most valuable where several systems interacted and a locally correct change could still break the product as a whole.
+
+| Challenge | Human decision | Codex + GPT-5.6 contribution | Evidence |
+|---|---|---|---|
+| A Windows Service cannot capture the signed-in user's displays | Keep the Host in the interactive desktop session and make Setup the only product path | Traced the Session 0 failure, redesigned install/update/autostart behavior, and added product-flow checks | [`2824352`](https://github.com/mabyes1/phoneMonitor/commit/2824352), [`dcae485`](https://github.com/mabyes1/phoneMonitor/commit/dcae485), [`30e233e`](https://github.com/mabyes1/phoneMonitor/commit/30e233e) |
+| One client had to work on phones and slow e-paper devices | Keep a single browser/PWA client instead of restoring native shells | Iterated responsive layouts, safe areas, e-paper constraints, localization, and deterministic Device Lab checks | [`cba7816`](https://github.com/mabyes1/phoneMonitor/commit/cba7816), [`ffece3c`](https://github.com/mabyes1/phoneMonitor/commit/ffece3c), [`db4c62c`](https://github.com/mabyes1/phoneMonitor/commit/db4c62c) |
+| Remote access must not weaken local pairing authority | Let the cloud route traffic, never approve devices | Reviewed trust boundaries, implemented one-time connection codes and per-installation routing, then hardened pairing and reconnect behavior | [`5b65ace`](https://github.com/mabyes1/phoneMonitor/commit/5b65ace), [`012ad15`](https://github.com/mabyes1/phoneMonitor/commit/012ad15), [`c4458a8`](https://github.com/mabyes1/phoneMonitor/commit/c4458a8) |
+| A small screen needed to be useful beyond mirroring | Treat Display, Sideboard, and Quota as distinct jobs | Implemented the existing-monitor selector, remote input, mobile keyboard bridge, and mobile energy/performance decisions | [`fc81cce`](https://github.com/mabyes1/phoneMonitor/commit/fc81cce) |
+| A hackathon prototype still had to be testable | Prefer reproducible gates and real-device judgment over screenshots alone | Added source/payload/installed checks, worker tests, release packaging, diagnostics, and submission evidence | [`2c766f7`](https://github.com/mabyes1/phoneMonitor/commit/2c766f7), [`5b65ace`](https://github.com/mabyes1/phoneMonitor/commit/5b65ace), [`cd203d2`](https://github.com/mabyes1/phoneMonitor/commit/cd203d2) |
+
+Human judgment remained responsible for product scope, security trade-offs, real-device acceptance, and the final quality bar. The commit history is intentionally retained as evidence rather than squashed into a single submission commit.
+
+## Architecture
+
+```text
+Approved browser / PWA
+  ├─ Display: WebRTC H.264 → JPEG fallback
+  ├─ Input: pointer + Unicode keyboard bridge
+  ├─ Sideboard / Quota / custom cards
+  └─ Pairing request + device credential
+                 │
+          HTTPS / WebSocket
+                 │
+Windows Host (signed-in desktop session)
+  ├─ local PC approval and trusted-device store
+  ├─ DXGI display capture and Windows input
+  ├─ telemetry, quota readers, layouts, diagnostics
+  ├─ optional virtual-display installer
+  └─ managed connector → installation-specific HTTPS route
+                 │
+Cloud control plane
+  └─ routes encrypted traffic and one-time connection codes;
+     it cannot approve or revoke a device
+```
+
+More detail: [product architecture](docs/product-architecture.md), [protocol](docs/protocol.md), [remote access](docs/remote-access.md), and [HTTPS onboarding](docs/https-onboarding.md).
+
+## Trust, Privacy, and Security Boundaries
+
+- The PC must explicitly approve each browser with a matching six-digit code.
+- Device credentials are random, stored as hashes on the Host, and can be revoked from the PC.
+- Public requests are accepted only through the installation's exact managed hostname and loopback connector path.
+- The connector/control plane carries traffic but has no PC action token and cannot approve a device.
+- VibeDeck has no cloud user account and does not upload display frames, quota data, or dashboard state to an application database.
+- Quota integrations read local metadata/cache state; users are not asked to paste Codex tokens into the UI.
+- Administrative actions such as virtual-display installation and product updates are local-PC-only.
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled/downloaded components. This is an early open-source release, not a completed security audit; production code signing and further control-plane hardening remain roadmap work.
+
+## Install, Pair, and Use
+
+### Windows Setup
+
+Setup installs under `C:\Program Files\VibeDeck`, keeps mutable product data under `%ProgramData%\VibeDeck`, creates shortcuts and firewall rules, and starts the Host in the signed-in desktop session. Build it from source with:
+
+```powershell
+.\scripts\package-windows-setup.ps1
+```
+
+The version defaults to `src/PhoneMonitor.Host/PhoneMonitor.Host.csproj`. Output:
 
 ```text
 artifacts\windows-setup\VibeDeck-Setup-<version>.exe
 ```
 
-To build only the installation payload without compiling the Setup executable:
+### Pair a browser
+
+1. Open the QR code shown on the PC console, or open the Host URL manually.
+2. Select **Start pairing** on the phone/browser.
+3. Match the six-digit code and device name on the PC.
+4. Select **Allow** on the PC.
+5. Switch among Display, Sideboard, and Quota. Pairings persist until revoked.
+
+The preferred managed URL looks like `https://<installation-id>.vibedeck.pp.ua/`. Local HTTPS and private-network routes remain available as fallbacks.
+
+### Optional virtual display
+
+Display mode can control an existing physical monitor without a driver. To create a separate Windows extended display, select **Create virtual display** on the local PC and accept the elevation prompt. VibeDeck verifies the pinned download hash and driver signature; normal users do not need the WDK or Windows test-signing mode.
+
+## Validation
+
+Verified on Windows x64 on 2026-07-20: **59/59 .NET tests passed**, **7/7 managed-connector Worker tests passed**, all browser JavaScript and shipped PowerShell parsed successfully, and `VibeDeck-Setup-0.1.31.exe` was produced with matching `0.1.31` file/product metadata. The release workflow publishes a SHA-256 sidecar for the tagged build.
+
+The source gate restores dependencies and checks:
+
+- all .NET Release tests;
+- Cloudflare Worker tests;
+- every browser JavaScript file with `node --check`;
+- shipped PowerShell syntax;
+- canonical product paths and removed legacy clients.
 
 ```powershell
-scripts\package-windows-setup.ps1 -SkipInno
+.\scripts\test-product-flow.ps1 -Source
 ```
 
-The packaging script normally runs tests, JavaScript syntax checks, product-path checks, and payload validation before producing the installer.
-
-## Update an Existing Installation
-
-Installed users update from the local PC UI: press **Check for updates**, then **Install vX.Y.Z**. VibeDeck verifies the published Setup file before handing it to the normal Windows installer; paired devices and layouts remain in `%ProgramData%\VibeDeck`. See `docs/product-updates.md` for the user and publisher flow.
-
-For repository development only, double-click `update.bat`. It builds a local Setup and performs the same in-place replacement and installed-product checks. Do not distribute `update.bat` to users.
-
-1. Build or download a newer Setup version.
-2. Run it without uninstalling the existing version.
-3. Setup stops the old Host, replaces application files, removes obsolete service registrations, and starts the new Host in the desktop session.
-4. `%ProgramData%\VibeDeck` is preserved, including paired devices, certificates, quota accounts, custom cards, and notification settings.
-
-Verify the updated installation:
+Build and validate the release payload:
 
 ```powershell
-scripts\test-product-flow.ps1 -Installed
+.\scripts\package-windows-setup.ps1
+.\scripts\test-product-flow.ps1 -Payload -PayloadPath .\artifacts\windows-setup\payload
 ```
 
-If the optional virtual display is installed:
+After installing:
 
 ```powershell
-scripts\test-product-flow.ps1 -Installed -RequireVirtualDisplay
+.\scripts\test-product-flow.ps1 -Installed
+# Add -RequireVirtualDisplay only when testing the extended-display path.
 ```
 
-These checks verify that:
+The repository also contains unit/contract tests for device trust, pairing, managed connectors, public endpoints, updates, Windows input, dashboard layouts, custom sources, localization, quotas, and audit trails.
 
-- no obsolete Host service remains;
-- the Host runs outside Session 0;
-- port 5000 belongs to the correct Host process;
-- Windows display enumeration is coming from the interactive session;
-- the PhoneMonitor virtual display is available when required.
+## Supported Platforms and Constraints
 
-## Connect a Phone or E-Paper Device
+- **Host:** Windows 10 or Windows 11 x64.
+- **Clients:** current Safari or Chromium-based browsers; installable PWA supported.
+- **Tested layouts:** iPhone XS, Galaxy S23, and BOOX Go Color 7 representative viewports; real-device checks remain the final authority.
+- **Display capture:** the Host must run in the signed-in desktop session, not as a Windows Service or through an RDP display session.
+- **Secure desktop:** UAC and Ctrl+Alt+Delete are intentionally outside normal remote input.
+- **Internet route:** cross-network access requires the Windows PC, Host, and connector to remain online.
+- **Notifications:** Windows notification capture is an optional packaged companion because the API requires package identity.
 
-The preferred path is to open the QR code shown by the PC Host. VibeDeck automatically assigns a secure URL shaped like:
+## Repository Map
 
-```text
-https://<installation-id>.vibedeck.pp.ua/
-```
-
-This browser-trusted route does not require accepting a dangerous-page warning, installing a phone certificate, opening a command window, configuring Cloudflare, joining a VPN, or forwarding a router port. The Host still requires the normal phone request, six-digit verification code, and PC **Allow** action. Once approved, that browser keeps a device-specific credential and can reconnect from another network while the Windows PC, Host, and secure connector are online. If the Internet control plane is temporarily unavailable, the UI falls back to the existing local-network HTTPS route instead of advertising a dead public URL.
-
-The local-network fallback opens the HTTPS address shown by the PC Host, for example:
-
-```text
-https://192.168.1.20:5443
-```
-
-On first connection:
-
-1. Request pairing from the phone.
-2. Confirm the device name and six-digit code on the PC.
-3. Select **Allow** on the PC.
-4. Open Display and choose the VibeDeck extended display, the Windows primary display, or another connected screen. Touch controls the mouse; **Keyboard** opens the phone input method for the focused Windows app.
-5. Switch between Display, Information Board, and Quota modes on the client.
-
-The phone and PC show the same explicit pairing progress:
-
-| Progress | Meaning |
-|---:|---|
-| 0–20% | Host, HTTPS address, and QR code are being prepared |
-| 25% | Phone reached the Host and is waiting for **Start pairing** |
-| 40% | Browser identity and the exact available device model are being read |
-| 70–75% | Request and six-digit code reached the PC; waiting for **Allow** |
-| 90% | Approval succeeded and the persistent credential is being saved |
-| 100% | Pairing is saved, or an existing pairing was restored; the page reloads automatically |
-
-Pairing is attached to a persistent browser-instance ID and stored under `%ProgramData%\VibeDeck\devices`. Re-pairing the same browser continues the existing device record and rotates its credential instead of adding a duplicate. Android Chromium reports its model when available, so known devices appear as names such as `BOOX Go Color 7` and `Samsung SM-S9110`; browsers that intentionally hide the model fall back to a platform name. The secure URL assignment is persisted separately in `%ProgramData%\VibeDeck\connect` and only the local PC can change it.
-
-Information Board and Quota modes do not require the virtual display. iPhone, Android, and BOOX all use the same Host-served web application; responsive and e-paper styles handle platform differences.
-
-The managed secure URL is the normal cross-network path. Tailscale and other private-network routes remain optional alternatives described in `docs/remote-access.md`; local HTTPS details are documented in `docs/https-onboarding.md`.
-
-## Remote Screen and Virtual Display
-
-Display mode can show an existing physical Windows monitor without installing the virtual display. The source picker remembers the selected monitor in that paired browser and uses the same WebRTC H.264 stream, JPEG fallback, and input channel across local or remote networks. Standard text, Enter, Backspace, navigation keys, and common modifier shortcuts can be sent through the phone keyboard; Windows secure desktop surfaces such as UAC and Ctrl+Alt+Delete remain outside the normal signed-in session.
-
-Only the extended second-screen workflow requires the PhoneMonitor virtual display.
-
-When the PC UI reports that no virtual display is available, select **Create virtual display** and approve the Windows elevation prompt. Normal users do not need the Windows Driver Kit, test-signing mode, or driver-development scripts.
-
-The Host must run in the local signed-in desktop session. If `/api/displays` reports only `WinDisc 1024x768`, the Host is running in the wrong session; this is not evidence that the virtual display driver is missing.
-
-Driver-development tools remain under `driver/` and `scripts/*driver*.ps1`, but they are not part of the normal product installation path.
-
-## Windows Notification Companion
-
-Windows `userNotificationListener` access requires packaged application identity, so notification capture is implemented as an optional MSIX companion. It forwards notification data to the Host and must not listen on ports 5000 or 5443.
-
-Build and install the development package:
-
-```powershell
-scripts\package-windows-notifications.ps1 -Install
-```
-
-If Windows requires machine-level trust for the development certificate, run from an elevated PowerShell window:
-
-```powershell
-scripts\package-windows-notifications.ps1 -RegisterOnly -InstallCertificateMachine
-```
-
-The companion process is `VibeDeck.Notifications.exe`. See `docs/windows-notifications.md` for details.
-
-## Run from Source
-
-Start the project with:
-
-```text
-start.bat
-```
-
-or:
-
-```powershell
-scripts\dev-run.ps1
-```
-
-Source-development data is stored under `%LocalAppData%\PhoneMonitor`. Installed-product data is stored under `%ProgramData%\VibeDeck`.
-
-The source and installed Hosts cannot use port 5000 at the same time. Stop the installed Host before starting source development. The notification companion may remain running.
-
-Run the source product-flow checks with:
-
-```powershell
-scripts\test-product-flow.ps1 -Source
-```
-
-## Uninstall
-
-Prefer Windows **Installed apps**, or run from an elevated PowerShell window:
-
-```powershell
-scripts\uninstall-windows-product.ps1
-```
-
-To preserve product data:
-
-```powershell
-scripts\uninstall-windows-product.ps1 -KeepData
-```
-
-The notification companion is a separate MSIX package. Remove it with:
-
-```powershell
-scripts\package-windows-notifications.ps1 -Uninstall
-```
-
-## Troubleshooting
-
-| Symptom | First check |
+| Path | Purpose |
 |---|---|
-| PC page does not open | Start VibeDeck, then run `scripts\test-product-flow.ps1 -Installed` |
-| Virtual display is installed but missing | Check the Host session; do not reinstall the driver solely because `WinDisc` appears |
-| Phone cannot connect | Confirm the PC is signed in, the Host and secure connector are online, and the assigned HTTPS URL opens |
-| Phone UI looks like an old app | Close obsolete clients and use Safari, Chrome, or the PWA |
-| A paired phone asks to pair again | Run `scripts\test-product-flow.ps1 -Installed`, then verify `%ProgramData%\VibeDeck\devices\trusted-devices.json`; Setup grants signed-in users write access and the Host keeps a `.bak` recovery copy |
-| Refresh briefly opens PowerShell | Update to the latest Setup; the local information collector is launched non-interactively with a hidden window |
-| Windows notifications do not appear | Confirm that the companion is connected and allowed |
-| Data appears missing after an update | Verify `%ProgramData%\VibeDeck`; do not confuse it with the development data directory |
-| Quota cards have no data | Use the corresponding local CLI/account on the Host PC, then refresh the card |
+| `src/PhoneMonitor.Host` | Windows Host, APIs, capture/input, security, telemetry, and browser/PWA client |
+| `workers/vibedeck-connect-code` | Managed endpoint and one-time connection-code control plane |
+| `packaging/windows-setup` | Canonical Windows installer |
+| `packaging/windows-notifications` | Optional notification companion |
+| `tests/PhoneMonitor.Host.Tests` | .NET unit and contract tests |
+| `scripts/test-product-flow.ps1` | Source, payload, and installed-product validation |
+| `driver` | Virtual-display development project; not the normal installation path |
+| `docs` | Architecture, protocol, onboarding, release, and submission documentation |
 
-## Repository Structure
-
-- `src/PhoneMonitor.Host`: Windows Host, APIs, streaming, and browser/PWA client.
-- `packaging/windows-setup`: canonical Windows Setup packaging.
-- `packaging/windows-notifications`: optional notification companion package.
-- `scripts/test-product-flow.ps1`: shared source, payload, and installed-product checks.
-- `driver`: virtual display development project.
-- `docs`: protocol, remote access, HTTPS, notifications, product, and release documentation.
-- `AGENTS.md`: engineering constraints for future development and debugging.
-
-## Release Checklist
-
-```powershell
-scripts\test-product-flow.ps1 -Source
-scripts\package-windows-setup.ps1
-# Run the new Setup for a clean installation or in-place update.
-scripts\test-product-flow.ps1 -Installed
-```
-
-See `docs/release-checklist.md` for the complete manual checklist.
-
-## OpenAI Build Week
-
-VibeDeck entered OpenAI Build Week as an existing Windows virtual-display prototype. During the submission period, it was meaningfully extended into a complete product workflow with Codex and GPT-5.6.
-
-Build Week work includes:
-
-- redesigned responsive phone and e-paper interfaces, including rotation and overlay fixes;
-- a Windows Setup and upgrade path that preserves product data and starts the Host in the signed-in desktop session;
-- improved virtual-display discovery and setup guidance;
-- a single browser/PWA product path for iPhone, Android, and BOOX devices;
-- automatic per-PC secure routing so an approved device can reconnect across networks without VPN or port-forwarding setup;
-- configurable dashboard layouts, activity updates, quota cards, and optional Windows notification integration;
-- installed-product and source-product flow checks for packaging and release verification.
-
-### Codex + GPT-5.6 evidence
-
-| Product decision | How Codex and GPT-5.6 accelerated the work | Verifiable result |
-|---|---|---|
-| Make the prototype installable | Reasoned through the signed-in desktop-session requirement, installer lifecycle, updates, and data ownership. | Windows Setup replaces app files while `%ProgramData%\VibeDeck` preserves pairings, layouts, diagnostics, and quota data. |
-| Keep one phone client across devices | Iterated responsive layouts, e-paper constraints, browser-media fallbacks, and first-run pairing flows. | One browser/PWA client serves iPhone, Android, and BOOX; Device Lab validates the exact S23, iPhone XS, and BOOX viewports. |
-| Turn debugging into product behavior | Planned and reviewed diagnostics, tests, product-path guardrails, and release checks. | Auditable diagnostic trail plus source, payload, and installed-product flow checks. |
-
-Codex was used as an engineering partner for planning, implementation, debugging, review, testing, packaging, and delivery assets. GPT-5.6 helped reason across Windows session behavior, display enumeration, browser-media constraints, mobile and e-paper layouts, and installer lifecycle. Faster model tiers handled repetitive layout and workflow passes; deeper reasoning was reserved for system design, larger refactors, and review. Human judgment remained responsible for trade-offs, real-device acceptance, and the final quality bar.
-
-The project is not a generic screen-mirroring clone: VibeDeck gives the same spare device a durable role as an optional Windows display, a glanceable sideboard, or an AI quota surface—then keeps that trusted work surface available beyond the desk and beyond the local network.
-
-Dated commits and Codex session logs document work completed during the event. The primary Build Week Codex session ID is:
-
-```text
-019f6890-877f-71e0-9ffa-7cf4d4457f2a
-```
-
-See [`docs/build-week-submission.md`](docs/build-week-submission.md) for the ready-to-paste Devpost copy, required submission assets, and final submission checklist.
-
-## Roadmap
-
-- Current refactoring priorities and first-run UX acceptance criteria are documented in [`docs/technical-debt-roadmap.md`](docs/technical-debt-roadmap.md) and [`docs/ui-ux-pairing-review.md`](docs/ui-ux-pairing-review.md).
-- Continue translation coverage and multilingual regression checks across newly added product flows.
-- Improve adaptive stream quality and latency handling.
-- Add more dashboard modules and integrations.
-- Make e-paper refresh behavior configurable.
-- Simplify signed distribution for non-technical users.
+Useful documents: [release checklist](docs/release-checklist.md), [product updates](docs/product-updates.md), [custom data sources](docs/custom-data-sources-spec.md), and [technical debt roadmap](docs/technical-debt-roadmap.md).
 
 ## License
 
-[MIT](LICENSE)
+VibeDeck is released under the [MIT License](LICENSE). Third-party components remain under their respective licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

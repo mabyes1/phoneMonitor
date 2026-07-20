@@ -27,7 +27,7 @@ function Write-Check([string]$message) {
 
 if ($Source) {
     Write-Check "Release tests"
-    & dotnet test $solution -c Release --no-restore
+    & dotnet test $solution -c Release
     if ($LASTEXITCODE -ne 0) { throw "dotnet test failed." }
 
     Write-Check "Browser JavaScript syntax"
@@ -38,6 +38,17 @@ if ($Source) {
             if ($LASTEXITCODE -ne 0) { throw "JavaScript syntax check failed: $($_.FullName)" }
         }
 
+    Write-Check "Managed connector Worker tests"
+    $workerRoot = Join-Path $repoRoot "workers\vibedeck-connect-code"
+    Push-Location $workerRoot
+    try {
+        & $node.Source --test
+        if ($LASTEXITCODE -ne 0) { throw "Managed connector Worker tests failed." }
+    }
+    finally {
+        Pop-Location
+    }
+
     Write-Check "Product PowerShell syntax"
     foreach ($relative in @(
         "scripts\install-windows-product.ps1",
@@ -45,7 +56,8 @@ if ($Source) {
         "scripts\uninstall-windows-product.ps1",
         "scripts\package-windows-setup.ps1",
         "scripts\package-windows-notifications.ps1",
-        "scripts\test-product-flow.ps1"
+        "scripts\test-product-flow.ps1",
+        "src\PhoneMonitor.Host\Installers\install-virtual-display.ps1"
     )) {
         $path = Join-Path $repoRoot $relative
         $tokens = $null

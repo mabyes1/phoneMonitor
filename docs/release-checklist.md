@@ -10,9 +10,10 @@ scripts\test-product-flow.ps1 -Source
 
 必須通過：
 
-- Release 單元測試。
+- Release 單元測試（命令會先 restore，乾淨 runner 不得以零測試假綠）。
+- Managed connector Worker 測試。
 - 所有 Web JavaScript 語法檢查。
-- 安裝／更新 PowerShell 語法檢查。
+- 安裝／更新與 payload 內 PowerShell 語法檢查。
 - 不存在原生手機 App、portable ZIP 或 Host Windows Service 產品路徑。
 
 ## 2. 建立唯一正式安裝包
@@ -26,7 +27,7 @@ scripts\package-windows-setup.ps1
 或指定新版本：
 
 ```powershell
-scripts\package-windows-setup.ps1 -Version 0.1.1
+scripts\package-windows-setup.ps1 -Version 0.1.31
 ```
 
 確認 `artifacts\windows-setup\VibeDeck-Setup-<version>.exe` 已建立。打包腳本會再次驗證 staged payload。
