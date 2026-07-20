@@ -2,6 +2,10 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
+## 0.1.33 - 2026-07-20
+
+- 修正 WebRTC 協商偶發失敗：Host 在 ICE gathering 提早完成時對尚未結束的 timeout Task 呼叫 `Dispose()`，會讓 `/api/stream/webrtc/offer` 回 500 並把畫面打回 JPEG；改為 `Task.WhenAny` 等待完成或逾時，不再 Dispose 未完成的 Task。
+
 ## 0.1.32 - 2026-07-20
 
 - 遠端顯示串流改為分層傳輸：先嘗試直連 WebRTC，網路封鎖直連 UDP 時可自動改走 Cloudflare TURN 中繼，仍不通則回退 JPEG，讓行動網路（CGNAT）或跨網路情境下的畫面與遠端控制維持穩定。

@@ -139,11 +139,11 @@ namespace PhoneMonitor.Host.Streaming
             };
         }
 
-        private static Task WaitForIceGatheringAsync(RTCPeerConnection peer, int timeoutMs)
+        private static async Task WaitForIceGatheringAsync(RTCPeerConnection peer, int timeoutMs)
         {
             if (peer.iceGatheringState == RTCIceGatheringState.complete)
             {
-                return Task.CompletedTask;
+                return;
             }
 
             var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -155,13 +155,24 @@ namespace PhoneMonitor.Host.Streaming
                 }
             };
             peer.onicegatheringstatechange += handler;
+            try
+            {
+                // Gathering may complete between the initial check and the
+                // subscription; re-check so we do not wait out the full timeout.
+                if (peer.iceGatheringState == RTCIceGatheringState.complete)
+                {
+                    completion.TrySetResult(true);
+                }
 
-            var timer = Task.Delay(timeoutMs).ContinueWith(_ => completion.TrySetResult(true));
-            return completion.Task.ContinueWith(_ =>
+                // Do not Dispose() the delay task: if ICE finishes first the
+                // delay is still running, and disposing an incomplete Task
+                // throws and aborts /api/stream/webrtc/offer with HTTP 500.
+                await Task.WhenAny(completion.Task, Task.Delay(timeoutMs)).ConfigureAwait(false);
+            }
+            finally
             {
                 peer.onicegatheringstatechange -= handler;
-                timer.Dispose();
-            }, TaskScheduler.Default);
+            }
         }
 
         private void OnConnectionStateChanged(WebRtcSession session, RTCPeerConnectionState state)
