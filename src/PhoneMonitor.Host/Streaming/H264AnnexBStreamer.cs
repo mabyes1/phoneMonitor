@@ -35,6 +35,17 @@ namespace PhoneMonitor.Host.Streaming
 
         public string EncoderDescription => resolvedEncoderName != null ? $"ffmpeg/{resolvedEncoderName}" : "ffmpeg/libx264";
 
+        /// <summary>
+        /// Force the next stream to re-probe encoders. Used after a cached
+        /// hardware encoder starts failing (common after NVIDIA driver / FFmpeg
+        /// SDK mismatches that still leave a stale encoder choice in memory).
+        /// </summary>
+        public void ResetEncoderSelection()
+        {
+            encoderNameChecked = false;
+            resolvedEncoderName = null;
+        }
+
         public async Task StreamAsync(WebSocket socket, string deviceName, int fps, int quality, CancellationToken cancellationToken)
         {
             var ffmpegPath = ResolveFfmpegPath();
@@ -138,69 +149,109 @@ namespace PhoneMonitor.Host.Streaming
             fps = Math.Max(1, Math.Min(60, fps));
             quality = Math.Max(25, Math.Min(85, quality));
 
-            using var holder = new ReusableBitmapHolder();
-            Process process = null;
-            Task errorTask = null;
-            try
+            Exception lastError = null;
+            // Try the preferred encoder once, then fall back to software if a
+            // cached hardware choice starts failing (NVENC client-key mismatches).
+            for (var attempt = 0; attempt < 2; attempt++)
             {
-                using var firstFrame = frameSource.CaptureBitmapFrame(deviceName, holder);
-                var width = firstFrame.Bitmap.Width;
-                var height = firstFrame.Bitmap.Height;
-                var bitrateKbps = EstimateBitrateKbps(width, height, fps, quality);
-                var encoderName = ResolveEncoderName(ffmpegPath);
-                // Safari can offer more than one H.264 payload (different
-                // profile/packetization combinations).  RTPSession.SendVideo
-                // uses Single() by codec name and crashes in that case, so
-                // resolve the negotiated payload once and send H.264 frames
-                // directly with that payload ID.
-                var h264PayloadTypeId = Convert.ToInt32(peer.GetSendingFormat(SDPMediaTypesEnum.video).ID);
-                process = StartFfmpeg(ffmpegPath, encoderName, width, height, fps, bitrateKbps);
-
-                var rawFrame = new byte[width * height * 4];
-                metrics.Start(width, height, fps, quality, bitrateKbps);
-                var outputTask = RelayEncodedOutputToWebRtcAsync(process.StandardOutput.BaseStream, peer, h264PayloadTypeId, fps, metrics, cancellationToken);
-                errorTask = DrainErrorAsync(process.StandardError);
-
-                await WriteBitmapFrameAsync(firstFrame.Bitmap, process.StandardInput.BaseStream, rawFrame, cancellationToken);
-                await PumpFramesAsync(
-                    process,
-                    deviceName,
-                    width,
-                    height,
-                    fps,
-                    rawFrame,
-                    firstFrame.Fingerprint,
-                    firstFrame.HasCursor,
-                    firstFrame.CursorX,
-                    firstFrame.CursorY,
-                    outputTask,
-                    holder,
-                    true,
-                    cancellationToken);
-                await outputTask;
-                await errorTask;
-            }
-            finally
-            {
-                metrics.Stop();
-                if (process != null)
-                {
-                    TryClose(process.StandardInput.BaseStream);
-                    TryKill(process);
-                    process.Dispose();
-                }
-
+                cancellationToken.ThrowIfCancellationRequested();
+                using var holder = new ReusableBitmapHolder();
+                Process process = null;
+                Task errorTask = null;
                 try
                 {
+                    using var firstFrame = frameSource.CaptureBitmapFrame(deviceName, holder);
+                    var width = firstFrame.Bitmap.Width;
+                    var height = firstFrame.Bitmap.Height;
+                    var bitrateKbps = EstimateBitrateKbps(width, height, fps, quality);
+                    var encoderName = attempt == 0
+                        ? ResolveEncoderName(ffmpegPath)
+                        : "libx264";
+                    if (attempt > 0)
+                    {
+                        resolvedEncoderName = "libx264";
+                        encoderNameChecked = true;
+                        Console.Error.WriteLine($"[H264] falling back to libx264 after hardware encoder failure: {lastError?.Message}");
+                    }
+
+                    // Safari can offer more than one H.264 payload (different
+                    // profile/packetization combinations).  RTPSession.SendVideo
+                    // uses Single() by codec name and crashes in that case, so
+                    // resolve the negotiated payload once and send H.264 frames
+                    // directly with that payload ID.
+                    var h264PayloadTypeId = Convert.ToInt32(peer.GetSendingFormat(SDPMediaTypesEnum.video).ID);
+                    process = StartFfmpeg(ffmpegPath, encoderName, width, height, fps, bitrateKbps);
+
+                    var rawFrame = new byte[width * height * 4];
+                    metrics.Start(width, height, fps, quality, bitrateKbps);
+                    var outputTask = RelayEncodedOutputToWebRtcAsync(process.StandardOutput.BaseStream, peer, h264PayloadTypeId, fps, metrics, cancellationToken);
+                    errorTask = DrainErrorAsync(process.StandardError);
+
+                    await WriteBitmapFrameAsync(firstFrame.Bitmap, process.StandardInput.BaseStream, rawFrame, cancellationToken);
+                    // If NVENC rejects the session, ffmpeg exits immediately and
+                    // the first few writes still succeed until the pipe breaks.
+                    await Task.Delay(80, cancellationToken);
+                    if (process.HasExited)
+                    {
+                        throw new InvalidOperationException(
+                            $"ffmpeg encoder '{encoderName}' exited immediately (code {process.ExitCode}).");
+                    }
+
+                    await PumpFramesAsync(
+                        process,
+                        deviceName,
+                        width,
+                        height,
+                        fps,
+                        rawFrame,
+                        firstFrame.Fingerprint,
+                        firstFrame.HasCursor,
+                        firstFrame.CursorX,
+                        firstFrame.CursorY,
+                        outputTask,
+                        holder,
+                        true,
+                        cancellationToken);
+                    await outputTask;
                     if (errorTask != null)
                     {
                         await errorTask;
                     }
+                    return;
                 }
-                catch
+                catch (OperationCanceledException)
                 {
+                    throw;
+                }
+                catch (Exception error) when (attempt == 0 && !string.Equals(resolvedEncoderName, "libx264", StringComparison.OrdinalIgnoreCase))
+                {
+                    lastError = error;
+                    ResetEncoderSelection();
+                }
+                finally
+                {
+                    metrics.Stop();
+                    if (process != null)
+                    {
+                        TryClose(process.StandardInput.BaseStream);
+                        TryKill(process);
+                        process.Dispose();
+                    }
+
+                    try
+                    {
+                        if (errorTask != null)
+                        {
+                            await errorTask;
+                        }
+                    }
+                    catch
+                    {
+                    }
                 }
             }
+
+            throw lastError ?? new InvalidOperationException("H.264 stream failed.");
         }
 
         private void ReplaceActiveStream(CancellationTokenSource streamCts)

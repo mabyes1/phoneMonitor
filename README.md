@@ -178,7 +178,7 @@ Display mode can control an existing physical monitor without a driver. To creat
 
 ## Validation
 
-Verified on Windows x64 on 2026-07-20: **62/62 .NET tests passed** (including Cloudflare TURN credential and DPAPI-at-rest tests), **7/7 managed-connector Worker tests passed**, all browser JavaScript and shipped PowerShell parsed successfully, and `VibeDeck-Setup-0.1.35.exe` is built by the release workflow with matching `0.1.35` file/product metadata. The release workflow publishes a SHA-256 sidecar for the tagged build.
+Verified on Windows x64 on 2026-07-20: **62/62 .NET tests passed** (including Cloudflare TURN credential and DPAPI-at-rest tests), **7/7 managed-connector Worker tests passed**, all browser JavaScript and shipped PowerShell parsed successfully, and `VibeDeck-Setup-0.1.36.exe` is built by the release workflow with matching `0.1.36` file/product metadata. The release workflow publishes a SHA-256 sidecar for the tagged build.
 
 The source gate restores dependencies and checks:
 

@@ -513,19 +513,81 @@ body.eink-client .quota-page-button {
       box-shadow: 0 8px 28px rgba(0, 0, 0, .38);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
-      opacity: 1;
-      transition: opacity 0.28s ease, transform 0.28s ease;
     }
 
     .display-toolbar[hidden] {
       display: none !important;
     }
 
-    /* Immersive secondary-display chrome: fade out after idle. */
-    .display-toolbar.is-idle {
-      opacity: 0 !important;
-      pointer-events: none !important;
-      transform: translateX(-50%) translateY(-8px);
+    /* Collapsed: only a translucent gear. Expanded: source select + keyboard. */
+    .display-toolbar.is-collapsed {
+      gap: 0;
+      padding: 3px;
+      background: rgba(8, 14, 20, .28);
+      border-color: rgba(143, 209, 255, .12);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .display-toolbar.is-collapsed .display-toolbar-extras {
+      display: none !important;
+    }
+
+    .display-toolbar-toggle {
+      flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      min-height: 36px;
+      min-width: 36px;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid rgba(143, 209, 255, .22);
+      background: rgba(19, 29, 39, .42);
+      color: rgba(232, 241, 248, .78);
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background .18s ease, border-color .18s ease, color .18s ease, opacity .18s ease;
+    }
+
+    .display-toolbar.is-collapsed .display-toolbar-toggle {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+      min-height: 32px;
+      background: rgba(19, 29, 39, .22);
+      border-color: rgba(143, 209, 255, .14);
+      color: rgba(232, 241, 248, .55);
+      opacity: .72;
+    }
+
+    .display-toolbar.is-collapsed .display-toolbar-toggle:hover,
+    .display-toolbar.is-collapsed .display-toolbar-toggle:active {
+      opacity: 1;
+      color: rgba(232, 241, 248, .92);
+      background: rgba(19, 29, 39, .45);
+    }
+
+    .display-toolbar-gear {
+      display: block;
+      transform: translateY(-0.5px);
+    }
+
+    .display-toolbar-toggle[aria-expanded="true"] {
+      color: #071017;
+      background: var(--green);
+      border-color: var(--green);
+      opacity: 1;
+    }
+
+    .display-toolbar-extras {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
     }
 
     .display-source-control {
@@ -3828,6 +3890,167 @@ html[data-device-preview] body::-webkit-scrollbar {
       width: 100dvh;
       height: 100dvw;
       overflow: hidden;
+      grid-template-rows: 1fr;
+    }
+
+    html.phone-force-landscape body.force-landscape.viewer-fullscreen.mode-display main {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    /* Logical landscape box after CSS rotate — same geometry iOS uses via viewer vars. */
+    html.phone-force-landscape body.force-landscape.viewer-fullscreen.mode-display .screen-media {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: var(--viewer-width);
+      height: var(--viewer-height);
+      max-width: none;
+      max-height: none;
+      aspect-ratio: auto;
+      object-fit: contain;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      transform: translate(-50%, -50%);
+    }
+
+    html.phone-force-landscape body.force-landscape.viewer-fullscreen.mode-display .display-view.active {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      place-items: center;
+    }
+
+    html.phone-force-landscape body.force-landscape.viewer-fullscreen.mode-display .display-toolbar {
+      position: fixed;
+      top: calc(8px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    /*
+     * Logical landscape chrome (CSS force-rotate OR real landscape).
+     * The generic @media (max-width: 960px) portrait compaction sets
+     * utility buttons to width:100%, which turns Fullscreen into a full bar
+     * once the rotated logical width exceeds a phone portrait width.
+     */
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted header,
+    body.phone-client.device-trusted.viewport-landscape header {
+      gap: 6px;
+      padding: 6px 10px;
+      padding-left: calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+      padding-right: calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .brand,
+    body.phone-client.device-trusted.viewport-landscape .brand {
+      display: none;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .top-controls,
+    body.phone-client.device-trusted.viewport-landscape .top-controls {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) auto !important;
+      gap: 8px !important;
+      width: 100% !important;
+      align-items: center;
+      justify-content: stretch;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .view-switcher,
+    body.phone-client.device-trusted.viewport-landscape .view-switcher {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      width: auto !important;
+      max-width: 100%;
+      min-width: 0;
+      justify-self: start;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .view-switcher .mode-button,
+    body.phone-client.device-trusted.viewport-landscape .view-switcher .mode-button {
+      width: auto !important;
+      flex: 0 1 auto;
+      min-width: 0;
+      padding-inline: 12px;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .utility-controls,
+    body.phone-client.device-trusted.viewport-landscape .utility-controls {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      width: auto !important;
+      max-width: 100%;
+      justify-content: flex-end !important;
+      align-items: center;
+      gap: 6px !important;
+      justify-self: end;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .utility-controls > *,
+    body.phone-client.device-trusted.viewport-landscape .utility-controls > * {
+      width: auto !important;
+      max-width: none;
+      flex: 0 0 auto;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .utility-controls select,
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .utility-controls button,
+    body.phone-client.device-trusted.viewport-landscape .utility-controls select,
+    body.phone-client.device-trusted.viewport-landscape .utility-controls button {
+      width: auto !important;
+      min-width: 0;
+      min-height: 36px;
+      padding-inline: 10px;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .utility-controls #fullscreen,
+    body.phone-client.device-trusted.viewport-landscape .utility-controls #fullscreen {
+      display: inline-flex !important;
+      width: auto !important;
+      max-width: 140px;
+      white-space: nowrap;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .utility-controls .locale-control,
+    body.phone-client.device-trusted.viewport-landscape .utility-controls .locale-control {
+      display: inline-flex !important;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted main,
+    body.phone-client.device-trusted.viewport-landscape main {
+      width: 100%;
+      min-height: 0;
+      padding: 8px 10px;
+      padding-left: calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+      padding-right: calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+      padding-bottom: calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted .app-view.active,
+    body.phone-client.device-trusted.viewport-landscape .app-view.active {
+      width: 100%;
+      max-width: none;
+      justify-self: stretch;
+      min-height: 0;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted.mode-sideboard .sideboard-shell,
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted.mode-quota .quota-shell,
+    body.phone-client.device-trusted.viewport-landscape.mode-sideboard .sideboard-shell,
+    body.phone-client.device-trusted.viewport-landscape.mode-quota .quota-shell {
+      width: 100%;
+      max-width: none;
+      min-height: 0;
+    }
+
+    html.phone-force-landscape body.force-landscape.phone-client.device-trusted.mode-sideboard .mobile-overview,
+    body.phone-client.device-trusted.viewport-landscape.mode-sideboard .mobile-overview {
+      width: 100%;
+      max-width: none;
     }
 
     /* Portrait phone: content scrolls under a short chrome bar. */
@@ -4088,14 +4311,15 @@ html[data-device-preview] body::-webkit-scrollbar {
       gap: 6px;
     }
 
-    body.ios-client.phone-client.device-trusted.mode-display .display-view.active {
+    /* Phone preview (iOS + Android): leave chrome room outside fullscreen. */
+    body.phone-client.device-trusted.mode-display .display-view.active {
       width: 100%;
       height: 100%;
       min-height: 0;
       place-items: center;
     }
 
-    body.ios-client.phone-client.device-trusted.mode-display .screen-media {
+    body.phone-client.device-trusted.mode-display .screen-media {
       width: min(100%, 100dvw);
       max-height: min(72dvh, 100%);
       border-radius: 10px;
@@ -4103,11 +4327,10 @@ html[data-device-preview] body::-webkit-scrollbar {
     }
 
     /*
-     * The normal iPhone preview above intentionally leaves room for chrome.
-     * Its more-specific selector used to override the generic fullscreen
-     * dimensions though, capping a landscape viewer at portrait 100dvw.
+     * Fullscreen display on phone: iOS-proven geometry for Android too.
+     * Must beat the non-fullscreen max-height rules above (higher specificity).
      */
-    body.ios-client.phone-client.device-trusted.viewer-fullscreen.mode-display .screen-media {
+    body.phone-client.device-trusted.viewer-fullscreen.mode-display .screen-media {
       width: var(--viewer-width);
       height: var(--viewer-height);
       max-width: none;
@@ -4119,7 +4342,14 @@ html[data-device-preview] body::-webkit-scrollbar {
       box-shadow: none;
     }
 
-    body.ios-client.phone-client.device-trusted.mode-display .display-view.active::after {
+    body.phone-client.device-trusted.viewer-fullscreen.mode-display .display-view.active {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      place-items: center;
+    }
+
+    body.phone-client.device-trusted.mode-display .display-view.active::after {
       content: var(--i18n-touch-hint, "單指操作 PC 滑鼠 · 連點兩下放大畫面");
       color: var(--quiet);
       font-size: 12px;
@@ -4128,11 +4358,11 @@ html[data-device-preview] body::-webkit-scrollbar {
       padding: 6px 8px 0;
     }
 
-    body.display-unavailable.ios-client.phone-client.device-trusted.mode-display .display-view.active::after {
+    body.display-unavailable.phone-client.device-trusted.mode-display .display-view.active::after {
       display: none;
     }
 
-    body.ios-client.viewer-fullscreen.mode-display .display-view.active::after {
+    body.phone-client.viewer-fullscreen.mode-display .display-view.active::after {
       display: none;
     }
 

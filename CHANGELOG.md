@@ -2,6 +2,14 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
+## 0.1.36 - 2026-07-20
+
+- 修正 PC Web 整頁無法載入：移除 `index.js` 重複宣告的 `displayView`，以及檔案中段的 BOM，避免 `SyntaxError` 讓整個前端掛掉。
+- 顯示器工具列改為點 ⚙ 齒輪展開／收合（選螢幕＋鍵盤），取消易失效的 idle 三秒隱藏；收合時半透明小齒輪，不再用「畫面」兩字。
+- Android 手機顯示器全螢幕改走與 iOS 相同的 CSS immersive 路徑，避免瀏覽器 Fullscreen API 與 CSS 強制橫向互搶造成跑版。
+- 修正 Android 橫向資訊板／額度：Fullscreen 不再被拉成整條寬按鈕，header 改為「分頁 + 語言／全螢幕」單列，內容拉滿邏輯橫向寬度。
+- WebRTC H.264：硬體編碼（NVENC）若因驅動／FFmpeg client-key 不相容而秒退，自動 fallback 到 libx264，避免 ICE 連上後立刻 `H.264 stream failed`。
+
 ## 0.1.35 - 2026-07-20
 
 - 修正 0.1.34 在 PC Web 端整頁掛掉：`revealDisplayToolbar` 在 `displayInputController` 宣告前就被 `loadPhoneDisplay` 呼叫，觸發 TDZ `ReferenceError` 讓 `index.js` 中斷；控制器改為檔案開頭先宣告，並修正雙擊全螢幕的空引用。

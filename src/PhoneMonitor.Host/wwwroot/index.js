@@ -19,7 +19,7 @@ import { createSideboardController } from "./modules/sideboard.js?v=50";
 import { createMobileOverviewController } from "./modules/mobile-overview.js?v=3";
 import { createStreamController } from "./modules/stream-controller.js?v=49";
 import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
-﻿import {
+import {
   escapeHtml,
   extractQuotaEmail,
   extractQuotaTier,
@@ -49,14 +49,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     const fullscreen = document.getElementById("fullscreen");
     const displaySettingsToggle = document.getElementById("displaySettingsToggle");
     const displayToolbar = document.getElementById("displayToolbar");
-    const displayView = document.getElementById("displayView");
+    const displayToolbarToggle = document.getElementById("displayToolbarToggle");
     const displaySource = document.getElementById("displaySource");
     const displaySourceKind = document.getElementById("displaySourceKind");
     const remoteKeyboardButton = document.getElementById("remoteKeyboardButton");
     const remoteKeyboardInput = document.getElementById("remoteKeyboardInput");
     const displayEmptyState = document.getElementById("displayEmptyState");
-    const DISPLAY_TOOLBAR_IDLE_MS = 2600;
-    let displayToolbarIdleTimer = null;
     // Declared early: loadPhoneDisplay / applySelectedDisplay may run before the
     // display-input controller is constructed. Access before this line = TDZ crash.
     let displayInputController = null;
@@ -3933,9 +3931,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
         applyRotation();
       }, 250);
 
-      // Safari iOS ignores Fullscreen API; CSS immersive classes are enough there.
-      // Android / BOOX: request real fullscreen for display AND sideboard/quota panels.
-      if (!isIos()) {
+      // iOS: no Fullscreen API — CSS viewer-fullscreen is the whole path.
+      // Android phone display: same CSS path. Real Fullscreen API + CSS
+      // force-landscape (rotate 90°) fight each other and break landscape layout.
+      // Keep the real Fullscreen API only for non-phone / non-display panels (e.g. BOOX sideboard).
+      const useBrowserFullscreen = !isIos() && !(isDisplayMode && isMobileClient());
+      if (useBrowserFullscreen) {
         const root = document.documentElement;
         const candidates = [
           () => root.requestFullscreen && root.requestFullscreen({ navigationUI: "hide" }),
@@ -3967,6 +3968,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
         }
       }
       await ensureKeepAwake();
+      applyForcedLandscape();
+      updateViewportSize();
       applyRotation();
       if (isDisplayMode) {
         connectVideo();
@@ -4060,61 +4063,24 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       displaySource.value = selectedDisplayName;
     }
 
-    function shouldAutoHideDisplayToolbar() {
-      // PC 主控台（本機 console）保持工具列常駐；手機副螢幕 / 全螢幕 viewer 才淡出。
-      if (document.body.classList.contains("pc-console")) return false;
-      if (document.body.classList.contains("viewer-fullscreen") && activeMode === "display") return true;
-      if (document.body.classList.contains("phone-client")) return true;
-      if (document.body.classList.contains("ios-client")) return true;
-      try {
-        if (typeof isMobileClient === "function" && isMobileClient()) return true;
-      } catch {
-        // ignore
+    function isDisplayToolbarExpanded() {
+      return Boolean(displayToolbar && !displayToolbar.classList.contains("is-collapsed"));
+    }
+
+    function setDisplayToolbarExpanded(expanded) {
+      if (!displayToolbar) return;
+      displayToolbar.classList.toggle("is-collapsed", !expanded);
+      if (displayToolbarToggle) {
+        displayToolbarToggle.setAttribute("aria-expanded", expanded ? "true" : "false");
       }
-      return false;
-    }
-
-    function isDisplayToolbarPinned() {
-      // Only hard pins: typing or choosing a display. Do NOT pin on arbitrary
-      // toolbar button focus — that previously blocked idle forever after a click.
-      const active = document.activeElement;
-      if (remoteKeyboardInput && active === remoteKeyboardInput) return true;
-      if (displayInputController?.isKeyboardFocused?.()) return true;
-      if (active === displaySource) return true;
-      return false;
-    }
-
-    function clearDisplayToolbarIdleTimer() {
-      if (displayToolbarIdleTimer) {
-        clearTimeout(displayToolbarIdleTimer);
-        displayToolbarIdleTimer = null;
+      if (!expanded) {
+        displayInputController?.dismissKeyboard?.();
+        remoteKeyboardInput?.blur();
       }
     }
 
-    function scheduleDisplayToolbarIdle() {
-      clearDisplayToolbarIdleTimer();
-      if (!displayToolbar || displayToolbar.hidden) return;
-      if (!shouldAutoHideDisplayToolbar()) {
-        displayToolbar.classList.remove("is-idle");
-        return;
-      }
-      displayToolbarIdleTimer = setTimeout(() => {
-        displayToolbarIdleTimer = null;
-        if (!displayToolbar || displayToolbar.hidden) return;
-        if (!shouldAutoHideDisplayToolbar()) return;
-        if (isDisplayToolbarPinned()) {
-          // Still interacting — re-arm so hide happens after pin ends.
-          scheduleDisplayToolbarIdle();
-          return;
-        }
-        displayToolbar.classList.add("is-idle");
-      }, DISPLAY_TOOLBAR_IDLE_MS);
-    }
-
-    function revealDisplayToolbar() {
-      if (!displayToolbar || displayToolbar.hidden) return;
-      displayToolbar.classList.remove("is-idle");
-      scheduleDisplayToolbarIdle();
+    function toggleDisplayToolbarExpanded() {
+      setDisplayToolbarExpanded(!isDisplayToolbarExpanded());
     }
 
     function applySelectedDisplay(display, persist = true) {
@@ -4123,8 +4089,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       selectedDisplayName = display.DeviceName;
       if (persist) storeDisplaySource(display);
       if (displaySource) displaySource.value = display.DeviceName;
-      if (displayToolbar) displayToolbar.hidden = false;
-      revealDisplayToolbar();
+      if (displayToolbar) {
+        displayToolbar.hidden = false;
+        // Default collapsed: only 「畫面」chip. Tap to expand select + keyboard.
+        setDisplayToolbarExpanded(false);
+      }
       document.body.classList.toggle("physical-display-source", !display.IsPhoneMonitor);
       if (displaySourceKind) {
         displaySourceKind.textContent = t(display.IsPhoneMonitor
@@ -4322,13 +4291,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     function setDisplayAvailability(available, title = "", message = "") {
       document.body.classList.toggle("display-unavailable", !available);
       if (displayToolbar) {
-        displayToolbar.hidden = !available || availableDisplays.length === 0;
-        if (displayToolbar.hidden) {
-          clearDisplayToolbarIdleTimer();
-          displayToolbar.classList.remove("is-idle");
-        } else {
-          revealDisplayToolbar();
-        }
+        const show = Boolean(available && availableDisplays.length > 0);
+        displayToolbar.hidden = !show;
+        if (!show) setDisplayToolbarExpanded(false);
       }
       if (remoteKeyboardButton) remoteKeyboardButton.disabled = !available;
       if (!available) {
@@ -4720,26 +4685,15 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       displayInputController?.dismissKeyboard?.();
       remoteKeyboardInput?.blur();
       applySelectedDisplay(display);
+      // Keep expanded after switching source so the user sees the new selection.
+      setDisplayToolbarExpanded(true);
       connectVideo();
     });
-    displaySource?.addEventListener("focus", () => revealDisplayToolbar());
-    displaySource?.addEventListener("blur", () => revealDisplayToolbar());
-    displayView?.addEventListener("pointerdown", event => {
-      // Any intentional contact on the display surface reveals chrome.
-      if (event.target === remoteKeyboardInput) return;
-      revealDisplayToolbar();
-    }, { passive: true });
-    // Mouse-only hover re-show; do not listen to continuous touch moves (would block idle).
-    displayView?.addEventListener("pointermove", event => {
-      if (event.pointerType !== "mouse") return;
-      if (!shouldAutoHideDisplayToolbar()) return;
-      // Ignore tiny moves so a resting cursor does not thrash the timer.
-      if (event.movementX === 0 && event.movementY === 0) return;
-      revealDisplayToolbar();
-    }, { passive: true });
-    remoteKeyboardInput?.addEventListener("focus", () => revealDisplayToolbar());
-    remoteKeyboardInput?.addEventListener("blur", () => revealDisplayToolbar());
-    remoteKeyboardButton?.addEventListener("click", () => revealDisplayToolbar());
+    displayToolbarToggle?.addEventListener("click", event => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleDisplayToolbarExpanded();
+    });
     savePublicEndpoint?.addEventListener("click", () => {
       saveTrustedPublicEndpoint();
     });
@@ -4973,7 +4927,6 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
       setTimeout(() => {
         updateViewportSize();
         applyRotation();
-        revealDisplayToolbar();
       }, 120);
     });
     window.addEventListener("offline", () => setDashboardConnectionState("connecting"));
