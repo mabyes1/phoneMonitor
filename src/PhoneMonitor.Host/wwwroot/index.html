@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=109">
+  <link rel="stylesheet" href="/index.css?v=112">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -365,6 +365,14 @@
       <span class="phone-pair-benefit" data-i18n="pairingUx.displayBenefit">配對完成後，資訊板與 AI 額度不需安裝虛擬螢幕。</span>
     </div>
     <section id="displayView" class="app-view display-view active">
+      <div id="displayToolbar" class="display-toolbar" hidden>
+        <label class="display-source-control" for="displaySource">
+          <span data-i18n="ui.displaySource">畫面</span>
+          <select id="displaySource" aria-label="選擇要觀看的 Windows 顯示器"></select>
+        </label>
+        <span id="displaySourceKind" class="display-source-kind" role="status"></span>
+        <button id="remoteKeyboardButton" class="remote-keyboard-button" type="button" aria-pressed="false" data-i18n="ui.remoteKeyboard">⌨ 鍵盤</button>
+      </div>
       <div id="displayEmptyState" class="display-empty-state">
         <span class="display-empty-icon">▱</span>
         <strong id="displayEmptyTitle">正在尋找虛擬螢幕</strong>
@@ -377,6 +385,15 @@
       </div>
       <img id="screen" class="screen-media" alt="VibeDeck 顯示器串流">
       <video id="rtcScreen" class="screen-media" autoplay playsinline muted hidden aria-label="VibeDeck WebRTC 顯示器串流"></video>
+      <textarea id="remoteKeyboardInput"
+        class="remote-keyboard-input"
+        rows="1"
+        inputmode="text"
+        enterkeyhint="enter"
+        autocomplete="off"
+        autocapitalize="sentences"
+        spellcheck="false"
+        aria-label="輸入到遠端 Windows"></textarea>
     </section>
     <section id="sideboardView" class="app-view sideboard-view">
       <div id="sideboardShell" class="sideboard-shell skin-command">
@@ -774,6 +791,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=116"></script>
+  <script type="module" src="/index.js?v=119"></script>
 </body>
 </html>

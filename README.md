@@ -1,8 +1,8 @@
 # VibeDeck
 
-VibeDeck turns a spare phone or e-paper device into a private wireless second screen, system dashboard, and AI-usage sideboard for Windows.
+VibeDeck turns a spare phone or e-paper device into a private Windows work surface you can securely reach from the next room or another network: a wireless second screen, system dashboard, and AI-usage sideboard in one browser/PWA.
 
-The display, dashboard data, input, and pairing approval stay on the Windows Host. iPhone, Android, and BOOX devices connect through Safari, Chrome, or an installable PWA. VibeDeck's hosted control plane only assigns a browser-trusted HTTPS hostname and never receives a VibeDeck account or bypasses PC approval; users do not need a Cloudflare account.
+The display, dashboard data, input, and pairing authority stay on the Windows Host. iPhone, Android, and BOOX devices connect through Safari, Chrome, or an installable PWA. After explicit approval on the PC, a paired browser can reconnect through the PC's automatically assigned HTTPS address even when it is no longer on the same LAN. VibeDeck's hosted control plane routes the encrypted connection but never receives a VibeDeck account or gains the authority to approve a device; users do not need a Cloudflare account, VPN, or router port forwarding.
 
 ## Product Architecture
 
@@ -27,17 +27,20 @@ VibeDeck is a Windows x64 product. A modern browser is the only requirement on i
 3. **Verify without physical devices.** Run `scripts\open-device-lab.ps1`, then switch among BOOX Go Color 7, Galaxy S23, and iPhone XS profiles. The lab loads the real VibeDeck client at its exact target viewport.
 4. **Run the checks.** Use `scripts\test-product-flow.ps1 -Source` for source validation, or `scripts\test-product-flow.ps1 -Installed` after Setup. Add `-RequireVirtualDisplay` only when testing Display mode.
 
-The most complete product path is Windows Setup → browser-trusted QR pairing → explicit six-digit approval on the PC → Display, Sideboard, or Quota on the paired device. Sideboard and Quota do not need the optional virtual display.
+The most complete product path is Windows Setup → browser-trusted QR pairing → explicit six-digit approval on the PC → Display, Sideboard, or Quota from the same paired browser, on the local Wi-Fi or later from another network. Sideboard and Quota do not need the optional virtual display.
 
 ## Features
 
 - A real Windows virtual monitor that accepts normal desktop windows.
+- A trusted remote-screen selector for viewing and controlling the PC's existing physical displays.
+- Touch/mouse control plus a mobile soft-keyboard bridge for Unicode text and common Windows keys.
 - Low-latency WebRTC H.264 streaming with a JPEG compatibility fallback.
 - Responsive phone, tablet, and e-paper layouts from one browser/PWA client.
 - Live CPU, GPU, memory, storage, network, weather, and process information.
 - AI-tool usage and quota cards.
 - Configurable dashboard layouts and activity updates.
 - Optional Windows notification integration.
+- Persistent trusted-device access across networks, without a VPN or router port forwarding.
 - Local device approval remains authoritative; the cloud control plane cannot approve a phone.
 - Automatic browser-trusted HTTPS without certificate installation, command windows, or a user Cloudflare account.
 - Windows Setup, in-place updates, autostart, and persistent product data.
@@ -46,7 +49,7 @@ The most complete product path is Windows Setup → browser-trusted QR pairing �
 
 ### Wireless second-screen mode
 
-VibeDeck streams a live Windows virtual display to the browser client over the local network.
+VibeDeck streams a live Windows virtual display to an approved browser on the local network or through its secure public route.
 
 ![VibeDeck wireless second-screen mode](.codex-media/vibedeck-monitor.png)
 
@@ -61,7 +64,7 @@ The same device can become a focused desktop sideboard with live system telemetr
 For an installed build:
 
 - Windows 10 or Windows 11 on x64.
-- A phone or e-paper device on the same Wi-Fi network, connected through the same Tailscale network, or using the configured VibeDeck secure URL.
+- A phone or e-paper device with Internet access, using the automatically assigned VibeDeck secure URL. Local Wi-Fi and private VPN routes remain available as fallbacks.
 - The optional virtual display only when using second-screen mode.
 
 Building from source additionally requires the .NET 8 SDK. Creating the Windows installer requires Inno Setup 6.
@@ -157,7 +160,7 @@ The preferred path is to open the QR code shown by the PC Host. VibeDeck automat
 https://<installation-id>.vibedeck.pp.ua/
 ```
 
-This browser-trusted route does not require accepting a dangerous-page warning, installing a phone certificate, opening a command window, or configuring Cloudflare. The Host still requires the normal phone request, six-digit verification code, and PC **Allow** action. If the Internet control plane is temporarily unavailable, the UI falls back to the existing local-network HTTPS route instead of advertising a dead public URL.
+This browser-trusted route does not require accepting a dangerous-page warning, installing a phone certificate, opening a command window, configuring Cloudflare, joining a VPN, or forwarding a router port. The Host still requires the normal phone request, six-digit verification code, and PC **Allow** action. Once approved, that browser keeps a device-specific credential and can reconnect from another network while the Windows PC, Host, and secure connector are online. If the Internet control plane is temporarily unavailable, the UI falls back to the existing local-network HTTPS route instead of advertising a dead public URL.
 
 The local-network fallback opens the HTTPS address shown by the PC Host, for example:
 
@@ -170,7 +173,8 @@ On first connection:
 1. Request pairing from the phone.
 2. Confirm the device name and six-digit code on the PC.
 3. Select **Allow** on the PC.
-4. Switch between Display, Information Board, and Quota modes on the client.
+4. Open Display and choose the VibeDeck extended display, the Windows primary display, or another connected screen. Touch controls the mouse; **Keyboard** opens the phone input method for the focused Windows app.
+5. Switch between Display, Information Board, and Quota modes on the client.
 
 The phone and PC show the same explicit pairing progress:
 
@@ -187,11 +191,13 @@ Pairing is attached to a persistent browser-instance ID and stored under `%Progr
 
 Information Board and Quota modes do not require the virtual display. iPhone, Android, and BOOX all use the same Host-served web application; responsive and e-paper styles handle platform differences.
 
-For access across different networks, use Tailscale. See `docs/remote-access.md`. HTTPS and iPhone certificate setup are documented in `docs/https-onboarding.md`.
+The managed secure URL is the normal cross-network path. Tailscale and other private-network routes remain optional alternatives described in `docs/remote-access.md`; local HTTPS details are documented in `docs/https-onboarding.md`.
 
-## Virtual Display
+## Remote Screen and Virtual Display
 
-Only Display mode requires the PhoneMonitor virtual display.
+Display mode can show an existing physical Windows monitor without installing the virtual display. The source picker remembers the selected monitor in that paired browser and uses the same WebRTC H.264 stream, JPEG fallback, and input channel across local or remote networks. Standard text, Enter, Backspace, navigation keys, and common modifier shortcuts can be sent through the phone keyboard; Windows secure desktop surfaces such as UAC and Ctrl+Alt+Delete remain outside the normal signed-in session.
+
+Only the extended second-screen workflow requires the PhoneMonitor virtual display.
 
 When the PC UI reports that no virtual display is available, select **Create virtual display** and approve the Windows elevation prompt. Normal users do not need the Windows Driver Kit, test-signing mode, or driver-development scripts.
 
@@ -267,7 +273,7 @@ scripts\package-windows-notifications.ps1 -Uninstall
 |---|---|
 | PC page does not open | Start VibeDeck, then run `scripts\test-product-flow.ps1 -Installed` |
 | Virtual display is installed but missing | Check the Host session; do not reinstall the driver solely because `WinDisc` appears |
-| Phone cannot connect | Confirm Wi-Fi/Tailscale connectivity, firewall access, and the HTTPS URL |
+| Phone cannot connect | Confirm the PC is signed in, the Host and secure connector are online, and the assigned HTTPS URL opens |
 | Phone UI looks like an old app | Close obsolete clients and use Safari, Chrome, or the PWA |
 | A paired phone asks to pair again | Run `scripts\test-product-flow.ps1 -Installed`, then verify `%ProgramData%\VibeDeck\devices\trusted-devices.json`; Setup grants signed-in users write access and the Host keeps a `.bak` recovery copy |
 | Refresh briefly opens PowerShell | Update to the latest Setup; the local information collector is launched non-interactively with a hidden window |
@@ -306,6 +312,7 @@ Build Week work includes:
 - a Windows Setup and upgrade path that preserves product data and starts the Host in the signed-in desktop session;
 - improved virtual-display discovery and setup guidance;
 - a single browser/PWA product path for iPhone, Android, and BOOX devices;
+- automatic per-PC secure routing so an approved device can reconnect across networks without VPN or port-forwarding setup;
 - configurable dashboard layouts, activity updates, quota cards, and optional Windows notification integration;
 - installed-product and source-product flow checks for packaging and release verification.
 
@@ -319,7 +326,7 @@ Build Week work includes:
 
 Codex was used as an engineering partner for planning, implementation, debugging, review, testing, packaging, and delivery assets. GPT-5.6 helped reason across Windows session behavior, display enumeration, browser-media constraints, mobile and e-paper layouts, and installer lifecycle. Faster model tiers handled repetitive layout and workflow passes; deeper reasoning was reserved for system design, larger refactors, and review. Human judgment remained responsible for trade-offs, real-device acceptance, and the final quality bar.
 
-The project is not a generic screen-mirroring clone: VibeDeck gives the same spare device a durable role as an optional Windows display, a glanceable sideboard, or an AI quota surface, while retaining browser-trusted pairing and persistent product state.
+The project is not a generic screen-mirroring clone: VibeDeck gives the same spare device a durable role as an optional Windows display, a glanceable sideboard, or an AI quota surface—then keeps that trusted work surface available beyond the desk and beyond the local network.
 
 Dated commits and Codex session logs document work completed during the event. The primary Build Week Codex session ID is:
 

@@ -493,6 +493,97 @@ body.eink-client .quota-page-button {
 
     .display-view {
       place-items: center;
+      position: relative;
+    }
+
+    .display-toolbar {
+      position: absolute;
+      z-index: 12;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: calc(100% - 20px);
+      padding: 7px;
+      border: 1px solid rgba(143, 209, 255, .24);
+      border-radius: 12px;
+      background: rgba(8, 14, 20, .84);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, .38);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .display-toolbar[hidden] {
+      display: none !important;
+    }
+
+    .display-source-control {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .display-source-control select {
+      width: min(50vw, 360px);
+      min-width: 150px;
+      min-height: 38px;
+      color: var(--text);
+      background: rgba(19, 29, 39, .96);
+      border-color: rgba(143, 209, 255, .25);
+    }
+
+    .display-source-kind {
+      flex: 0 0 auto;
+      padding: 5px 8px;
+      border-radius: 999px;
+      color: var(--green);
+      background: rgba(112, 217, 139, .1);
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    body.physical-display-source .display-source-kind {
+      color: var(--yellow);
+      background: rgba(255, 210, 122, .12);
+    }
+
+    .remote-keyboard-button {
+      flex: 0 0 auto;
+      min-height: 38px;
+      white-space: nowrap;
+    }
+
+    .remote-keyboard-button[aria-pressed="true"] {
+      color: #071017;
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .remote-keyboard-input {
+      position: fixed;
+      z-index: -1;
+      left: 50%;
+      bottom: 0;
+      width: 2px;
+      height: 2px;
+      min-height: 0;
+      padding: 0;
+      opacity: .01;
+      border: 0;
+      resize: none;
+      font-size: 16px;
+    }
+
+    body.viewer-fullscreen.mode-display .display-toolbar {
+      position: fixed;
+      top: calc(8px + var(--safe-area-inset-top, env(safe-area-inset-top)));
     }
 
     .screen-media {
@@ -516,6 +607,28 @@ body.eink-client .quota-page-button {
 
     .screen-media[hidden] {
       display: none !important;
+    }
+
+    @media (max-width: 620px) {
+      .display-toolbar {
+        top: 6px;
+        gap: 5px;
+        padding: 5px;
+      }
+
+      .display-source-control > span,
+      .display-source-kind {
+        display: none;
+      }
+
+      .display-source-control select {
+        width: min(62vw, 300px);
+        min-width: 0;
+      }
+
+      .remote-keyboard-button {
+        padding-inline: 10px;
+      }
     }
 
     body.viewer-fullscreen {
@@ -3946,7 +4059,6 @@ html[data-device-preview] body::-webkit-scrollbar {
       border-radius: 10px;
     }
 
-    body.ios-client.phone-client .utility-controls #fullscreen,
     body.ios-client.phone-client .utility-controls #keepAwake {
       display: inline-flex !important;
     }
@@ -4580,8 +4692,12 @@ body.eink-client .quota-shell {
     display: none !important;
   }
 
-  body.phone-client:not(.eink-client) #fullscreen {
-    display: inline-flex;
+  /* Fullscreen is a mode-level action, not a landscape-only action. Keep it
+   * reachable from Display and Quota in portrait too; both views use the same
+   * header control. The !important intentionally overrides the older portrait
+   * compaction rule above. */
+  body.phone-client.device-trusted:not(.eink-client) .utility-controls #fullscreen {
+    display: inline-flex !important;
   }
 
   body.phone-client:not(.eink-client).mode-sideboard .sideboard-shell {
@@ -6130,8 +6246,13 @@ body.eink-client .dashboard-card-editor button {
   white-space: nowrap;
 }
 
-/* Dashboard-local navigation stays available in immersive e-ink and regular
-   phone views, where the global header may be hidden. */
+/* Dashboard-local navigation appears only where the global header is hidden
+   (immersive fullscreen / deck window); otherwise the top tabs are the single
+   navigation and the in-panel switch is hidden. */
+body:not(.dashboard-viewer):not(.viewer-immersive):not(.deck-window) .dashboard-mode-switch {
+  display: none;
+}
+
 .dashboard-view-controls,
 .dashboard-mode-switch {
   display: inline-flex;
@@ -6165,7 +6286,9 @@ body.eink-client .dashboard-card-editor button {
   color: #071015;
 }
 
-body.phone-client .eink-connection-state {
+body.phone-client.dashboard-viewer .eink-connection-state,
+body.phone-client.viewer-immersive .eink-connection-state,
+body.phone-client.deck-window .eink-connection-state {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;

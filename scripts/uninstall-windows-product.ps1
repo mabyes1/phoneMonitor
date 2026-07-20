@@ -46,7 +46,8 @@ foreach ($processName in @("VibeDeck.Host.exe", "PhoneMonitor.Host.exe")) {
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
-& netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
+Get-NetFirewallRule -DisplayName "VibeDeck Host" -ErrorAction SilentlyContinue |
+    Remove-NetFirewallRule -ErrorAction SilentlyContinue
 
 $startMenu = Join-Path $env:ProgramData "Microsoft\Windows\Start Menu\Programs\VibeDeck"
 if (Test-Path -LiteralPath $startMenu) {

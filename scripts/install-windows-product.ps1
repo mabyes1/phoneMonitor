@@ -81,6 +81,25 @@ if ($existing) {
     Write-Host "Removed legacy Session 0 service $serviceName."
 }
 
+function Remove-VibeDeckFirewallRule {
+    Get-NetFirewallRule -DisplayName "VibeDeck Host" -ErrorAction SilentlyContinue |
+        Remove-NetFirewallRule -ErrorAction SilentlyContinue
+}
+
+function Set-VibeDeckFirewallRule {
+    param([Parameter(Mandatory = $true)][string]$ProgramPath)
+
+    Remove-VibeDeckFirewallRule
+    New-NetFirewallRule `
+        -DisplayName "VibeDeck Host" `
+        -Description "Allow paired phones to reach VibeDeck Host" `
+        -Direction Inbound `
+        -Action Allow `
+        -Program $ProgramPath `
+        -Profile Any `
+        -Enabled True | Out-Null
+}
+
 function Clear-InstallDirectory([string]$path) {
     $resolved = [IO.Path]::GetFullPath($path).TrimEnd('\')
     $programFilesRoot = [IO.Path]::GetFullPath(${env:ProgramFiles}).TrimEnd('\') + '\'
@@ -204,11 +223,10 @@ if (-not $SkipAutostart) {
     New-Item -Path $runPath -Force | Out-Null
     New-ItemProperty -Path $runPath -Name $runValueName -Value $runCommand -PropertyType String -Force | Out-Null
     Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
-    & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
-    & netsh.exe advfirewall firewall add rule name="VibeDeck Host" dir=in action=allow program="$hostExe" enable=yes profile=any | Out-Null
+    Set-VibeDeckFirewallRule -ProgramPath $hostExe
 } else {
     Remove-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $runValueName -ErrorAction SilentlyContinue
-    & netsh.exe advfirewall firewall delete rule name="VibeDeck Host" 2>$null | Out-Null
+    Remove-VibeDeckFirewallRule
 }
 
 Write-Host ""

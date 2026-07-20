@@ -1769,6 +1769,13 @@ namespace PhoneMonitor.Host
         public double X { get; set; }
         public double Y { get; set; }
         public int Buttons { get; set; }
+        public string Text { get; set; }
+        public string Key { get; set; }
+        public string Code { get; set; }
+        public bool CtrlKey { get; set; }
+        public bool AltKey { get; set; }
+        public bool ShiftKey { get; set; }
+        public bool MetaKey { get; set; }
     }
 
     public sealed class EnableDisplayRequest

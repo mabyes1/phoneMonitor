@@ -9,7 +9,7 @@ import {
   formatTemperature,
   formatWeatherLocation,
 } from "./modules/formatters.js?v=48";
-import { createDisplayInputController } from "./modules/display-input.js?v=48";
+import { createDisplayInputController } from "./modules/display-input.js?v=49";
 import { createCustomCardsController } from "./modules/custom-cards.js?v=53";
 import { createActivityFeedController } from "./modules/activity-feed.js?v=55";
 import { createDashboardLayoutController } from "./modules/dashboard-layout.js?v=59";
@@ -29,7 +29,7 @@ import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
   summarizeQuotaWindow,
 } from "./modules/quota-formatters.js?v=51";
 import { getIntlLocale, initLocale, onLocaleChange, t, tApi, tLegacy, translateText } from "./modules/i18n.js?v=4";
-import { createEnergyWave } from "./modules/energy-wave.js?v=6";
+import { createEnergyWave } from "./modules/energy-wave.js?v=7";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -48,6 +48,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
     const productUpdateStatus = document.getElementById("productUpdateStatus");
     const fullscreen = document.getElementById("fullscreen");
     const displaySettingsToggle = document.getElementById("displaySettingsToggle");
+    const displayToolbar = document.getElementById("displayToolbar");
+    const displaySource = document.getElementById("displaySource");
+    const displaySourceKind = document.getElementById("displaySourceKind");
+    const remoteKeyboardButton = document.getElementById("remoteKeyboardButton");
+    const remoteKeyboardInput = document.getElementById("remoteKeyboardInput");
     const displayEmptyState = document.getElementById("displayEmptyState");
     const displayEmptyTitle = document.getElementById("displayEmptyTitle");
     const displayEmptyMessage = document.getElementById("displayEmptyMessage");
@@ -226,6 +231,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
     const hostAuthError = document.getElementById("hostAuthError");
     const wsBase = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`;
     let selectedDisplayName = "";
+    let selectedDisplay = null;
+    let availableDisplays = [];
     let lastUrl = null;
     let inputSocket = null;
     let streamController = null;
@@ -274,6 +281,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
     const LEGACY_CLIENT_INSTANCE_COOKIE = "PhoneMonitor-Client-Instance";
     const IPHONE_XS_EXACT_PRESET = "iphonexs-css-812x375";
     const IPHONE_XS_ASPECT_VERSION = "1";
+    const DISPLAY_SOURCE_KEY = "vibeDeckDisplaySource.v1";
 
     function readCookie(name) {
       const parts = (`; ${document.cookie || ""}`).split(`; ${name}=`);
@@ -2564,6 +2572,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
       updateKeepAwakeButton();
       renderProductUpdate(productUpdateSnapshot);
       syncDisplayEmptyActions();
+      renderDisplaySourceOptions();
+      if (selectedDisplay) applySelectedDisplay(selectedDisplay, false);
       if (displaySettingsToggle) {
         const open = document.body.classList.contains("display-settings-open");
         displaySettingsToggle.textContent = open ? t("ui.settingsCollapse") : t("ui.settings");
@@ -3971,17 +3981,118 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
       applyRotation();
     }
 
+    function normalizeDisplay(display) {
+      return {
+        DeviceName: display?.DeviceName ?? display?.deviceName ?? "",
+        FriendlyName: display?.FriendlyName ?? display?.friendlyName ?? "",
+        DeviceId: display?.DeviceId ?? display?.deviceId ?? "",
+        OutputIndex: Number(display?.OutputIndex ?? display?.outputIndex ?? 0),
+        Width: Number(display?.Width ?? display?.width ?? 0),
+        Height: Number(display?.Height ?? display?.height ?? 0),
+        IsPrimary: Boolean(display?.IsPrimary ?? display?.isPrimary),
+        IsPhoneMonitor: Boolean(display?.IsPhoneMonitor ?? display?.isPhoneMonitor),
+      };
+    }
+
+    function loadStoredDisplaySource() {
+      try {
+        const value = JSON.parse(localStorage.getItem(DISPLAY_SOURCE_KEY) || "null");
+        return value && typeof value === "object" ? value : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function storeDisplaySource(display) {
+      if (!display) return;
+      try {
+        localStorage.setItem(DISPLAY_SOURCE_KEY, JSON.stringify({
+          deviceId: display.DeviceId,
+          deviceName: display.DeviceName,
+        }));
+      } catch {
+      }
+    }
+
+    function displayOptionLabel(display) {
+      const name = display.IsPhoneMonitor
+        ? t("ui.virtualDisplaySource")
+        : (display.FriendlyName || `${t("ui.display")} ${display.OutputIndex + 1}`);
+      const primary = display.IsPrimary ? ` ${t("ui.primaryDisplaySuffix")}` : "";
+      return `${name}${primary} · ${display.Width}×${display.Height}`;
+    }
+
+    function renderDisplaySourceOptions() {
+      if (!displaySource) return;
+      displaySource.replaceChildren();
+      const groups = [
+        { label: t("ui.virtualDisplaySource"), values: availableDisplays.filter(display => display.IsPhoneMonitor) },
+        { label: t("ui.physicalDisplaySource"), values: availableDisplays.filter(display => !display.IsPhoneMonitor) },
+      ];
+      groups.forEach(group => {
+        if (!group.values.length) return;
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = group.label;
+        group.values.forEach(display => {
+          const option = document.createElement("option");
+          option.value = display.DeviceName;
+          option.textContent = displayOptionLabel(display);
+          optgroup.append(option);
+        });
+        displaySource.append(optgroup);
+      });
+      displaySource.value = selectedDisplayName;
+    }
+
+    function applySelectedDisplay(display, persist = true) {
+      if (!display) return false;
+      selectedDisplay = display;
+      selectedDisplayName = display.DeviceName;
+      if (persist) storeDisplaySource(display);
+      if (displaySource) displaySource.value = display.DeviceName;
+      if (displayToolbar) displayToolbar.hidden = false;
+      document.body.classList.toggle("physical-display-source", !display.IsPhoneMonitor);
+      if (displaySourceKind) {
+        displaySourceKind.textContent = t(display.IsPhoneMonitor
+          ? "ui.virtualDisplaySource"
+          : "ui.physicalDisplaySource");
+      }
+      const virtualModePanel = modePreset?.closest("details");
+      if (virtualModePanel) virtualModePanel.hidden = !display.IsPhoneMonitor;
+      setDisplayAspectRatio(`${display.Width} / ${display.Height}`);
+      driverState.textContent = display.IsPhoneMonitor
+        ? `VibeDeck 顯示器：${display.FriendlyName || display.DeviceName} (${display.Width}x${display.Height})`
+        : `遠端畫面：${display.FriendlyName || display.DeviceName} (${display.Width}x${display.Height})`;
+      setDisplayAvailability(true);
+      return true;
+    }
+
+    function chooseDisplay(displays) {
+      const stored = loadStoredDisplaySource();
+      return displays.find(display => stored.deviceId && display.DeviceId === stored.deviceId)
+        || displays.find(display => stored.deviceName && display.DeviceName === stored.deviceName)
+        || displays.find(display => display.DeviceName === selectedDisplayName)
+        || displays.find(display => display.IsPhoneMonitor)
+        || displays.find(display => display.IsPrimary)
+        || displays[0]
+        || null;
+    }
+
     async function loadPhoneDisplay() {
       let displays;
       try {
         displays = await fetchJsonOrThrow("/api/displays");
       } catch (error) {
+        selectedDisplay = null;
         selectedDisplayName = "";
+        availableDisplays = [];
+        if (displayToolbar) displayToolbar.hidden = true;
+        document.body.classList.remove("physical-display-source");
         setDisplayAspectRatio("16 / 9");
         if (isTrustRequiredError(error)) {
           setStatus("請先配對手機", false);
-          driverState.textContent = "請先配對手機，才能觀看虛擬螢幕。";
-          setDisplayAvailability(false, "尚未完成配對", "完成配對後才能觀看虛擬螢幕。資訊板可直接使用。");
+          driverState.textContent = "請先配對手機，才能觀看 Windows 畫面。";
+          setDisplayAvailability(false, "尚未完成配對", "完成配對後才能觀看與控制 Windows 畫面。資訊板可直接使用。");
           return;
         }
 
@@ -3991,22 +4102,24 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
         return;
       }
 
-      const phoneDisplay = displays.find(display => display.IsPhoneMonitor);
-
-      if (!phoneDisplay) {
+      availableDisplays = Array.isArray(displays)
+        ? displays.map(normalizeDisplay).filter(display => display.DeviceName && display.Width > 0 && display.Height > 0)
+        : [];
+      const display = chooseDisplay(availableDisplays);
+      if (!display) {
+        selectedDisplay = null;
         selectedDisplayName = "";
+        if (displayToolbar) displayToolbar.hidden = true;
         setDisplayAspectRatio("16 / 9");
-        setStatus("尚未建立虛擬螢幕", false);
-        driverState.textContent = "尚未建立 VibeDeck 虛擬螢幕。";
-        setDisplayAvailability(false, "這台電腦還沒有虛擬螢幕", "建立後，Windows 才能把手機當成真正的延伸桌面。");
+        setStatus("找不到可用顯示器", false);
+        driverState.textContent = "Windows 目前沒有可擷取的顯示器。";
+        setDisplayAvailability(false, "找不到 Windows 顯示器", "請確認 Host 正在已登入的 Windows 桌面工作階段執行。");
         await loadDisplayInstallStatus();
         return;
       }
 
-      selectedDisplayName = phoneDisplay.DeviceName;
-      setDisplayAspectRatio(`${phoneDisplay.Width} / ${phoneDisplay.Height}`);
-      driverState.textContent = `VibeDeck 顯示器：${phoneDisplay.DeviceName} (${phoneDisplay.Width}x${phoneDisplay.Height})`;
-      setDisplayAvailability(true);
+      applySelectedDisplay(display, false);
+      renderDisplaySourceOptions();
     }
 
     function readInstallField(status, name, fallback = null) {
@@ -4083,7 +4196,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
         const { state } = await loadDisplayInstallStatus();
         if (state === "installing" || state === "finishing" || state === "installed") {
           await loadPhoneDisplay();
-          if (!selectedDisplayName) scheduleDisplayInstallPoll();
+          if (!availableDisplays.some(display => display.IsPhoneMonitor)) scheduleDisplayInstallPoll();
           else connectVideo();
         }
       }, 1500);
@@ -4134,6 +4247,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
 
     function setDisplayAvailability(available, title = "", message = "") {
       document.body.classList.toggle("display-unavailable", !available);
+      if (displayToolbar) displayToolbar.hidden = !available || availableDisplays.length === 0;
+      if (remoteKeyboardButton) remoteKeyboardButton.disabled = !available;
+      if (!available) remoteKeyboardInput?.blur();
       if (displayEmptyState) displayEmptyState.hidden = Boolean(available);
       if (displayEmptyTitle && title) displayEmptyTitle.textContent = title;
       if (displayEmptyMessage && (title || message)) {
@@ -4180,9 +4296,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
     async function loadDisplayStatus() {
       try {
         const status = await fetchJsonOrThrow("/api/display/status");
-        driverState.textContent = `${driverState.textContent} ${tLegacy(`虛擬螢幕：${status.State}.`)}`;
+        if (selectedDisplay?.IsPhoneMonitor) {
+          driverState.textContent = `${driverState.textContent} ${tLegacy(`虛擬螢幕：${status.State}.`)}`;
+        }
       } catch (error) {
-        if (!isTrustRequiredError(error)) {
+        if (selectedDisplay?.IsPhoneMonitor && !isTrustRequiredError(error)) {
           driverState.textContent = `${driverState.textContent} ${tLegacy("無法取得虛擬螢幕狀態。")}`;
         }
       }
@@ -4372,6 +4490,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
         resolveRotation,
         isMobileClient,
         enterLandscapeViewer,
+        keyboardButton: remoteKeyboardButton,
+        keyboardInput: remoteKeyboardInput,
+        translate: key => t(key),
         touchLongPressMs,
         touchDragThresholdPx,
       });
@@ -4402,6 +4523,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
     applyStream.addEventListener("click", applyStreamSettings);
     modePreset.addEventListener("change", applyPresetFields);
     applyMode.addEventListener("click", applyDisplayMode);
+    displaySource?.addEventListener("change", () => {
+      const display = availableDisplays.find(item => item.DeviceName === displaySource.value);
+      if (!display || display.DeviceName === selectedDisplayName) return;
+      remoteKeyboardInput?.blur();
+      applySelectedDisplay(display);
+      connectVideo();
+    });
     savePublicEndpoint?.addEventListener("click", () => {
       saveTrustedPublicEndpoint();
     });
@@ -4797,5 +4925,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=6";
       }
     }
 
-    createEnergyWave();
+    // Mobile dashboards deliberately stay on their static skin. Avoid creating
+    // the canvas, strip nodes, and animation observers there altogether.
+    if (!isMobileClient()) createEnergyWave();
     boot();

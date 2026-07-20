@@ -8,10 +8,22 @@ export function createDisplayInputController({
   resolveRotation,
   isMobileClient,
   enterLandscapeViewer,
+  keyboardButton = null,
+  keyboardInput = null,
+  translate = key => key,
   touchLongPressMs = 460,
   touchDragThresholdPx = 12,
 }) {
   let touchInputState = null;
+  let keyboardWired = false;
+  let keyboardComposing = false;
+  let ignoreNextKeyboardInput = false;
+  const specialKeys = new Set([
+    "Backspace", "Tab", "Enter", "Escape", "PageUp", "PageDown",
+    "End", "Home", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown",
+    "Insert", "Delete", "F1", "F2", "F3", "F4", "F5", "F6",
+    "F7", "F8", "F9", "F10", "F11", "F12",
+  ]);
 
   function clamp01(value) {
     return Math.max(0, Math.min(1, value));
@@ -91,6 +103,125 @@ export function createDisplayInputController({
       y: payload.y,
       buttons: buttonsOverride ?? payload.buttons ?? 0,
     }));
+  }
+
+  function sendKeyboardMessage(message) {
+    const socket = getInputSocket();
+    if (!socket || socket.readyState !== WebSocket.OPEN) return false;
+    socket.send(JSON.stringify({
+      deviceName: getDeviceName(),
+      ...message,
+    }));
+    return true;
+  }
+
+  function sendText(text) {
+    const value = String(text || "");
+    if (!value) return false;
+    let sent = false;
+    for (let offset = 0; offset < value.length; offset += 256) {
+      sent = sendKeyboardMessage({ type: "text", text: value.slice(offset, offset + 256) }) || sent;
+    }
+    return sent;
+  }
+
+  function sendKey(eventOrKey, overrides = {}) {
+    const event = typeof eventOrKey === "string" ? null : eventOrKey;
+    const key = typeof eventOrKey === "string" ? eventOrKey : event?.key;
+    return sendKeyboardMessage({
+      type: "key",
+      key: key || "",
+      code: overrides.code ?? event?.code ?? "",
+      ctrlKey: overrides.ctrlKey ?? Boolean(event?.ctrlKey),
+      altKey: overrides.altKey ?? Boolean(event?.altKey),
+      shiftKey: overrides.shiftKey ?? Boolean(event?.shiftKey),
+      metaKey: overrides.metaKey ?? Boolean(event?.metaKey),
+    });
+  }
+
+  function updateKeyboardButton(active = document.activeElement === keyboardInput) {
+    if (!keyboardButton) return;
+    keyboardButton.setAttribute("aria-pressed", active ? "true" : "false");
+    keyboardButton.textContent = translate(active ? "ui.remoteKeyboardActive" : "ui.remoteKeyboard");
+  }
+
+  function resetKeyboardInput() {
+    if (keyboardInput) keyboardInput.value = "";
+  }
+
+  function wireKeyboard() {
+    if (keyboardWired || !keyboardButton || !keyboardInput) return;
+    keyboardWired = true;
+
+    keyboardButton.addEventListener("click", () => {
+      if (document.activeElement === keyboardInput) {
+        keyboardInput.blur();
+        return;
+      }
+      resetKeyboardInput();
+      keyboardInput.focus({ preventScroll: true });
+      updateKeyboardButton(true);
+    });
+    keyboardInput.addEventListener("focus", () => updateKeyboardButton(true));
+    keyboardInput.addEventListener("blur", () => {
+      keyboardComposing = false;
+      resetKeyboardInput();
+      updateKeyboardButton(false);
+    });
+    keyboardInput.addEventListener("compositionstart", () => {
+      keyboardComposing = true;
+      resetKeyboardInput();
+    });
+    keyboardInput.addEventListener("compositionend", event => {
+      keyboardComposing = false;
+      const text = event.data || keyboardInput.value;
+      if (text) sendText(text);
+      resetKeyboardInput();
+      ignoreNextKeyboardInput = true;
+      setTimeout(() => { ignoreNextKeyboardInput = false; }, 0);
+    });
+    keyboardInput.addEventListener("keydown", event => {
+      if (event.isComposing || keyboardComposing || event.key === "Process") return;
+      const modified = event.ctrlKey || event.altKey || event.metaKey;
+      if (!specialKeys.has(event.key) && !modified) return;
+      event.preventDefault();
+      sendKey(event);
+      resetKeyboardInput();
+    });
+    keyboardInput.addEventListener("beforeinput", event => {
+      if (keyboardComposing || event.isComposing) return;
+      if (ignoreNextKeyboardInput) {
+        event.preventDefault();
+        ignoreNextKeyboardInput = false;
+        resetKeyboardInput();
+        return;
+      }
+      if (event.inputType === "deleteContentBackward") {
+        event.preventDefault();
+        sendKey("Backspace");
+      } else if (event.inputType === "deleteContentForward") {
+        event.preventDefault();
+        sendKey("Delete");
+      } else if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+        event.preventDefault();
+        sendKey("Enter");
+      } else if (event.inputType?.startsWith("insert") && event.data) {
+        event.preventDefault();
+        sendText(event.data);
+      }
+      resetKeyboardInput();
+    });
+    keyboardInput.addEventListener("input", () => {
+      if (keyboardComposing) return;
+      if (ignoreNextKeyboardInput) {
+        ignoreNextKeyboardInput = false;
+        resetKeyboardInput();
+        return;
+      }
+      if (keyboardInput.value) sendText(keyboardInput.value);
+      resetKeyboardInput();
+    });
+    updateKeyboardButton(false);
   }
 
   function sendPointer(type, event, buttonsOverride) {
@@ -203,8 +334,14 @@ export function createDisplayInputController({
 
   return {
     wire,
-    wireAll() { targets.filter(Boolean).forEach(wire); },
+    wireAll() {
+      targets.filter(Boolean).forEach(wire);
+      wireKeyboard();
+    },
     clearTouchState,
+    focusKeyboard() {
+      keyboardInput?.focus({ preventScroll: true });
+    },
     isTouchGestureActive() {
       return Boolean(touchInputState && (touchInputState.dragStarted || touchInputState.longPressTriggered));
     },

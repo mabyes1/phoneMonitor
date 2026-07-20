@@ -2,6 +2,13 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
+## 0.1.31 - 2026-07-20
+
+- 顯示器頁籤新增 Windows 畫面來源切換：已配對裝置可在 VibeDeck 延伸螢幕、主螢幕與其他實體螢幕間切換，選擇會保存在該瀏覽器；實體螢幕沿用 DXGI 擷取、WebRTC H.264／JPEG fallback 與既有觸控滑鼠控制。手機端新增軟鍵盤入口，以 Windows Unicode `SendInput` 傳送 Android／iOS 輸入法完成後的文字，並支援 Enter、Backspace、方向鍵、Delete、Tab、功能鍵與 Ctrl／Alt／Shift／Meta 組合鍵。
+- 修正 Windows Setup 在設定防火牆時可能跳出 `netsh.exe` 0xc0000142 應用程式錯誤並卡住安裝；安裝器改以 Windows Firewall COM API 建立／更新／移除規則，不再啟動 `netsh.exe`，失敗時只寫入 Setup log 而不阻塞產品安裝。開發用安裝與移除腳本也改用 NetSecurity Cmdlet。
+- 修正一般手機直向版面誤將顯示器與額度共用的「全螢幕」按鈕隱藏；已配對的 Android／iPhone 現在不分直橫向與目前頁籤都保留全螢幕入口。
+- 手機（iPhone／Android／PWA）資訊板恢復使用原本的「命令／儀表／專注」靜態皮膚；導光波浪只保留給 PC 主控台與 Deck 虛擬螢幕。手機不再建立波浪 Canvas、光柵節點或動畫監聽器，長亮功能維持不變，降低長時間看板時的 GPU 耗電與發熱。
+
 ## 0.1.30 - 2026-07-19
 
 - Windows Setup 內建經 SHA-256 驗證的 Cloudflare connector；VibeDeck Host 會在登入桌面工作階段隱藏啟動、健康檢查、失敗重試並在結束時一併關閉，不再建立獨立排程、顯示命令視窗或要求使用者安裝／操作 cloudflared。新安裝會由 `vibedeck.pp.ua` Worker 自動建立每台 PC 專屬 Tunnel、ingress 與 DNS；Cloudflare API token 僅存在 Worker secret，PC 只以 DPAPI 保存自己的 Tunnel token。舊版 `VibeDeck Cloudflare Connector` 排程會自動停止並移除，既有本機 Tunnel 設定可無痛接管。

@@ -52,11 +52,11 @@ export function createEnergyWave() {
   function canShow() {
     const desktopConsole = document.body.classList.contains("pc-console") && !compactViewport.matches;
     const deckWindow = document.body.classList.contains("deck-window");
-    const trustedPhone = document.body.classList.contains("phone-client") &&
-      document.body.classList.contains("device-trusted");
+    // Phone dashboards keep their selected Command / Dial / Focus skin static.
+    // The continuously composited wave is reserved for PC surfaces.
     return document.body.classList.contains("mode-sideboard") &&
       !document.body.classList.contains("eink-client") &&
-      (desktopConsole || deckWindow || trustedPhone);
+      (desktopConsole || deckWindow);
   }
 
   function resize() {

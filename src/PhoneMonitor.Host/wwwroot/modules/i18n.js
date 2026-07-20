@@ -115,7 +115,7 @@ function requestedLocale() {
 }
 
 async function loadCatalog(locale) {
-  const response = await fetch(`/locales/${encodeURIComponent(locale)}.json?v=2`, { cache: "no-store" });
+  const response = await fetch(`/locales/${encodeURIComponent(locale)}.json?v=3`, { cache: "no-store" });
   if (!response.ok) throw new Error(`Locale ${locale} failed to load (${response.status})`);
   return response.json();
 }

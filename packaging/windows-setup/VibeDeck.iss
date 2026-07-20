@@ -111,17 +111,15 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Parameters: "--open"; WorkingDir: "{app}"; IconFilename: "{app}\vibedeck.ico"; Comment: "Open VibeDeck on this PC"
 
 [Run]
-; Allow LAN phones to reach Host HTTP/HTTPS
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VibeDeck Host"" dir=in action=allow program=""{app}\{#MyAppExeName}"" enable=yes profile=any"; Flags: runhidden; StatusMsg: "{cm:AddingFirewallRule}"
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--register-autostart"; WorkingDir: "{app}"; Flags: runhidden runasoriginaluser; StatusMsg: "{cm:EnablingAutostart}"
+; Configure Windows Firewall through its COM API before Host starts. Launching
+; netsh.exe from Setup can surface an unhandled 0xc0000142 loader dialog.
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--register-autostart"; WorkingDir: "{app}"; Flags: runhidden runasoriginaluser; StatusMsg: "{cm:EnablingAutostart}"; BeforeInstall: ConfigureFirewallRule
 Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Flags: runhidden nowait runasoriginaluser; StatusMsg: "{cm:StartingHost}"
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--open"; WorkingDir: "{app}"; Description: "{cm:OpenVibeDeck}"; Flags: postinstall nowait skipifsilent runasoriginaluser
 
 [UninstallRun]
 Filename: "{sys}\sc.exe"; Parameters: "stop {#MyServiceName}"; Flags: runhidden; RunOnceId: "StopVibeDeckHost"
 Filename: "{sys}\sc.exe"; Parameters: "delete {#MyServiceName}"; Flags: runhidden; RunOnceId: "DeleteVibeDeckHost"
-Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall delete rule name=""VibeDeck Host"""; Flags: runhidden; RunOnceId: "RemoveVibeDeckFirewall"
 Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister-autostart"; WorkingDir: "{app}"; Flags: runhidden; RunOnceId: "RemoveVibeDeckAutostart"
 
 [Registry]
@@ -129,8 +127,63 @@ Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister-autostart"; Working
 Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: none; ValueName: "VibeDeckHost"; Flags: deletevalue
 
 [Code]
+const
+  FirewallRuleName = 'VibeDeck Host';
+  NetFwActionAllow = 1;
+  NetFwRuleDirectionIn = 1;
+  NetFwProfile2All = $7FFFFFFF;
+  NetFwIpProtocolAny = 256;
+
 var
   ProductIntroPage: TOutputMsgWizardPage;
+
+procedure RemoveFirewallRule;
+var
+  FirewallPolicy: Variant;
+begin
+  try
+    FirewallPolicy := CreateOleObject('HNetCfg.FwPolicy2');
+    try
+      FirewallPolicy.Rules.Remove(FirewallRuleName);
+      Log('Removed Windows Firewall rule: ' + FirewallRuleName);
+    except
+      { The rule may not exist. Uninstall and repair should remain silent. }
+      Log('Windows Firewall rule did not need removal: ' + GetExceptionMessage);
+    end;
+  except
+    { Firewall configuration must never strand Setup behind a system dialog. }
+    Log('WARNING: Could not access Windows Firewall policy: ' + GetExceptionMessage);
+  end;
+end;
+
+procedure ConfigureFirewallRule;
+var
+  FirewallPolicy, FirewallRule: Variant;
+begin
+  try
+    FirewallPolicy := CreateOleObject('HNetCfg.FwPolicy2');
+    try
+      FirewallPolicy.Rules.Remove(FirewallRuleName);
+    except
+      { A first install has no existing rule. }
+    end;
+
+    FirewallRule := CreateOleObject('HNetCfg.FWRule');
+    FirewallRule.Name := FirewallRuleName;
+    FirewallRule.Description := 'Allow paired phones to reach VibeDeck Host';
+    FirewallRule.ApplicationName := ExpandConstant('{app}\{#MyAppExeName}');
+    FirewallRule.Protocol := NetFwIpProtocolAny;
+    FirewallRule.Direction := NetFwRuleDirectionIn;
+    FirewallRule.Enabled := True;
+    FirewallRule.Profiles := NetFwProfile2All;
+    FirewallRule.Action := NetFwActionAllow;
+    FirewallPolicy.Rules.Add(FirewallRule);
+    Log('Configured Windows Firewall rule without netsh.exe: ' + FirewallRuleName);
+  except
+    { Keep installation usable even on machines where Firewall is unavailable. }
+    Log('WARNING: Could not configure Windows Firewall rule: ' + GetExceptionMessage);
+  end;
+end;
 
 procedure InitializeWizard;
 begin
@@ -170,6 +223,7 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
+    RemoveFirewallRule;
     Exec(ExpandConstant('{sys}\sc.exe'), 'stop {#MyServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
     Exec(ExpandConstant('{sys}\sc.exe'), 'delete {#MyServiceName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;

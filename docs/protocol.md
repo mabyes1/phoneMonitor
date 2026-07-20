@@ -11,7 +11,7 @@ Browser/PWA clients on iPhone, Android, and BOOX use one flow: scan the PC QR to
 
 The Host never sends an approved device token to the PC console; only the requesting phone can retrieve it. Requests are limited to private LAN addresses, require HTTPS, and expire automatically.
 
-Last updated: 2026-07-04
+Last updated: 2026-07-20
 
 This document records the current prototype protocol. Older experiments such as `/ws/video`, window capture, WebRTC DataChannel JPEG, and fragmented MP4 H.264 were useful for learning, but they are not the active product path.
 
@@ -22,7 +22,7 @@ The public product name is VibeDeck. Protocol examples still use `PhoneMonitor`,
 The web prototype is intentionally simple:
 
 - The phone opens the Host web page.
-- The page automatically selects the `PhoneMonitor` virtual display.
+- The page enumerates Windows monitors and remembers the virtual or physical display selected by that paired browser.
 - iOS Safari prefers H.264 over WebRTC when FFmpeg is available.
 - JPEG frames over WebSocket remain the browser fallback.
 - Stream FPS and JPEG quality are user-adjustable.
@@ -57,7 +57,7 @@ as RTP/SRTP. This lets modern phone browsers use their hardware H.264 decoder
 without an installed native app. The route requires a paired device token (or
 a loopback request) and an FFmpeg executable on the Host.
 
-The stream should target the `PhoneMonitor` virtual display. Product UI should not ask normal users to choose arbitrary windows or debug sources.
+The stream targets an enumerated Windows display selected by the product UI. Virtual displays use the GDI-compatible capture path; physical displays prefer DXGI Desktop Duplication. Arbitrary windows and debug capture sources are not exposed.
 
 ## Input
 
@@ -72,13 +72,39 @@ Payload: UTF-8 JSON.
 ```json
 {
   "type": "pointermove",
+  "deviceName": "\\\\.\\DISPLAY1",
   "x": 0.5,
   "y": 0.5,
   "buttons": 1
 }
 ```
 
-Coordinates are normalized from `0.0` to `1.0` so the PC host can map them to the active virtual display resolution.
+Coordinates are normalized from `0.0` to `1.0` so the PC Host can map them to the selected display bounds.
+
+Committed mobile-IME text is sent as Unicode rather than replaying the phone's composition keystrokes:
+
+```json
+{
+  "type": "text",
+  "text": "遠端輸入"
+}
+```
+
+Navigation keys and shortcuts use a key message:
+
+```json
+{
+  "type": "key",
+  "key": "ArrowLeft",
+  "code": "ArrowLeft",
+  "ctrlKey": false,
+  "altKey": false,
+  "shiftKey": false,
+  "metaKey": false
+}
+```
+
+The Host injects text and supported keys into the signed-in desktop session with Windows `SendInput`. Secure-desktop surfaces such as UAC and Ctrl+Alt+Delete are intentionally not part of this channel.
 
 ## Connect Info
 
