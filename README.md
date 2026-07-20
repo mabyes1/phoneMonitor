@@ -6,9 +6,17 @@ VibeDeck gives a spare phone, tablet, or e-paper reader a real job: stream a ded
 
 [Download the latest Windows release](https://github.com/mabyes1/phoneMonitor/releases/latest) · [Build Week submission notes](docs/build-week-submission.md) · [Changelog](CHANGELOG.md) · [MIT License](LICENSE)
 
-| Wireless display and remote control | Phone-first information board |
-|---|---|
-| ![VibeDeck wireless display](.codex-media/vibedeck-monitor.png) | ![VibeDeck information board](.codex-media/vibedeck-board.png) |
+![VibeDeck — your next screen is here](.codex-media/hero-hook.png)
+
+| Display mode | Sideboard mode | Quota mode |
+|:---:|:---:|:---:|
+| ![Display — stream a virtual or physical monitor](.codex-media/mode-display.png) | ![Sideboard — system health and activity at a glance](.codex-media/mode-sideboard.png) | ![Quota — Codex and AGY usage without switching windows](.codex-media/mode-quota.png) |
+| Stream a dedicated terminal, build log, or game to your phone via WebRTC | CPU, GPU, RAM, tasks, notifications, and weather on one screen | Codex/AGY limits, reset windows, accounts, and ChatGPT Credits |
+
+| Remote control from anywhere |
+|:---:|
+| ![Remote — touch, scroll, and type on your physical monitor from outside](.codex-media/mode-remote.png) |
+| Leave home, stay connected through a managed HTTPS route — no VPN, no port forwarding |
 
 ## Why VibeDeck
 
