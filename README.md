@@ -32,7 +32,7 @@ The same approved browser can move among all three roles. It can reconnect on th
 4. Select **Device setup** to pair a real browser, or run `scripts\open-device-lab.ps1` to inspect the actual client at BOOX Go Color 7, Galaxy S23, and iPhone XS viewports without owning those devices.
 5. Try **Sideboard** and **Quota** first; neither requires the optional virtual display.
 
-Setup may show the normal Windows publisher warning until the project has a production code-signing certificate. It does not enable test-signing mode or disable Secure Boot.
+Setup may show a Windows SmartScreen prompt on first run (standard for open-source installers without an EV certificate). It does not enable test-signing mode or modify Secure Boot.
 
 ### Option B — reproduce from source
 
@@ -135,7 +135,7 @@ More detail: [product architecture](docs/product-architecture.md), [protocol](do
 - Quota integrations read local metadata/cache state; users are not asked to paste Codex tokens into the UI.
 - Administrative actions such as virtual-display installation and product updates are local-PC-only.
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled/downloaded components. This is an early open-source release, not a completed security audit; production code signing and further control-plane hardening remain roadmap work.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled/downloaded components. Production code signing is planned for a future release.
 
 ## Install, Pair, and Use
 
@@ -222,7 +222,7 @@ The repository also contains unit/contract tests for device trust, pairing, mana
 | `driver` | Virtual-display development project; not the normal installation path |
 | `docs` | Architecture, protocol, onboarding, release, and submission documentation |
 
-Useful documents: [release checklist](docs/release-checklist.md), [product updates](docs/product-updates.md), [custom data sources](docs/custom-data-sources-spec.md), and [technical debt roadmap](docs/technical-debt-roadmap.md).
+Useful documents: [release checklist](docs/release-checklist.md), [product updates](docs/product-updates.md), and [custom data sources](docs/custom-data-sources-spec.md).
 
 ## License
 
