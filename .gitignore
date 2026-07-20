@@ -24,8 +24,10 @@ captures/
 third_party/Windows-driver-samples/
 
 # Local inspection / temp dumps (never publish)
+scratch/
 test-results/
 *.user.json
+driver/*-capture.png
 
 # Local secrets templates may live under docs; real secrets stay out of git
 .env
