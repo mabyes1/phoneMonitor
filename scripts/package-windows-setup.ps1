@@ -38,6 +38,14 @@ $artifactRoot = Join-Path $repoRoot "artifacts\windows-setup"
 $payloadRoot = Join-Path $artifactRoot "payload"
 $issPath = Join-Path $packagingDir "VibeDeck.iss"
 $iconPath = Join-Path $packagingDir "vibedeck.ico"
+$cloudflaredVersion = "2026.7.2"
+$cloudflaredSha256 = "CDB5D4432F6AE1595654A692A51308B69D2BF7AF961F5578D9391837CF072DF9"
+$cloudflaredUrl = "https://github.com/cloudflare/cloudflared/releases/download/$cloudflaredVersion/cloudflared-windows-amd64.exe"
+$cloudflaredLicenseSha256 = "58D1E17FFE5109A7AE296CAAFCADFDBE6A7D176F0BC4AB01E12A689B0499D8BD"
+$cloudflaredLicenseUrl = "https://raw.githubusercontent.com/cloudflare/cloudflared/$cloudflaredVersion/LICENSE"
+$dependencyRoot = Join-Path $artifactRoot "dependencies"
+$cloudflaredCache = Join-Path $dependencyRoot "cloudflared-$cloudflaredVersion-windows-amd64.exe"
+$cloudflaredLicenseCache = Join-Path $dependencyRoot "cloudflared-$cloudflaredVersion-LICENSE.txt"
 
 function Write-Step([string]$message) {
     Write-Host ""
@@ -146,6 +154,34 @@ if (-not $SkipTests) {
     & (Join-Path $PSScriptRoot "test-product-flow.ps1") -Source
     if ($LASTEXITCODE -ne 0) { throw "Product source checks failed." }
 }
+
+function Get-VerifiedDownload([string]$url, [string]$path, [string]$expectedSha256, [string]$description) {
+    if (Test-Path -LiteralPath $path) {
+        $cachedHash = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+        if ($cachedHash -eq $expectedSha256) {
+            return $path
+        }
+        Remove-Item -LiteralPath $path -Force
+    }
+
+    Write-Step "Downloading verified $description"
+    New-Item -ItemType Directory -Path $dependencyRoot -Force | Out-Null
+    $temporaryPath = $path + ".download"
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $temporaryPath -UseBasicParsing
+        $downloadedHash = (Get-FileHash -LiteralPath $temporaryPath -Algorithm SHA256).Hash
+        if ($downloadedHash -ne $expectedSha256) {
+            throw "$description checksum mismatch. Expected $expectedSha256, got $downloadedHash."
+        }
+        Move-Item -LiteralPath $temporaryPath -Destination $path -Force
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath) {
+            Remove-Item -LiteralPath $temporaryPath -Force
+        }
+    }
+    return $path
+}
 $projectXml = [xml][IO.File]::ReadAllText($project, [Text.Encoding]::UTF8)
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = [string]$projectXml.Project.PropertyGroup.Version
@@ -176,6 +212,19 @@ Copy-Item -LiteralPath (Join-Path $packagingDir "product-install.json") -Destina
 if (Test-Path -LiteralPath $iconPath) {
     Copy-Item -LiteralPath $iconPath -Destination $payloadRoot -Force
 }
+$cloudflared = Get-VerifiedDownload $cloudflaredUrl $cloudflaredCache $cloudflaredSha256 "Cloudflare connector $cloudflaredVersion"
+$cloudflaredLicense = Get-VerifiedDownload $cloudflaredLicenseUrl $cloudflaredLicenseCache $cloudflaredLicenseSha256 "cloudflared license $cloudflaredVersion"
+$cloudflaredSignature = Get-AuthenticodeSignature -FilePath $cloudflared
+if ($cloudflaredSignature.Status -ne [System.Management.Automation.SignatureStatus]::Valid -or
+    $cloudflaredSignature.SignerCertificate.Subject -notmatch 'O="?Cloudflare, Inc\."?') {
+    throw "cloudflared Authenticode signature is not a valid Cloudflare, Inc. signature."
+}
+$connectorDirectory = Join-Path $payloadRoot "connectors"
+New-Item -ItemType Directory -Path $connectorDirectory -Force | Out-Null
+Copy-Item -LiteralPath $cloudflared -Destination (Join-Path $connectorDirectory "cloudflared.exe") -Force
+$licenseDirectory = Join-Path $payloadRoot "licenses"
+New-Item -ItemType Directory -Path $licenseDirectory -Force | Out-Null
+Copy-Item -LiteralPath $cloudflaredLicense -Destination (Join-Path $licenseDirectory "cloudflared-LICENSE.txt") -Force
 
 $hostExe = Join-Path $payloadRoot "VibeDeck.Host.exe"
 if (-not (Test-Path -LiteralPath $hostExe)) {

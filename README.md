@@ -2,7 +2,7 @@
 
 VibeDeck turns a spare phone or e-paper device into a private wireless second screen, system dashboard, and AI-usage sideboard for Windows.
 
-It runs locally: the Windows Host creates and captures an optional virtual display, while iPhone, Android, and BOOX devices connect through Safari, Chrome, or an installable PWA. No native mobile app or cloud account is required.
+The display, dashboard data, input, and pairing approval stay on the Windows Host. iPhone, Android, and BOOX devices connect through Safari, Chrome, or an installable PWA. VibeDeck's hosted control plane only assigns a browser-trusted HTTPS hostname and never receives a VibeDeck account or bypasses PC approval; users do not need a Cloudflare account.
 
 ## Product Architecture
 
@@ -13,6 +13,7 @@ It runs locally: the Windows Host creates and captures an optional virtual displ
 | Virtual display | Optional; required only for second-screen mode |
 | Windows notifications | Optional packaged companion; it forwards notifications to the Host |
 | Product updates | Run a newer Setup with the same AppId |
+| Trusted HTTPS | Setup includes a hidden connector; VibeDeck automatically assigns and maintains the PC URL |
 | Source development | Use `start.bat` or `scripts\dev-run.ps1` |
 
 The Host must not run as a Windows Service. A service runs in Session 0 and cannot enumerate or capture displays belonging to the signed-in user. VibeDeck instead launches as a hidden background process in the interactive desktop session.
@@ -37,7 +38,8 @@ The most complete product path is Windows Setup â†’ browser-trusted QR pairing â
 - AI-tool usage and quota cards.
 - Configurable dashboard layouts and activity updates.
 - Optional Windows notification integration.
-- Local device approval and pairing without a third-party backend.
+- Local device approval remains authoritative; the cloud control plane cannot approve a phone.
+- Automatic browser-trusted HTTPS without certificate installation, command windows, or a user Cloudflare account.
 - Windows Setup, in-place updates, autostart, and persistent product data.
 
 ## Showcase
@@ -82,6 +84,7 @@ Setup performs the complete product installation:
 - configures hidden autostart in the signed-in desktop session;
 - creates the firewall rules required for LAN access;
 - removes obsolete VibeDeck Windows Service registrations.
+- installs the verified background HTTPS connector managed by the Host.
 
 After installation, open:
 
@@ -148,13 +151,13 @@ These checks verify that:
 
 ## Connect a Phone or E-Paper Device
 
-The preferred path is to open the QR code shown by the PC Host. When the PC has a configured VibeDeck secure URL, it looks like:
+The preferred path is to open the QR code shown by the PC Host. VibeDeck automatically assigns a secure URL shaped like:
 
 ```text
 https://<installation-id>.vibedeck.pp.ua/
 ```
 
-This browser-trusted route does not require accepting a dangerous-page warning or installing a phone certificate. The Host still requires the normal phone request, six-digit verification code, and PC **Allow** action.
+This browser-trusted route does not require accepting a dangerous-page warning, installing a phone certificate, opening a command window, or configuring Cloudflare. The Host still requires the normal phone request, six-digit verification code, and PC **Allow** action. If the Internet control plane is temporarily unavailable, the UI falls back to the existing local-network HTTPS route instead of advertising a dead public URL.
 
 The local-network fallback opens the HTTPS address shown by the PC Host, for example:
 

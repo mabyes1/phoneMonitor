@@ -50,11 +50,13 @@ export function createEnergyWave() {
   let active = false;
 
   function canShow() {
-    return document.body.classList.contains("pc-console") &&
-      document.body.classList.contains("mode-sideboard") &&
-      !document.body.classList.contains("phone-client") &&
+    const desktopConsole = document.body.classList.contains("pc-console") && !compactViewport.matches;
+    const deckWindow = document.body.classList.contains("deck-window");
+    const trustedPhone = document.body.classList.contains("phone-client") &&
+      document.body.classList.contains("device-trusted");
+    return document.body.classList.contains("mode-sideboard") &&
       !document.body.classList.contains("eink-client") &&
-      !compactViewport.matches;
+      (desktopConsole || deckWindow || trustedPhone);
   }
 
   function resize() {

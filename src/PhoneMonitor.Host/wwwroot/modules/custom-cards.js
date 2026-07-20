@@ -1,4 +1,4 @@
-import { getIntlLocale, tLegacy } from "./i18n.js?v=3";
+import { getIntlLocale, tLegacy } from "./i18n.js?v=4";
 
 const CARD_TYPE_LABELS = {
   "message-feed": "即時訊息",

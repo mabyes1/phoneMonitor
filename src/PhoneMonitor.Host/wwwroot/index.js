@@ -28,8 +28,8 @@ import { tuneVideoReceiver } from "./modules/stream-tuning.js?v=47";
   renderQuotaWindow,
   summarizeQuotaWindow,
 } from "./modules/quota-formatters.js?v=51";
-import { getIntlLocale, initLocale, onLocaleChange, t, tApi, tLegacy, translateText } from "./modules/i18n.js?v=3";
-import { createEnergyWave } from "./modules/energy-wave.js?v=2";
+import { getIntlLocale, initLocale, onLocaleChange, t, tApi, tLegacy, translateText } from "./modules/i18n.js?v=4";
+import { createEnergyWave } from "./modules/energy-wave.js?v=6";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -79,6 +79,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     const publicEndpointStatus = document.getElementById("publicEndpointStatus");
     const publicEndpointInstallationId = document.getElementById("publicEndpointInstallationId");
     const publicEndpointUrl = document.getElementById("publicEndpointUrl");
+    const publicEndpointControls = document.getElementById("publicEndpointControls");
+    const publicEndpointHint = document.getElementById("publicEndpointHint");
     const savePublicEndpoint = document.getElementById("savePublicEndpoint");
     const clearPublicEndpoint = document.getElementById("clearPublicEndpoint");
     const deviceConnectionCodePanel = document.getElementById("deviceConnectionCodePanel");
@@ -378,6 +380,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     let deviceLocalRequest = false;
     let pairingQrActive = false;
     let usesTrustedPublicUrl = false;
+    // Pairing main path stays QR + steps + approval. Advanced connect details only
+    // reappear when the endpoint itself needs repair (not during a healthy wait).
+    let pairingNeedsAdvancedConnect = false;
+    let lastConnectInfoSnapshot = null;
     let resolvedPairingInfo = null;
     let autoPairFromConnectionCode = new URLSearchParams(location.search).get("source") === "connection-code" &&
       new URLSearchParams(location.search).get("autopair") === "1";
@@ -393,6 +399,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     let installPromptEvent = null;
     let approvalPollTimer = null;
     let pendingApprovalTimer = null;
+    let connectInfoTimer = null;
     let deviceManagementDefaultApplied = false;
     let shouldDefaultToFirstDeviceSetup = false;
     let diagnosticsLoading = false;
@@ -670,6 +677,8 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       applyForcedLandscape();
       updateIosHomeTip();
       updateEinkToggle();
+      // Phone/PC empty-state CTAs depend on client chrome classes.
+      syncDisplayEmptyActions();
     }
 
     function updateIosHomeTip() {
@@ -910,7 +919,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       if (isSetup || isSideboard || isQuota) {
         document.body.classList.remove("display-settings-open");
         displaySettingsToggle?.setAttribute("aria-expanded", "false");
-        if (displaySettingsToggle) displaySettingsToggle.textContent = "顯示設定";
+        if (displaySettingsToggle) displaySettingsToggle.textContent = t("ui.settings");
       }
       displayView.classList.toggle("active", isDisplay);
       sideboardView.classList.toggle("active", isSideboard);
@@ -1027,7 +1036,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
 
     async function loginToHost(password) {
       hostAuthSubmit.disabled = true;
-      hostAuthSubmit.textContent = "登入中…";
+      hostAuthSubmit.textContent = t("gates.hostAuthLoggingIn");
       hostAuthError.textContent = "";
       try {
         const response = await fetch("/api/auth/login", {
@@ -1038,18 +1047,18 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         });
         const result = parseJsonResponse(await response.text(), "/api/auth/login");
         if (!response.ok || !result.success) {
-          throw new Error(tApi(result.code || result.Code, result.error || result.message || `登入失敗 HTTP ${response.status}`));
+          throw new Error(tApi(result.code || result.Code, result.error || result.message || t("gates.hostAuthFailed")));
         }
 
         actionToken = "";
         await loadHostAuthStatus();
         location.reload();
       } catch (error) {
-        hostAuthError.textContent = error.message || "登入失敗。";
+        hostAuthError.textContent = error.message || t("gates.hostAuthFailed");
         updateHostAuthGate();
       } finally {
         hostAuthSubmit.disabled = false;
-        hostAuthSubmit.textContent = "登入";
+        hostAuthSubmit.textContent = t("gates.hostAuthSubmit");
       }
     }
 
@@ -1108,17 +1117,67 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       }
     }
 
+    function computePairingNeedsAdvancedConnect(info = {}) {
+      const connectorManaged = Boolean(info.PublicConnectorManaged ?? info.publicConnectorManaged);
+      const connectorState = String(info.PublicConnectorState || info.publicConnectorState || "").trim().toLowerCase();
+      const connectorError = String(info.PublicConnectorError || info.publicConnectorError || "").trim();
+      const connectorHealthy = info.PublicConnectorHealthy ?? info.publicConnectorHealthy;
+      const httpsAvailable = info.HttpsAvailable ?? info.httpsAvailable;
+      const transitional = connectorState === "provisioning"
+        || connectorState === "starting"
+        || connectorState === "waiting"
+        || connectorState === "";
+
+      // Healthy trusted URL or normal local QR pairing must not surface tunnel/cert chrome.
+      if (connectorState === "error") return true;
+      if (connectorManaged && connectorError && !transitional) return true;
+      if (connectorManaged && connectorHealthy === false && !transitional) return true;
+      // Local HTTPS missing: advanced panel has setup hint / cert recovery.
+      if (httpsAvailable === false) return true;
+      return false;
+    }
+
+    function syncAdvancedConnectLinksForPairing() {
+      const links = document.querySelector(".connect-links");
+      if (!links) return;
+
+      const pairingActive = document.body.classList.contains("pairing-active") || pairingQrActive;
+      document.body.classList.toggle("pairing-needs-advanced", pairingActive && pairingNeedsAdvancedConnect);
+
+      if (pairingActive && !pairingNeedsAdvancedConnect) {
+        // Hide completely during a healthy pairing wait — do not leave a summary row.
+        links.open = false;
+        links.hidden = true;
+        links.setAttribute("hidden", "");
+        return;
+      }
+
+      links.hidden = false;
+      links.removeAttribute("hidden");
+      if (pairingActive && pairingNeedsAdvancedConnect) {
+        // Failure path: open so the user sees the repair surface without an extra click.
+        links.open = true;
+        return;
+      }
+
+      // Outside pairing: keep advanced collapsed when the trusted public URL is healthy.
+      if (usesTrustedPublicUrl) links.open = false;
+    }
+
     function updatePublicEndpointUi(info) {
+      lastConnectInfoSnapshot = info || null;
       const publicUrl = String(info.PublicUrl || info.publicUrl || "").trim();
       const installationId = String(info.InstallationId || info.installationId || "").trim();
       const baseDomain = String(info.PublicBaseDomain || info.publicBaseDomain || "").trim();
       const expectedUrl = installationId && baseDomain
         ? `https://${installationId}.${baseDomain}/`
         : "";
+      const connectorManaged = Boolean(info.PublicConnectorManaged ?? info.publicConnectorManaged);
+      const connectorState = String(info.PublicConnectorState || info.publicConnectorState || "").trim().toLowerCase();
       usesTrustedPublicUrl = Boolean(info.UsesTrustedPublicUrl ?? info.usesTrustedPublicUrl) && Boolean(publicUrl);
+      pairingNeedsAdvancedConnect = computePairingNeedsAdvancedConnect(info);
       document.body.classList.toggle("trusted-public-endpoint", usesTrustedPublicUrl);
-      const advancedLinks = document.querySelector(".connect-links");
-      if (usesTrustedPublicUrl && advancedLinks) advancedLinks.open = false;
+      syncAdvancedConnectLinksForPairing();
       if (pairingQrActive) {
         setTrustState(
           usesTrustedPublicUrl
@@ -1156,12 +1215,29 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         publicEndpointUrl.placeholder = expectedUrl || t("secureEndpoint.urlPlaceholder");
       }
       if (publicEndpointStatus) {
+        const managedStatusKey = connectorState === "provisioning"
+          ? "secureEndpoint.statusProvisioning"
+          : connectorState === "starting" || connectorState === "waiting"
+            ? "secureEndpoint.statusStarting"
+            : connectorState === "error"
+              ? "secureEndpoint.statusError"
+              : "secureEndpoint.statusAutomatic";
         publicEndpointStatus.textContent = usesTrustedPublicUrl
           ? t("secureEndpoint.statusEnabled")
-          : t("secureEndpoint.statusPending", { url: expectedUrl || "--" });
+          : connectorManaged
+            ? t(managedStatusKey)
+            : t("secureEndpoint.statusPending", { url: expectedUrl || "--" });
+      }
+      if (publicEndpointControls) {
+        publicEndpointControls.hidden = connectorManaged;
+      }
+      if (publicEndpointHint) {
+        publicEndpointHint.textContent = connectorManaged
+          ? t("secureEndpoint.automaticHint")
+          : t("secureEndpoint.manualHint");
       }
       if (clearPublicEndpoint) {
-        clearPublicEndpoint.hidden = !usesTrustedPublicUrl;
+        clearPublicEndpoint.hidden = connectorManaged || !usesTrustedPublicUrl;
       }
       if (certificateSetupTitle) {
         certificateSetupTitle.hidden = usesTrustedPublicUrl;
@@ -1679,9 +1755,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
             const trust = await loadDeviceTrustStatus();
             const trusted = Boolean(trust?.Trusted ?? trust?.trusted);
             if (!trusted) {
-              setTrustState("配對 token 已取得，正在重新載入驗證。", true);
+              setTrustState(t("pairingUx.tokenReadyReload"), true);
             }
-            showPairSuccessBanner(`裝置：${result.DeviceName || result.deviceName || pairingDeviceName()}`);
+            showPairSuccessBanner(t("pairingUx.successDevice", {
+              name: result.DeviceName || result.deviceName || pairingDeviceName()
+            }));
             setPairingProgress(100, (result.Continued ?? result.continued)
               ? t("pairingUx.resumedPairing")
               : t("pairingUx.pairingComplete"));
@@ -1737,7 +1815,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         row.className = "pending-pairing-row";
         const requestId = request.RequestId || request.requestId;
         row.innerHTML = `<div><strong></strong><span></span><b></b></div><button data-pair-approve></button><button data-pair-deny></button>`;
-        row.querySelector("strong").textContent = request.Name || request.name || "新裝置";
+        row.querySelector("strong").textContent = request.Name || request.name || t("pairingUx.newDeviceDefault");
         const platform = request.Platform || request.platform || "";
         const remoteAddress = request.RemoteAddress || request.remoteAddress || "";
         row.querySelector("span").textContent = platform;
@@ -1772,7 +1850,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
 
     async function revokeTrustedDevice(deviceId, button) {
       if (!deviceId) return;
-      if (!window.confirm("要移除這個已配對裝置嗎？")) return;
+      if (!window.confirm(t("deviceManagement.revokeConfirm"))) return;
 
       const originalText = button?.textContent || "";
       if (button) {
@@ -1786,10 +1864,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ deviceId })
         });
-        setTrustState(result.Message || result.message || "已移除手機。", true);
+        setTrustState(result.Message || result.message || t("deviceManagement.revokeSuccess"), true);
         await loadDeviceTrustStatus();
       } catch (error) {
-        setTrustState(error.message || "移除手機失敗。", false);
+        setTrustState(error.message || t("deviceManagement.revokeFailed"), false);
       } finally {
         if (button) {
           button.disabled = false;
@@ -1799,12 +1877,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
     }
 
     async function clearAllTrustedDevices(button) {
-      if (!window.confirm("要清空所有已配對裝置嗎？目前裝置會需要重新配對。")) return;
+      if (!window.confirm(t("deviceManagement.clearAllConfirm"))) return;
 
       const originalText = button?.textContent || "";
       if (button) {
         button.disabled = true;
-        button.textContent = "清除中";
+        button.textContent = t("deviceManagement.clearBusy");
       }
 
       try {
@@ -1813,10 +1891,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
           headers: { "Content-Type": "application/json" }
         });
         persistDeviceCredentials("", "");
-        setTrustState(result.Message || result.message || "已清空配對裝置。", true);
+        setTrustState(result.Message || result.message || t("deviceManagement.clearSuccess"), true);
         await loadDeviceTrustStatus();
       } catch (error) {
-        setTrustState(error.message || "清空配對手機失敗。", false);
+        setTrustState(error.message || t("deviceManagement.clearFailed"), false);
       } finally {
         if (button) {
           button.disabled = false;
@@ -1829,20 +1907,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       const banner = document.getElementById("pairSuccessBanner");
       if (!banner) return;
       const title = document.createElement("strong");
-      title.textContent = "已配對成功";
+      title.textContent = t("pairingUx.successTitle");
       const detail = document.createElement("div");
       detail.textContent = message || "";
       const homeHint = document.createElement("div");
-      if (isIos() && !isStandaloneApp()) {
-        homeHint.append("接著在");
-        const pairedPage = document.createElement("strong");
-        pairedPage.textContent = "這個已配對頁面";
-        const addToHome = document.createElement("strong");
-        addToHome.textContent = "加入主畫面";
-        homeHint.append(pairedPage, "按 Safari 底部分享 → ", addToHome, "。不要另開新分頁再加。");
-      } else {
-        homeHint.textContent = "可點上方「顯示器 / 資訊板 / 額度」使用。";
-      }
+      homeHint.textContent = isIos() && !isStandaloneApp()
+        ? t("pairingUx.successIosHomeHint")
+        : t("pairingUx.successNextHint");
       banner.replaceChildren(title, detail, homeHint);
       banner.classList.add("show");
       // The toast is confirmation, not a permanent panel. On phones it used to
@@ -2047,7 +2118,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         renderTrustedDevices(result);
 
         if (deviceLocalRequest) {
-          setTrustState("信任狀態：本機控制。", true);
+          setTrustState(t("pairingUx.trustLocal"), true);
           if (!pairingQrActive) setPairingProgress(null, t("pairingUx.readyForNewDevice"));
           if (!pairingQrActive) updatePairingGuide("pair");
           loadPendingApprovals();
@@ -2072,17 +2143,17 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
             phonePairRequest.textContent = t("pairingUx.phoneTitle");
           }
         } else if (hostAuthenticated) {
-          setTrustState("遠端 Host 登入成功。", true);
-          setPairingProgress(100, "遠端登入完成");
+          setTrustState(t("pairingUx.trustRemoteOk"), true);
+          setPairingProgress(100, t("pairingUx.trustRemoteProgress"));
           updatePairingGuide("paired");
         } else if (deviceTrusted) {
-          const name = currentDevice?.Name || currentDevice?.name || "已配對手機";
-          setTrustState(`信任狀態：${name} 已配對。`, true);
-          setPairingProgress(100, `${name} 可繼續使用`);
+          const name = currentDevice?.Name || currentDevice?.name || t("pairingUx.trustPairedDevice");
+          setTrustState(t("pairingUx.trustPaired", { name }), true);
+          setPairingProgress(100, t("pairingUx.deviceCanContinue", { name }));
           updatePairingGuide("paired");
         } else if (hostAuthRequired && !hostAuthenticated) {
-          setTrustState("請先登入 Host。", false);
-          setPairingProgress(10, "等待 Host 登入");
+          setTrustState(t("pairingUx.trustLoginRequired"), false);
+          setPairingProgress(10, t("pairingUx.trustLoginProgress"));
           updatePairingGuide("install");
         } else {
           const storageKey = `phoneMonitorPendingApproval:${location.host}`;
@@ -2097,9 +2168,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
               approvalPollTimer = null;
             }
             localStorage.removeItem(storageKey);
-            requestApprovalPairing({ allowCreate: true }).catch(error => setTrustState(error.message || "配對申請失敗。", false));
+            requestApprovalPairing({ allowCreate: true }).catch(error => setTrustState(error.message || t("pairingUx.pairRequestFailed"), false));
           } else if (hasPendingRequest) {
-            requestApprovalPairing().catch(error => setTrustState(error.message || "配對申請失敗。", false));
+            requestApprovalPairing().catch(error => setTrustState(error.message || t("pairingUx.pairRequestFailed"), false));
           } else {
             setTrustState(tLegacy("請按「連接這台電腦」，再回 PC 按允許。"), false);
             setPairingProgress(null, t("pairingUx.readyToConnect"));
@@ -2118,7 +2189,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         deviceLocalRequest = deviceLocalRequest || isLoopbackHost();
         setPairControlsVisible(deviceLocalRequest);
         if (!deviceTrusted) renderTrustedDevices(null);
-        setTrustState(error.message || "信任狀態暫時無法取得，沿用上次狀態。", deviceTrusted);
+        setTrustState(error.message || t("pairingUx.trustStatusUnavailable"), deviceTrusted);
         if (!deviceTrusted) setPairingProgress(null, t("pairingUx.reconnecting"));
         applyClientChrome();
         syncDeviceStatusPolling();
@@ -2132,11 +2203,12 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         newDeviceConnectPanel.hidden = false;
         newDeviceConnectPanel.open = true;
       }
-      const links = document.querySelector(".connect-links");
-      if (links && active) {
-        links.hidden = false;
-        links.removeAttribute("hidden");
+      // Re-evaluate with the latest connect snapshot so a healthy wait never
+      // re-opens tunnel / cert details, while connector errors still surface.
+      if (lastConnectInfoSnapshot) {
+        pairingNeedsAdvancedConnect = computePairingNeedsAdvancedConnect(lastConnectInfoSnapshot);
       }
+      syncAdvancedConnectLinksForPairing();
     }
 
     function startPhonePairing() {
@@ -2152,6 +2224,10 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       );
       setStatus("手機 QR Code 已顯示", true);
       updatePairingGuide("scan");
+      // Keep the QR in view after the panel expands (PC setup can be long).
+      requestAnimationFrame(() => {
+        document.querySelector(".connect-qr")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      });
     }
 
     async function launchDeckOnVirtualDisplay() {
@@ -2487,6 +2563,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       updateEinkToggle();
       updateKeepAwakeButton();
       renderProductUpdate(productUpdateSnapshot);
+      syncDisplayEmptyActions();
+      if (displaySettingsToggle) {
+        const open = document.body.classList.contains("display-settings-open");
+        displaySettingsToggle.textContent = open ? t("ui.settingsCollapse") : t("ui.settings");
+      }
+      if (hostAuthSubmit && !hostAuthSubmit.disabled) {
+        hostAuthSubmit.textContent = t("gates.hostAuthSubmit");
+      }
     });
 
     function renderQuotas(snapshot) {
@@ -3814,8 +3898,11 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       } else {
         document.body.classList.remove("viewer-immersive");
       }
+      const mainContent = document.querySelector("main");
+      mainContent?.scrollTo({ top: 0, left: 0 });
       window.scrollTo(0, 1);
       setTimeout(() => {
+        mainContent?.scrollTo({ top: 0, left: 0 });
         updateViewportSize();
         applyRotation();
       }, 250);
@@ -3941,10 +4028,17 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       if (setupDisplayInstallDetail) setupDisplayInstallDetail.textContent = localizedMessage || "等待虛擬螢幕狀態。";
 
       if (installVirtualDisplay) {
-        installVirtualDisplay.hidden = !deviceLocalRequest || state === "installed" || state === "finishing" || state === "console-required";
-        installVirtualDisplay.disabled = false;
-        installVirtualDisplay.textContent = "前往裝置設定";
+        // Phone never shows a fake "go install" path — virtual display is PC-local only.
+        const phone = isPhoneDisplayClient();
+        installVirtualDisplay.hidden = phone
+          || !deviceLocalRequest
+          || state === "installed"
+          || state === "finishing"
+          || state === "console-required";
+        installVirtualDisplay.disabled = phone;
+        installVirtualDisplay.textContent = t("pairingUx.goToDeviceSetup");
       }
+      syncDisplayEmptyActions();
       if (!setupInstallVirtualDisplay) return state;
       setupInstallVirtualDisplay.hidden = !deviceLocalRequest || state === "installed" || state === "finishing" || state === "console-required";
       setupInstallVirtualDisplay.disabled = !canInstall || state === "installing";
@@ -4015,11 +4109,45 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       }
     }
 
+    function isPhoneDisplayClient() {
+      return document.body.classList.contains("phone-client")
+        && !document.body.classList.contains("pc-console")
+        && !deviceLocalRequest;
+    }
+
+    function syncDisplayEmptyActions() {
+      const phone = isPhoneDisplayClient();
+      if (openSideboardFromEmpty) {
+        openSideboardFromEmpty.hidden = false;
+        openSideboardFromEmpty.textContent = t("pairingUx.useSideboard");
+        // Phone: sole primary CTA. PC: secondary escape hatch beside setup.
+        openSideboardFromEmpty.classList.toggle("secondary", !phone);
+      }
+      if (installVirtualDisplay) {
+        installVirtualDisplay.textContent = t("pairingUx.goToDeviceSetup");
+        if (phone) {
+          installVirtualDisplay.hidden = true;
+          installVirtualDisplay.disabled = true;
+        }
+      }
+    }
+
     function setDisplayAvailability(available, title = "", message = "") {
       document.body.classList.toggle("display-unavailable", !available);
       if (displayEmptyState) displayEmptyState.hidden = Boolean(available);
       if (displayEmptyTitle && title) displayEmptyTitle.textContent = title;
-      if (displayEmptyMessage && message) displayEmptyMessage.textContent = message;
+      if (displayEmptyMessage && (title || message)) {
+        if (isPhoneDisplayClient() && !available) {
+          // Pairing gate keeps its own next step; missing/broken display points at PC setup.
+          const pairingGate = /配對|pair|ペアリング/i.test(`${title} ${message}`);
+          displayEmptyMessage.textContent = pairingGate
+            ? (message || t("pairingUx.displayBenefit"))
+            : t("pairingUx.displayInstallOnPc");
+        } else if (message) {
+          displayEmptyMessage.textContent = message;
+        }
+      }
+      syncDisplayEmptyActions();
     }
 
     function inputSocketUrl() {
@@ -4291,6 +4419,14 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       setPairControlsVisible(true);
       startPhonePairing();
     });
+    // Expanding "連接新裝置" itself must prepare the QR — users should not have
+    // to discover the separate ＋ 新增 control just to unhide .connect-qr.
+    newDeviceConnectPanel?.addEventListener("toggle", () => {
+      if (!newDeviceConnectPanel.open) return;
+      if (!deviceLocalRequest && !isLoopbackHost()) return;
+      setPairControlsVisible(true);
+      startPhonePairing();
+    });
     // 流程圖第 2 步也可點，避免按鈕被藏時完全沒入口
     document.getElementById("pairingStepPair")?.addEventListener("click", () => {
       if (!isLoopbackHost() && !deviceLocalRequest) return;
@@ -4308,7 +4444,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         }
         await requestApprovalPairing({ allowCreate: true });
       } catch (error) {
-        setTrustState(error.message || "配對申請失敗。", false);
+        setTrustState(error.message || t("pairingUx.pairRequestFailed"), false);
       } finally {
         if (!approvalPollTimer && !isDevicePreviewTrust("pending")) {
           phonePairRequest.disabled = false;
@@ -4320,9 +4456,13 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       const open = !document.body.classList.contains("display-settings-open");
       document.body.classList.toggle("display-settings-open", open);
       displaySettingsToggle.setAttribute("aria-expanded", open ? "true" : "false");
-      displaySettingsToggle.textContent = open ? "收起設定" : "顯示設定";
+      displaySettingsToggle.textContent = open ? t("ui.settingsCollapse") : t("ui.settings");
     });
-    installVirtualDisplay?.addEventListener("click", () => setMode("setup"));
+    installVirtualDisplay?.addEventListener("click", () => {
+      // Device setup / driver install is a local PC console task only.
+      if (!deviceLocalRequest || isPhoneDisplayClient()) return;
+      setMode("setup");
+    });
     setupInstallVirtualDisplay?.addEventListener("click", installDisplayFromWeb);
     openSideboardFromEmpty?.addEventListener("click", () => setMode("sideboard"));
     hostAuthForm?.addEventListener("submit", event => {
@@ -4365,7 +4505,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
       const button = approve || deny;
       if (!button) return;
       button.disabled = true;
-      actOnPendingApproval(button.dataset.requestId, Boolean(approve)).catch(error => setTrustState(error.message || "配對操作失敗。", false));
+      actOnPendingApproval(button.dataset.requestId, Boolean(approve)).catch(error => setTrustState(error.message || t("pairingUx.pairActionFailed"), false));
     });
     refresh.addEventListener("click", async () => {
       selectedDisplayName = "";
@@ -4565,7 +4705,7 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         hostAuthRequired = false;
       }
       if (hostAuthRequired && !hostAuthenticated) {
-        setStatus("等待遠端登入", false);
+        setStatus(t("pairingUx.waitingRemoteLogin"), false);
         return;
       }
 
@@ -4633,6 +4773,9 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=2";
         setTrustState(error.message || "連線資訊讀取失敗。", false);
         setStatus(error.message || "連線資訊讀取失敗", false);
       });
+      if (deviceLocalRequest && !connectInfoTimer) {
+        connectInfoTimer = setInterval(() => loadConnectInfo().catch(() => {}), 5000);
+      }
       if (!isEinkClient()) {
         loadStreamCapabilities();
         loadPhoneDisplay().then(loadDisplayStatus).finally(() => {

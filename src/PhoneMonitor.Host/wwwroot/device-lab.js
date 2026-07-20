@@ -177,6 +177,18 @@ function inspectLayout() {
       .filter(element => isVisible(element) && element.textContent.trim());
     const undersizedText = textElements.filter(element => parseFloat(previewWindow.getComputedStyle(element).fontSize) + 0.05 < minimumTextSize);
     const qualityIssue = undersizedControls.length > 0 || undersizedText.length > 0;
+    const quotaShell = modeSelect.value === "quota" ? previewDocument.querySelector(".quota-shell") : null;
+    const quotaCards = quotaShell ? Array.from(quotaShell.querySelectorAll(".quota-account-card")) : [];
+    const shellStyle = quotaShell ? previewWindow.getComputedStyle(quotaShell) : null;
+    const shellClipsContent = Boolean(quotaShell && shellStyle &&
+      ["hidden", "clip"].includes(shellStyle.overflowY) &&
+      quotaShell.scrollHeight > quotaShell.clientHeight + 1);
+    const cardWidthFloor = Math.min(280, Math.max(0, actualWidth - 32));
+    const crampedQuotaCard = quotaCards.some(card => {
+      const rect = card.getBoundingClientRect();
+      return rect.width + 0.5 < cardWidthFloor || card.scrollWidth > card.clientWidth + 1;
+    });
+    const quotaLayoutIssue = shellClipsContent || crampedQuotaCard;
     const values = {
       actual: `${actualWidth} × ${actualHeight}`,
       expected: `${expectedWidth} × ${expectedHeight}`,
@@ -187,10 +199,12 @@ function inspectLayout() {
       textSize: minimumTextSize,
     };
 
-    const passed = exact && !overflow && !qualityIssue;
+    const passed = exact && !overflow && !qualityIssue && !quotaLayoutIssue;
     layoutStatus.className = `status-badge ${passed ? "pass" : "fail"}`;
-    layoutStatus.textContent = text(passed ? "pass" : qualityIssue && !overflow ? "qualityFail" : "fail");
-    layoutDetail.textContent = overflow
+    layoutStatus.textContent = text(passed ? "pass" : qualityIssue && !overflow && !quotaLayoutIssue ? "qualityFail" : "fail");
+    layoutDetail.textContent = quotaLayoutIssue
+      ? text("quotaClipping", values)
+      : overflow
       ? text("overflow", values)
       : qualityIssue
         ? text("quality", values)
@@ -205,7 +219,10 @@ function inspectLayout() {
       const size = previewWindow.getComputedStyle(element).fontSize;
       return `${element.tagName.toLowerCase()}#${element.id || "-"} ${size} ${element.textContent.trim().slice(0, 30)}`;
     });
-    layoutDetail.title = [...controlSamples, ...textSamples].join("\n");
+    const quotaSamples = [];
+    if (shellClipsContent) quotaSamples.push("quota shell clips vertically");
+    if (crampedQuotaCard) quotaSamples.push("quota card is too narrow or overflows");
+    layoutDetail.title = [...quotaSamples, ...controlSamples, ...textSamples].join("\n");
   } catch {
     setChecking();
   }

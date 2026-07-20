@@ -1,4 +1,4 @@
-import { getIntlLocale, getLocale, tLegacy } from "./i18n.js?v=3";
+import { getIntlLocale, getLocale, tLegacy } from "./i18n.js?v=4";
 
 export function formatPercent(value) {
   return Number.isFinite(value) ? `${Math.round(value)}%` : "--";

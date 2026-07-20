@@ -1,4 +1,4 @@
-import { getIntlLocale, t, tLegacy } from "./i18n.js?v=3";
+import { getIntlLocale, t, tLegacy } from "./i18n.js?v=4";
 
 const MINUTES_PER_HOUR = 60;
 const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;

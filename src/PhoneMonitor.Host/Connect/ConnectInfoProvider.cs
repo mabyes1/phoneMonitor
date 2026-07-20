@@ -15,10 +15,19 @@ namespace PhoneMonitor.Host.Connect
         private const int HttpsPort = 5443;
 
         private readonly PublicEndpointService publicEndpoint;
+        private readonly CloudflareConnectorService managedConnector;
 
         public ConnectInfoProvider(PublicEndpointService publicEndpoint)
+            : this(publicEndpoint, null)
+        {
+        }
+
+        public ConnectInfoProvider(
+            PublicEndpointService publicEndpoint,
+            CloudflareConnectorService managedConnector)
         {
             this.publicEndpoint = publicEndpoint;
+            this.managedConnector = managedConnector;
         }
 
         public ConnectInfo Get(HttpRequest request)
@@ -43,7 +52,13 @@ namespace PhoneMonitor.Host.Connect
             var rootCertificateUrl = new Uri(new Uri(httpUrl), "cert/vibedeck-root.cer").ToString();
             var hostCertificateUrl = new Uri(new Uri(httpUrl), "cert/vibedeck-host.cer").ToString();
             var endpoint = publicEndpoint?.GetConfiguration() ?? new PublicEndpointConfiguration();
-            var usesTrustedPublicUrl = endpoint.IsConfigured;
+            var connector = managedConnector?.GetSnapshot() ?? new ManagedConnectorSnapshot
+            {
+                IsManaged = false,
+                State = "external"
+            };
+            var usesTrustedPublicUrl = endpoint.IsConfigured &&
+                (managedConnector == null || managedConnector.ShouldAdvertise(endpoint.PublicUrl));
             var localHttpsAvailable = LocalHttpsCertificate.IsConfigured;
             var httpsAvailable = usesTrustedPublicUrl || localHttpsAvailable;
             var preferredUrl = usesTrustedPublicUrl
@@ -75,6 +90,11 @@ namespace PhoneMonitor.Host.Connect
                 InstallationId = endpoint.InstallationId,
                 PublicBaseDomain = endpoint.BaseDomain,
                 UsesTrustedPublicUrl = usesTrustedPublicUrl,
+                PublicConnectorManaged = connector.IsManaged,
+                PublicConnectorState = connector.State,
+                PublicConnectorRunning = connector.IsRunning,
+                PublicConnectorHealthy = connector.IsHealthy,
+                PublicConnectorError = connector.LastError,
                 IsHttpsRequest = request.IsHttps,
                 WakeLockNeedsHttps = !request.IsHttps,
                 Addresses = hideLanAddresses ? Array.Empty<string>() : addresses

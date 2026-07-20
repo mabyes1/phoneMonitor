@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="/icons/icon-192.png?v=22" sizes="192x192">
   <link rel="icon" type="image/png" href="/icons/icon-192.png?v=22" sizes="192x192">
   <title>VibeDeck</title>
-  <link rel="stylesheet" href="/index.css?v=103">
+  <link rel="stylesheet" href="/index.css?v=109">
   <style>
     /* Pairing is the recovery path: keep it usable even if an old iOS asset or
        a later boot request fails. JS only hides it after trust is confirmed. */
@@ -98,30 +98,30 @@
 <body>
   <div id="hostAuthGate" class="host-auth-gate" role="dialog" aria-modal="true" aria-labelledby="hostAuthTitle" hidden>
     <form id="hostAuthForm" class="host-auth-card">
-      <span class="host-auth-kicker">REMOTE HOST ACCESS</span>
-      <h1 id="hostAuthTitle">登入 VibeDeck Host</h1>
-      <p>這個 Host 正在另一個網路。請輸入 Host 設定的遠端密碼。</p>
-      <label for="hostAuthPassword">密碼</label>
+      <span class="host-auth-kicker" data-i18n="gates.hostAuthKicker">REMOTE HOST ACCESS</span>
+      <h1 id="hostAuthTitle" data-i18n="gates.hostAuthTitle">登入 VibeDeck Host</h1>
+      <p data-i18n="gates.hostAuthBody">這個 Host 正在另一個網路。請輸入 Host 設定的遠端密碼。</p>
+      <label for="hostAuthPassword" data-i18n="gates.hostAuthPassword">密碼</label>
       <input id="hostAuthPassword" name="password" type="password" autocomplete="current-password" required autofocus>
-      <button id="hostAuthSubmit" class="gate-primary" type="submit">登入</button>
+      <button id="hostAuthSubmit" class="gate-primary" type="submit" data-i18n="gates.hostAuthSubmit">登入</button>
       <p id="hostAuthError" class="host-auth-error" role="alert"></p>
-      <small>遠端登入只接受 HTTPS。若還沒設定，請在 Host 啟動前設定 VIBEDECK_REMOTE_PASSWORD 或 PHONEMONITOR_REMOTE_PASSWORD。</small>
+      <small data-i18n="gates.hostAuthHint">遠端登入只接受 HTTPS。若還沒設定，請在 Host 啟動前設定 VIBEDECK_REMOTE_PASSWORD 或 PHONEMONITOR_REMOTE_PASSWORD。</small>
     </form>
   </div>
   <div id="mobileHttpsGate" role="dialog" aria-modal="true" aria-labelledby="mobileHttpsGateTitle">
-    <h1 id="mobileHttpsGateTitle">用 HTTPS 開啟 VibeDeck</h1>
-    <p>長亮、主畫面 App 與穩定串流需要 HTTPS。第一次開啟會看到瀏覽器警告，不必安裝憑證。</p>
+    <h1 id="mobileHttpsGateTitle" data-i18n="gates.httpsTitle">用 HTTPS 開啟 VibeDeck</h1>
+    <p data-i18n="gates.httpsBody">長亮、主畫面 App 與穩定串流需要 HTTPS。第一次開啟會看到瀏覽器警告，不必安裝憑證。</p>
     <ol>
-      <li>按下「開啟 HTTPS」</li>
-      <li>若瀏覽器顯示警告，按「顯示詳細資訊」或「進階」</li>
-      <li>選擇「造訪此網站」或「繼續前往」，再回 VibeDeck 配對</li>
+      <li data-i18n="gates.httpsStep1">按下「開啟 HTTPS」</li>
+      <li data-i18n="gates.httpsStep2">若瀏覽器顯示警告，按「顯示詳細資訊」或「進階」</li>
+      <li data-i18n="gates.httpsStep3">選擇「造訪此網站」或「繼續前往」，再回 VibeDeck 配對</li>
     </ol>
     <div class="gate-actions">
-      <button id="mobileGateOpenHttps" class="gate-primary" type="button">開啟 HTTPS</button>
-      <a id="mobileGateHttpsUrl" class="gate-secondary" href="#">複製用的 HTTPS 網址</a>
+      <button id="mobileGateOpenHttps" class="gate-primary" type="button" data-i18n="gates.httpsOpen">開啟 HTTPS</button>
+      <a id="mobileGateHttpsUrl" class="gate-secondary" href="#" data-i18n="gates.httpsCopyLink">複製用的 HTTPS 網址</a>
     </div>
-    <p class="gate-note">這是本機電腦使用自簽憑證的正常提示，只需接受一次。</p>
-    <p class="gate-note">若主畫面還是舊圖示／舊名稱：長按刪除舊圖示，改從 HTTPS 頁重新「加入主畫面」。</p>
+    <p class="gate-note" data-i18n="gates.httpsNote">這是本機電腦使用自簽憑證的正常提示，只需接受一次。</p>
+    <p class="gate-note" data-i18n="gates.httpsHomeIconNote">若主畫面還是舊圖示／舊名稱：長按刪除舊圖示，改從 HTTPS 頁重新「加入主畫面」。</p>
   </div>
   <header>
     <div class="brand">
@@ -312,12 +312,12 @@
               <p id="publicEndpointStatus" class="public-endpoint-status" aria-live="polite"></p>
               <p class="public-endpoint-id"><span data-i18n="secureEndpoint.installationId">安裝代號</span>：<code id="publicEndpointInstallationId">--</code></p>
               <label for="publicEndpointUrl" data-i18n="secureEndpoint.urlLabel">此電腦的安全網址</label>
-              <div class="public-endpoint-controls">
+              <div id="publicEndpointControls" class="public-endpoint-controls">
                 <input id="publicEndpointUrl" type="url" inputmode="url" autocomplete="off" spellcheck="false" data-i18n-attr="placeholder:secureEndpoint.urlPlaceholder" placeholder="https://vd-…vibedeck.pp.ua/">
                 <button id="savePublicEndpoint" type="button" data-i18n="secureEndpoint.save">儲存安全網址</button>
                 <button id="clearPublicEndpoint" type="button" hidden data-i18n="secureEndpoint.clear">停用安全網址</button>
               </div>
-              <small data-i18n="secureEndpoint.manualHint">首次 Tunnel 設定使用；日後正式版將由 VibeDeck 自動完成。</small>
+              <small id="publicEndpointHint" data-i18n="secureEndpoint.automaticHint">VibeDeck 會在背景自動維持安全連線，不需開啟命令視窗或設定 Cloudflare。</small>
             </section>
           </div>
         </details>
@@ -370,8 +370,8 @@
         <strong id="displayEmptyTitle">正在尋找虛擬螢幕</strong>
         <span id="displayEmptyMessage" data-i18n="pairingUx.displayBenefit">配對完成後，資訊板與 AI 額度不需安裝虛擬螢幕。</span>
         <div class="display-empty-actions">
-          <button id="installVirtualDisplay" type="button">前往裝置設定</button>
-          <button id="openSideboardFromEmpty" class="secondary" type="button">改用資訊板</button>
+          <button id="openSideboardFromEmpty" type="button" data-i18n="pairingUx.useSideboard">改用資訊板</button>
+          <button id="installVirtualDisplay" class="secondary" type="button" data-i18n="pairingUx.goToDeviceSetup">前往裝置設定</button>
         </div>
         <small id="displayInstallDetail" class="display-install-detail" role="status" aria-live="polite"></small>
       </div>
@@ -774,6 +774,6 @@
   </main>
   <button id="exitViewer" class="exit-viewer" type="button" aria-label="Exit viewer">×</button>
 
-  <script type="module" src="/index.js?v=111"></script>
+  <script type="module" src="/index.js?v=116"></script>
 </body>
 </html>
