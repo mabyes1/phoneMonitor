@@ -1,8 +1,8 @@
 # VibeDeck
 
-**A trusted second surface for your Windows work—not another tiny mirrored desktop.**
+**Turn any phone into a trusted extension of your Windows PC—an extra display, a system dashboard, or an AI‑quota companion.**
 
-VibeDeck turns a spare phone, tablet, or e-paper reader into a secure Windows display, system sideboard, and AI-usage companion. One browser/PWA works across iPhone, Android, and BOOX. Pairing authority, display capture, input, and private data stay on the Windows PC.
+VibeDeck gives a spare phone, tablet, or e-paper reader a real job: stream a dedicated Windows display for a long-running terminal or background task, keep system health and AI usage in view without switching windows, or remote‑control your PC from outside the house. One browser/PWA works across iPhone, Android, and BOOX. Pairing authority, display capture, input, and private data stay on the Windows PC.
 
 [Download the latest Windows release](https://github.com/mabyes1/phoneMonitor/releases/latest) · [Build Week submission notes](docs/build-week-submission.md) · [Changelog](CHANGELOG.md) · [MIT License](LICENSE)
 
@@ -12,11 +12,11 @@ VibeDeck turns a spare phone, tablet, or e-paper reader into a secure Windows di
 
 ## Why VibeDeck
 
-A spare phone is technically a screen, but shrinking a full desktop onto it is rarely useful. VibeDeck gives that screen a role that fits its size:
+A spare phone is already a high-resolution, always-on screen sitting on your desk. VibeDeck gives it three distinct roles so it earns that space:
 
 | Mode | What it does | Extra hardware or setup |
 |---|---|---|
-| **Display** | Streams a Windows virtual display or an existing physical monitor; supports touch/mouse and mobile keyboard input | Existing-monitor control works immediately; the extended display is optional |
+| **Display** | Streams a Windows virtual display or an existing physical monitor to your phone—perfect for a dedicated terminal, a background build, a game running AFK, or quick remote control from the couch; supports touch/mouse and mobile keyboard input | Existing-monitor control works immediately; the extended display is optional |
 | **Sideboard** | Shows CPU, GPU, memory, storage, network, weather, processes, activity, and custom cards | None |
 | **Quota** | Keeps Codex and AGY usage, reset windows, accounts, and remaining credits visible | Local CLI/account data on the Host PC |
 
@@ -56,10 +56,10 @@ No sample dataset or external account is required for the core experience. Devic
 
 ## What Makes It Different
 
-- **Role-specific, not mirror-only.** A spare screen can be a real extended display, a remote-control surface, a glanceable system board, or an AI quota view.
+- **Three roles, one device.** The same paired phone can be a dedicated extra display (for a CLI, a build log, or a game running AFK), a glanceable system board, or an AI quota view—switch anytime without re-pairing.
 - **One client everywhere.** Safari, Chrome, and an installable PWA share one code path across iPhone, Android, and BOOX; there is no native mobile package to install.
 - **PC-controlled trust.** A public route can carry encrypted traffic, but it cannot approve a device. Pairing and revocation remain local PC decisions.
-- **Built for awkward real constraints.** VibeDeck handles Windows interactive-session boundaries, WebRTC fallback, e-paper layouts, persistent state, installation, updates, diagnostics, and multilingual UI instead of stopping at a demo.
+- **Ships as a real product, not a demo.** VibeDeck handles Windows interactive-session boundaries, WebRTC fallback on constrained networks, e-paper-specific layouts, persistent state across reboots, silent in-place updates, auditable diagnostics, and multilingual UI—because these are where prototypes normally stop.
 - **Useful without the driver.** Existing-monitor control, Sideboard, Quota, pairing, and Device Lab work before the optional virtual display is installed.
 
 ## OpenAI Build Week
