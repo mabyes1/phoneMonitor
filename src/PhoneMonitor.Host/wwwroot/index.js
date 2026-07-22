@@ -46,6 +46,26 @@ import {
   loadDeviceTokenHistory,
   saveDeviceTokenHistory,
 } from "./modules/device-credentials.js?v=1";
+import {
+  CLIENT_INSTANCE_KEY,
+  LEGACY_CLIENT_INSTANCE_KEY,
+  CLIENT_INSTANCE_COOKIE,
+  LEGACY_CLIENT_INSTANCE_COOKIE,
+  getOrCreateClientInstanceId,
+} from "./modules/client-instance.js?v=1";
+import {
+  isLoopbackHost,
+  isIosUA,
+  isIphoneUA,
+  isMobileUA,
+} from "./modules/env-detect.js?v=1";
+import {
+  EINK_PREF_KEY,
+  readEinkQuery,
+  readEinkCookie,
+  looksLikeBooxScreen,
+  detectEinkHardware,
+} from "./modules/eink-detect.js?v=1";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -296,10 +316,6 @@ import {
     let hostVersionLabel = "";
     let productUpdateSnapshot = null;
     let productUpdatePollTimer = null;
-    const CLIENT_INSTANCE_KEY = "vibeDeckClientInstanceId";
-    const LEGACY_CLIENT_INSTANCE_KEY = "phoneMonitorClientInstanceId";
-    const CLIENT_INSTANCE_COOKIE = "VibeDeck-Client-Instance";
-    const LEGACY_CLIENT_INSTANCE_COOKIE = "PhoneMonitor-Client-Instance";
     const IPHONE_XS_EXACT_PRESET = "iphonexs-css-812x375";
     const IPHONE_XS_ASPECT_VERSION = "1";
     const DISPLAY_SOURCE_KEY = "vibeDeckDisplaySource.v1";
@@ -423,25 +439,7 @@ import {
 
     function isMobileClient() {
       if (isDevicePreview()) return true;
-      return isIos() || /Android|Mobile|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || "");
-    }
-
-    const EINK_PREF_KEY = "phoneMonitorEink";
-
-    function readEinkQuery() {
-      const requested = new URLSearchParams(location.search).get("eink");
-      if (requested === "1" || requested === "true") return true;
-      if (requested === "0" || requested === "false") return false;
-      return null;
-    }
-
-    function readEinkCookie() {
-      try {
-        const match = document.cookie.match(/(?:^|;\s*)phoneMonitorEink=([01])/);
-        return match ? match[1] : null;
-      } catch {
-        return null;
-      }
+      return isMobileUA();
     }
 
     function writeEinkPreference(value) {
@@ -459,38 +457,6 @@ import {
       } catch {
         // ignore
       }
-    }
-
-    function looksLikeBooxScreen() {
-      // Product path is browser/PWA. NeoBrowser on Go Color often sends a generic
-      // Android Chrome UA with no BOOX/ONYX token, so fall back to known panel size.
-      try {
-        const widths = [
-          screen.width || 0,
-          screen.height || 0,
-          window.innerWidth || 0,
-          window.innerHeight || 0,
-          document.documentElement?.clientWidth || 0,
-          document.documentElement?.clientHeight || 0
-        ];
-        const w = Math.max(...widths);
-        const h = Math.min(...widths.filter(v => v > 0));
-        // BOOX Go Color 7: 1680 × 1264 (allow CSS-pixel / density variance)
-        if (w >= 1180 && w <= 1900 && h >= 980 && h <= 1500 && (w / Math.max(h, 1)) >= 1.15) {
-          return true;
-        }
-      } catch {
-        // ignore
-      }
-      return false;
-    }
-
-    function detectEinkHardware() {
-      const ua = navigator.userAgent || "";
-      if (/VibeDeck-EInk|BOOX|ONYX|Onyx|eInk|E-Ink|E Ink/i.test(ua)) return true;
-      // Generic Android Chrome on a known BOOX panel still wants the paper layout.
-      if (/Android/i.test(ua) && looksLikeBooxScreen()) return true;
-      return false;
     }
 
     function isEinkClient() {
@@ -765,13 +731,12 @@ import {
 
     function isIos() {
       if (isDevicePreview()) return isDevicePreview("iphone-xs");
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      return isIosUA();
     }
 
     function isIphone() {
       if (isDevicePreview()) return isDevicePreview("iphone-xs");
-      return /iPhone|iPod/.test(navigator.userAgent || "");
+      return isIphoneUA();
     }
 
     function prefersWebRtcDisplay() {
@@ -841,11 +806,6 @@ import {
       const search = location.search || "";
       const hash = location.hash || "";
       return `https://${host}:5443${path}${search}${hash}`;
-    }
-
-    function isLoopbackHost() {
-      const host = location.hostname;
-      return host === "localhost" || host === "127.0.0.1" || host === "[::1]";
     }
 
     /** iPhone single path: never use HTTP for the app UI. */
@@ -1627,28 +1587,6 @@ import {
       if (isIos()) return "iPhone";
       if (/Android/i.test(navigator.userAgent || "")) return "Android device";
       return navigator.platform || "Web device";
-    }
-
-    function getOrCreateClientInstanceId() {
-      let value = "";
-      try {
-        value = localStorage.getItem(CLIENT_INSTANCE_KEY)
-          || localStorage.getItem(LEGACY_CLIENT_INSTANCE_KEY)
-          || readCookie(CLIENT_INSTANCE_COOKIE)
-          || readCookie(LEGACY_CLIENT_INSTANCE_COOKIE)
-          || "";
-      } catch { }
-      if (!value) {
-        value = crypto.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(18)))
-          .map(item => item.toString(16).padStart(2, "0")).join("");
-      }
-      try {
-        localStorage.setItem(CLIENT_INSTANCE_KEY, value);
-        localStorage.setItem(LEGACY_CLIENT_INSTANCE_KEY, value);
-      } catch { }
-      writeCookie(CLIENT_INSTANCE_COOKIE, value, 800);
-      writeCookie(LEGACY_CLIENT_INSTANCE_COOKIE, value, 800);
-      return value;
     }
 
     async function resolvePairingDeviceInfo() {
