@@ -33,6 +33,7 @@ namespace PhoneMonitor.Host.Windows
         // DXGI Capturer for hardware-accelerated screen capture.
         private DxgiFrameCapturer _dxgiCapturer;
         private string _dxgiDeviceName;
+        private bool _hasEverCaptured;
 
         public DisplayFrameSource(DisplayCatalog catalog)
         {
@@ -74,6 +75,7 @@ namespace PhoneMonitor.Host.Windows
                 {
                     holder.Value?.Dispose();
                     holder.Value = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    _hasEverCaptured = false; // New bitmap is all-black; force GDI on next frame.
                 }
 
                 var bitmap = holder.Value;
@@ -105,13 +107,18 @@ namespace PhoneMonitor.Host.Windows
                 }
 
                 // Fallback to GDI capture if DXGI is unsupported or fails (e.g. UAC prompts, device resets)
-                if (!dxgiSuccess)
+                // Also falls through when DXGI succeeded but had no new frame AND the bitmap
+                // has never been populated (all-black after allocation). This prevents sending
+                // black frames on initial connection or after a DXGI reset.
+                if (!dxgiSuccess || (dxgiSuccess && !hasNewFrame && !_hasEverCaptured))
                 {
                     using (var graphics = Graphics.FromImage(bitmap))
                     {
                         graphics.CopyFromScreen(display.Left, display.Top, 0, 0, bitmap.Size);
                     }
                 }
+
+                _hasEverCaptured = true;
 
                 // Render the cursor on top of the captured frame
                 bool hasCursor = false;
