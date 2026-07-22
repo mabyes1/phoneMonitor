@@ -30,6 +30,22 @@ import {
 } from "./modules/quota-formatters.js?v=51";
 import { getIntlLocale, initLocale, onLocaleChange, t, tApi, tLegacy, translateText } from "./modules/i18n.js?v=4";
 import { createEnergyWave } from "./modules/energy-wave.js?v=7";
+import {
+  DEVICE_TOKEN_KEY,
+  LEGACY_DEVICE_TOKEN_KEY,
+  DEVICE_ID_KEY,
+  LEGACY_DEVICE_ID_KEY,
+  DEVICE_COOKIE,
+  LEGACY_DEVICE_COOKIE,
+  DEVICE_TOKEN_HISTORY_KEY,
+  DEVICE_TOKEN_HISTORY_LIMIT,
+  readCookie,
+  writeCookie,
+  writeDeviceCookies,
+  loadStoredDeviceCredentials,
+  loadDeviceTokenHistory,
+  saveDeviceTokenHistory,
+} from "./modules/device-credentials.js?v=1";
 
     const screen = document.getElementById("screen");
     const statusText = document.getElementById("status");
@@ -280,14 +296,6 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     let hostVersionLabel = "";
     let productUpdateSnapshot = null;
     let productUpdatePollTimer = null;
-    const DEVICE_TOKEN_KEY = "vibeDeckDeviceToken";
-    const LEGACY_DEVICE_TOKEN_KEY = "phoneMonitorDeviceToken";
-    const DEVICE_ID_KEY = "vibeDeckDeviceId";
-    const LEGACY_DEVICE_ID_KEY = "phoneMonitorDeviceId";
-    const DEVICE_COOKIE = "VibeDeck-Device-Token";
-    const LEGACY_DEVICE_COOKIE = "PhoneMonitor-Device-Token";
-    const DEVICE_TOKEN_HISTORY_KEY = "vibeDeckDeviceTokenHistory.v1";
-    const DEVICE_TOKEN_HISTORY_LIMIT = 4;
     const CLIENT_INSTANCE_KEY = "vibeDeckClientInstanceId";
     const LEGACY_CLIENT_INSTANCE_KEY = "phoneMonitorClientInstanceId";
     const CLIENT_INSTANCE_COOKIE = "VibeDeck-Client-Instance";
@@ -295,61 +303,6 @@ import { createEnergyWave } from "./modules/energy-wave.js?v=7";
     const IPHONE_XS_EXACT_PRESET = "iphonexs-css-812x375";
     const IPHONE_XS_ASPECT_VERSION = "1";
     const DISPLAY_SOURCE_KEY = "vibeDeckDisplaySource.v1";
-
-    function readCookie(name) {
-      const parts = (`; ${document.cookie || ""}`).split(`; ${name}=`);
-      if (parts.length < 2) return "";
-      return decodeURIComponent(parts.pop().split(";").shift() || "");
-    }
-
-    function writeCookie(name, value, days) {
-      const maxAge = Math.max(0, Math.floor(days * 24 * 60 * 60));
-      const secure = location.protocol === "https:" ? "; Secure" : "";
-      document.cookie = `${name}=${encodeURIComponent(value || "")}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
-    }
-
-    function writeDeviceCookies(token, days) {
-      writeCookie(DEVICE_COOKIE, token, days);
-      writeCookie(LEGACY_DEVICE_COOKIE, token, days);
-    }
-
-    function loadStoredDeviceCredentials() {
-      const token = localStorage.getItem(DEVICE_TOKEN_KEY)
-        || localStorage.getItem(LEGACY_DEVICE_TOKEN_KEY)
-        || sessionStorage.getItem(DEVICE_TOKEN_KEY)
-        || sessionStorage.getItem(LEGACY_DEVICE_TOKEN_KEY)
-        || readCookie(DEVICE_COOKIE)
-        || readCookie(LEGACY_DEVICE_COOKIE)
-        || "";
-      const id = localStorage.getItem(DEVICE_ID_KEY)
-        || localStorage.getItem(LEGACY_DEVICE_ID_KEY)
-        || sessionStorage.getItem(DEVICE_ID_KEY)
-        || sessionStorage.getItem(LEGACY_DEVICE_ID_KEY)
-        || "";
-      return { token, id };
-    }
-
-    function loadDeviceTokenHistory() {
-      try {
-        const values = JSON.parse(localStorage.getItem(DEVICE_TOKEN_HISTORY_KEY) || "[]");
-        return Array.isArray(values)
-          ? values.map(value => String(value || "").trim()).filter(Boolean).slice(0, DEVICE_TOKEN_HISTORY_LIMIT)
-          : [];
-      } catch {
-        return [];
-      }
-    }
-
-    function saveDeviceTokenHistory(values) {
-      try {
-        const unique = [...new Set(values.map(value => String(value || "").trim()).filter(Boolean))]
-          .slice(0, DEVICE_TOKEN_HISTORY_LIMIT);
-        if (unique.length) localStorage.setItem(DEVICE_TOKEN_HISTORY_KEY, JSON.stringify(unique));
-        else localStorage.removeItem(DEVICE_TOKEN_HISTORY_KEY);
-      } catch {
-        // Token history is only a recovery path; normal cookie storage still works.
-      }
-    }
 
     function persistDeviceCredentials(token, id) {
       const nextToken = (token || "").trim();
