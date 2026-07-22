@@ -4,6 +4,10 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using PhoneMonitor.Host.Streaming;
 using PhoneMonitor.Host.Windows;
 
@@ -11,6 +15,100 @@ namespace PhoneMonitor.Host
 {
     public partial class Startup
     {
+        // Live display/input streaming surface: JPEG-over-WebSocket display,
+        // WebRTC H.264 signalling, and the input channel. Extracted verbatim from
+        // Startup.cs (no behavior change); the runtime loops StreamDisplayAsync /
+        // ReceiveInputAsync live in this same file, and ParseInt / SocketJsonOptions
+        // remain on the Startup partial class.
+        private static void MapStreamingEndpoints(IEndpointRouteBuilder endpoints)
+        {
+            endpoints.Map("/ws/display", async context =>
+            {
+                if (!context.WebSockets.IsWebSocketRequest)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    return;
+                }
+
+                if (!await RequireTrustedDeviceAsync(context))
+                {
+                    return;
+                }
+
+                var deviceName = context.Request.Query["deviceName"].ToString();
+                var fps = ParseInt(context.Request.Query["fps"], 10, 1, 60);
+                var quality = ParseInt(context.Request.Query["quality"], 55, 25, 85);
+                var frameSource = context.RequestServices.GetRequiredService<DisplayFrameSource>();
+                using var socket = await context.WebSockets.AcceptWebSocketAsync();
+                await StreamDisplayAsync(socket, frameSource, deviceName, fps, quality, context.RequestAborted);
+            });
+
+            endpoints.MapPost("/api/stream/webrtc/offer", async context =>
+            {
+                if (!await RequireTrustedDeviceAsync(context))
+                {
+                    return;
+                }
+
+                var request = await JsonSerializer.DeserializeAsync<WebRtcOfferRequest>(context.Request.Body, SocketJsonOptions)
+                    ?? new WebRtcOfferRequest();
+                var webrtc = context.RequestServices.GetRequiredService<WebRtcH264Service>();
+                if (!webrtc.IsAvailable)
+                {
+                    context.Response.StatusCode = StatusCodes.Status501NotImplemented;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(new
+                    {
+                        error = "WebRTC H.264 requires ffmpeg.exe on the Host."
+                    }));
+                    return;
+                }
+
+                try
+                {
+                    var answer = await webrtc.CreateAnswerAsync(
+                        request.Sdp,
+                        request.DeviceName ?? string.Empty,
+                        Math.Max(1, Math.Min(60, request.Fps)),
+                        Math.Max(25, Math.Min(85, request.Quality)),
+                        context.RequestAborted);
+                    context.Response.ContentType = "application/json";
+                    context.Response.Headers["Cache-Control"] = "no-store";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(answer));
+                }
+                catch (ArgumentException error)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = error.Message }));
+                }
+                catch (Exception error)
+                {
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    context.Response.ContentType = "application/json";
+                    await context.Response.WriteAsync(JsonSerializer.Serialize(new { error = error.Message }));
+                }
+            });
+
+            endpoints.Map("/ws/input", async context =>
+            {
+                if (!context.WebSockets.IsWebSocketRequest)
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    return;
+                }
+
+                if (!await RequireTrustedDeviceAsync(context))
+                {
+                    return;
+                }
+
+                using var socket = await context.WebSockets.AcceptWebSocketAsync();
+                var input = context.RequestServices.GetRequiredService<WindowsInputController>();
+                await ReceiveInputAsync(socket, input, context.RequestAborted);
+            });
+        }
+
         private static async Task StreamDisplayAsync(
             WebSocket socket,
             DisplayFrameSource frameSource,
