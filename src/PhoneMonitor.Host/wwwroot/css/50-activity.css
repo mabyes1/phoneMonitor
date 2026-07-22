@@ -1,0 +1,1143 @@
+/* Work Pulse and Windows notifications share one chronological activity card. */
+.activity-feed-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 7px;
+  overflow: hidden;
+}
+
+.activity-feed-head,
+.quota-mini-head,
+.quota-mini-value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.activity-feed-filters {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.activity-feed-filters button {
+  min-height: 30px;
+  padding: 3px 10px;
+  border: 1px solid var(--side-line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--side-muted);
+  font: inherit;
+  font-weight: 700;
+}
+
+.activity-feed-filters button.active {
+  border-color: var(--side-accent);
+  background: var(--side-accent);
+  color: #071015;
+}
+
+.activity-feed-list {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0 4px 0 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  touch-action: pan-y;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.activity-feed-item {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--side-line);
+  background: rgba(7, 16, 21, .46);
+}
+
+.activity-feed-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--side-muted);
+  font-size: 13px;
+}
+
+.activity-feed-meta time { margin-left: auto; }
+
+.activity-source {
+  flex: 0 0 auto;
+  color: var(--side-accent);
+  font-weight: 800;
+}
+
+.activity-from {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-feed-text {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  color: var(--side-text);
+  line-height: 1.28;
+}
+
+.activity-feed-empty {
+  align-self: center;
+  padding: 12px 0;
+  color: var(--side-muted);
+  text-align: center;
+}
+
+.quota-mini-card {
+  display: grid;
+  grid-template-rows: auto auto auto auto 8px;
+  align-content: center;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.quota-mini-head strong { color: var(--side-accent); }
+.quota-mini-head span,
+.quota-mini-value-row span { color: var(--side-muted); }
+
+.quota-mini-card select {
+  min-width: 0;
+  width: 100%;
+  min-height: 30px;
+  padding: 3px 7px;
+  border: 1px solid var(--side-line);
+  border-radius: 2px;
+  background: rgba(7, 16, 21, .72);
+  color: var(--side-text);
+  font: inherit;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
+.quota-mini-value-row strong {
+  color: var(--side-accent);
+  font-size: clamp(25px, 3vw, 40px);
+  line-height: .95;
+}
+
+.activity-feed-filter-select {
+  display: none;
+}
+
+.quota-mini-credit {
+  overflow: hidden;
+  color: var(--side-muted);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quota-mini-bar {
+  height: 8px;
+  border: 1px solid var(--side-line);
+  overflow: hidden;
+}
+
+.quota-mini-bar span {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--side-accent);
+  transition: width .18s ease;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-card,
+body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-card {
+  padding: 9px !important;
+  border: 2px solid #000 !important;
+  background: #fffef8 !important;
+  color: #000 !important;
+}
+
+body.eink-client .activity-feed-filters button {
+  min-height: 38px;
+  padding: 3px 11px;
+  border: 2px solid #000;
+  background: #fffef8;
+  color: #000;
+  font-size: 17px;
+}
+
+body.eink-client .activity-feed-filters button.active {
+  background: #000;
+  color: #fffef8;
+}
+
+body.eink-client .activity-feed-filters {
+  display: none !important;
+}
+
+body.eink-client .activity-feed-filter-select {
+  display: block;
+  flex: 0 1 180px;
+  width: min(180px, 48%);
+  min-width: 120px;
+  min-height: 42px;
+  padding: 4px 34px 4px 10px;
+  border: 2px solid #000;
+  border-radius: 2px;
+  background: #fffef8;
+  color: #000;
+  font: inherit;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+body.eink-client .activity-feed-list { scrollbar-width: auto; }
+
+body.eink-client .activity-feed-item {
+  padding: 6px 8px;
+  border: 2px solid #000;
+  background: #fffef8;
+  color: #000;
+}
+
+body.eink-client .activity-feed-meta,
+body.eink-client .activity-feed-text,
+body.eink-client .activity-feed-empty,
+body.eink-client .quota-mini-head,
+body.eink-client .quota-mini-head span,
+body.eink-client .quota-mini-value-row span,
+body.eink-client .quota-mini-card select {
+  color: #000;
+  font-size: var(--eink-dashboard-min-font) !important;
+  line-height: 1.2;
+}
+
+body.eink-client .activity-source,
+body.eink-client .quota-mini-head strong,
+body.eink-client .quota-mini-value-row strong {
+  color: #000;
+  font-weight: 900;
+}
+
+body.eink-client .activity-source {
+  padding: 1px 5px;
+  border: 2px solid #000;
+}
+
+body.eink-client .activity-feed-list::-webkit-scrollbar { width: 12px; }
+body.eink-client .activity-feed-list::-webkit-scrollbar-track {
+  border-left: 2px solid #000;
+  background: #fffef8;
+}
+body.eink-client .activity-feed-list::-webkit-scrollbar-thumb {
+  border: 2px solid #fffef8;
+  background: #000;
+}
+
+body.eink-client .quota-mini-card select {
+  min-height: 36px;
+  border: 2px solid #000;
+  background: #fffef8;
+}
+
+body.eink-client .quota-mini-value-row strong {
+  font-size: clamp(30px, 4vw, 46px) !important;
+}
+
+body.eink-client .quota-credit-row,
+body.eink-client .quota-mini-credit {
+  color: #000 !important;
+  font-size: var(--eink-dashboard-min-font) !important;
+  line-height: 1.2 !important;
+}
+
+body.eink-client .quota-mini-bar {
+  height: 10px;
+  border: 2px solid #000;
+}
+
+body.eink-client .quota-mini-bar span {
+  background: #000;
+  transition: none;
+}
+
+body.phone-client:not(.eink-client) .activity-feed-filters button,
+body.phone-client:not(.eink-client) .activity-feed-meta,
+body.phone-client:not(.eink-client) .activity-feed-text,
+body.phone-client:not(.eink-client) .activity-feed-empty,
+body.phone-client:not(.eink-client) .quota-mini-head,
+body.phone-client:not(.eink-client) .quota-mini-value-row span,
+body.phone-client:not(.eink-client) .quota-mini-card select {
+  font-size: 17px;
+}
+
+body.phone-client:not(.eink-client) .quota-credit-row,
+body.phone-client:not(.eink-client) .quota-mini-credit {
+  font-size: var(--eink-dashboard-min-font) !important;
+  line-height: 1.2 !important;
+}
+
+.energy-wave-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #000;
+  isolation: isolate;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.energy-wave-backdrop.is-active {
+  opacity: 1;
+}
+
+.energy-wave-canvas,
+.energy-wave-strips,
+.energy-wave-vignette {
+  position: absolute;
+  inset: 0;
+}
+
+.energy-wave-canvas {
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+.energy-wave-strips {
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  mix-blend-mode: screen;
+}
+
+.energy-wave-strip {
+  min-width: 0;
+  border-left: 1px solid rgba(191, 235, 255, 0.13);
+  background:
+    linear-gradient(90deg,
+      rgba(79, 207, 255, 0.08) 0%,
+      rgba(255, 255, 255, 0.024) 28%,
+      rgba(230, 109, 255, 0.065) 67%,
+      rgba(255, 198, 94, 0.07) 100%);
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.035), inset -1px 0 0 rgba(22, 93, 160, 0.06);
+}
+
+.energy-wave-strip:first-child {
+  border-left: 0;
+}
+
+.energy-wave-strip:nth-child(3n) {
+  background:
+    linear-gradient(90deg,
+      rgba(87, 229, 255, 0.11),
+      rgba(255, 255, 255, 0.018) 43%,
+      rgba(255, 87, 198, 0.09));
+}
+
+.energy-wave-strip:nth-child(4n) {
+  background:
+    linear-gradient(90deg,
+      rgba(255, 207, 112, 0.09),
+      rgba(255, 255, 255, 0.012) 46%,
+      rgba(126, 118, 255, 0.08));
+}
+
+.energy-wave-vignette {
+  z-index: 3;
+  background:
+    radial-gradient(ellipse 82% 70% at 50% 54%, transparent 25%, rgba(0, 0, 0, 0.56) 100%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.44), transparent 24%, transparent 72%, rgba(0, 0, 0, 0.56));
+}
+
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell {
+  --side-bg: #000;
+  --side-panel: rgba(7, 13, 21, 0.57);
+  background: #000;
+  border-color: rgba(175, 234, 255, 0.22);
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.56), inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  isolation: isolate;
+}
+
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell::before {
+  z-index: 1;
+  opacity: 0.11;
+  mix-blend-mode: screen;
+}
+
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell::after {
+  z-index: 2;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0, 1, 3, 0.52), rgba(0, 2, 5, 0.12) 48%, rgba(0, 1, 3, 0.52)),
+    radial-gradient(circle at 50% 47%, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.4) 78%);
+}
+
+body.mode-sideboard.energy-wave-active:not(.eink-client) .sideboard-shell > :not(.energy-wave-backdrop),
+body.mode-sideboard.energy-wave-active:not(.eink-client) #systemSideboardPage.dashboard-grid [data-dashboard-key] {
+  z-index: 3;
+}
+
+body.mode-sideboard.energy-wave-active:not(.eink-client) .side-panel,
+body.mode-sideboard.energy-wave-active:not(.eink-client) .metric-card,
+body.mode-sideboard.energy-wave-active:not(.eink-client) .custom-card {
+  backdrop-filter: blur(10px) saturate(1.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 36px rgba(0, 0, 0, 0.28);
+}
+
+body.eink-client .energy-wave-backdrop {
+  display: none !important;
+}
+
+body.phone-client:not(.eink-client).energy-wave-active .mobile-overview-section,
+body.phone-client:not(.eink-client).energy-wave-active .mobile-detail-block,
+body.phone-client:not(.eink-client).energy-wave-active .mobile-detail-host,
+body.phone-client:not(.eink-client).energy-wave-active .mobile-detail-metrics article {
+  background: linear-gradient(145deg, rgba(14, 34, 40, .78), rgba(7, 20, 25, .72));
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+}
+
+body.phone-client:not(.eink-client).energy-wave-active .mobile-metric-card {
+  background: rgba(8, 24, 29, .7);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .energy-wave-backdrop {
+    transition: none;
+  }
+}
+
+.quota-codex-switcher {
+  grid-template-rows: auto auto auto;
+}
+
+.quota-codex-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.quota-codex-select {
+  flex: 1 1 190px;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 8px;
+  background: rgba(0,0,0,.22);
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+}
+
+body.eink-client .quota-codex-select {
+  min-height: 48px;
+  border: 3px solid #000;
+  border-radius: 4px;
+  background: #fffef8;
+  color: #000;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* E-ink layout safety net ----------------------------------------------------
+ * BOOX / e-reader browsers span a wide range of CSS viewport sizes. Keep
+ * cards readable, but never let a long label or a dense action row widen the
+ * page beyond the paper viewport. This block stays last on purpose. */
+body.eink-client {
+  overflow-x: hidden;
+}
+
+body.eink-client *,
+body.eink-client *::before,
+body.eink-client *::after {
+  box-sizing: border-box;
+}
+
+body.eink-client header,
+body.eink-client main,
+body.eink-client .app-view,
+body.eink-client .sideboard-view,
+body.eink-client .quota-view,
+body.eink-client .sideboard-shell,
+body.eink-client .quota-shell,
+body.eink-client .sideboard-top,
+body.eink-client .quota-top,
+body.eink-client .dashboard-edit-bar,
+body.eink-client .dashboard-config-panel,
+body.eink-client .custom-sideboard-page,
+body.eink-client .custom-cards-grid,
+body.eink-client .custom-sources-manager,
+body.eink-client .quota-account-card,
+body.eink-client .quota-account-head,
+body.eink-client .quota-codex-switch-row {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.eink-client img,
+body.eink-client video,
+body.eink-client canvas,
+body.eink-client svg,
+body.eink-client input,
+body.eink-client select,
+body.eink-client textarea,
+body.eink-client button {
+  max-width: 100%;
+}
+
+body.eink-client .brand-copy,
+body.eink-client .side-title,
+body.eink-client .side-title span,
+body.eink-client .quota-title,
+body.eink-client .quota-title span,
+body.eink-client .quota-status,
+body.eink-client .quota-account-email,
+body.eink-client .quota-account-switcher,
+body.eink-client .quota-action-status,
+body.eink-client .quota-window small,
+body.eink-client .custom-source-meta,
+body.eink-client .custom-source-health,
+body.eink-client .custom-card-source,
+body.eink-client .custom-card-footer,
+body.eink-client .custom-feed-text,
+body.eink-client .custom-feed-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+body.eink-client .top-controls,
+body.eink-client .utility-controls,
+body.eink-client .sideboard-top,
+body.eink-client .dashboard-view-controls,
+body.eink-client .dashboard-mode-switch,
+body.eink-client .dashboard-edit-actions,
+body.eink-client .dashboard-card-library,
+body.eink-client .dashboard-selection-controls,
+body.eink-client .custom-cards-top,
+body.eink-client .custom-manager-header,
+body.eink-client .custom-source-row,
+body.eink-client .custom-source-actions,
+body.eink-client .custom-source-form-actions,
+body.eink-client .activity-feed-head,
+body.eink-client .quota-mini-head,
+body.eink-client .quota-mini-value-row {
+  flex-wrap: wrap;
+}
+
+body.eink-client .sideboard-top {
+  align-items: flex-start;
+}
+
+body.eink-client .side-title,
+body.eink-client .dashboard-view-controls {
+  flex: 1 1 220px;
+  max-width: 100%;
+}
+
+body.eink-client .dashboard-view-controls,
+body.eink-client .dashboard-mode-switch {
+  min-width: 0;
+  max-width: 100%;
+}
+
+body.eink-client .dashboard-mode-switch {
+  flex: 1 1 180px;
+}
+
+body.eink-client .dashboard-mode-switch button {
+  flex: 1 1 88px;
+  min-width: 0;
+  white-space: normal;
+}
+
+body.eink-client .eink-connection-state {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+/* The quota page used to keep a three-column desktop header and icon-sized
+ * controls. E-ink action labels now wrap and remain tappable instead. */
+body.eink-client .quota-top {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+body.eink-client .quota-left,
+body.eink-client .quota-top .dashboard-view-controls,
+body.eink-client .quota-status {
+  grid-column: 1;
+  justify-self: start;
+  width: 100%;
+}
+
+body.eink-client .quota-title {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+
+body.eink-client .quota-tabs {
+  width: 100%;
+  max-width: 100%;
+}
+
+body.eink-client .quota-account-head {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: start;
+}
+
+body.eink-client .quota-account-email {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+body.eink-client .quota-account-switcher {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  justify-self: start;
+  white-space: normal;
+}
+
+body.eink-client .quota-pill {
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+}
+
+body.eink-client .quota-pair,
+body.eink-client .quota-footer {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.eink-client .quota-footer {
+  justify-items: start;
+}
+
+body.eink-client .quota-toolbox {
+  justify-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  max-width: 100%;
+  gap: 8px;
+}
+
+body.eink-client .quota-toolbox button {
+  flex: 1 1 152px;
+  width: auto;
+  min-width: 0;
+  min-height: 48px;
+  height: auto;
+  padding: 6px 12px;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+body.eink-client .quota-codex-switch-row {
+  align-items: stretch;
+}
+
+body.eink-client .quota-codex-select {
+  flex: 1 1 100%;
+  width: 100%;
+}
+
+body.eink-client .quota-codex-switch-row .quota-toolbox {
+  flex: 1 1 100%;
+}
+
+body.eink-client.dashboard-viewer main,
+body.eink-client.viewer-immersive main,
+body.eink-client.viewer-fullscreen main {
+  height: 100dvh !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body.eink-client.dashboard-viewer .quota-view.active,
+body.eink-client.viewer-immersive .quota-view.active,
+body.eink-client.viewer-fullscreen .quota-view.active,
+body.eink-client.mode-quota .quota-shell {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow: visible !important;
+}
+
+body.eink-client.mode-quota .quota-shell {
+  grid-template-rows: auto auto auto !important;
+  align-content: start;
+}
+
+body.eink-client.mode-quota .quota-grid,
+body.eink-client.mode-quota .quota-account-page,
+body.eink-client.mode-quota .quota-account-card {
+  height: auto !important;
+  min-height: 0 !important;
+  align-content: start !important;
+  overflow: visible !important;
+}
+
+body.eink-client.mode-quota .quota-account-card {
+  display: block !important;
+  grid-template-rows: auto auto auto auto auto !important;
+  min-height: max-content !important;
+  align-self: start !important;
+}
+
+body.eink-client.mode-quota .quota-account-card > * + * {
+  margin-top: 16px;
+}
+
+body.eink-client.mode-quota .quota-pair {
+  min-height: max-content !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview {
+  display: flex !important;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-self: start !important;
+  gap: 14px;
+  padding: 18px !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview > * {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0 !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-head {
+  display: grid;
+  gap: 10px;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-head > .quota-account-switcher {
+  grid-column: auto;
+  grid-row: auto;
+  justify-self: start;
+}
+
+body.eink-client.mode-quota .quota-eink-usage {
+  display: block !important;
+  height: auto !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-provider-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 22px !important;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-window {
+  gap: 6px 12px;
+  padding: 14px 0;
+  border-top: 2px solid #000;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-provider-title + .quota-window {
+  border-top: 0;
+}
+
+body.eink-client.mode-quota .quota-eink-usage .quota-window b {
+  font-size: clamp(36px, 6vw, 48px) !important;
+}
+
+body.eink-client.mode-quota .quota-eink-credit {
+  flex-wrap: wrap;
+  padding-top: 14px;
+  border-top: 2px solid #000;
+  font-size: 20px !important;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 2px solid #000;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-footer .quota-toolbox {
+  width: auto;
+}
+
+body.eink-client.mode-quota .quota-eink-overview-footer .quota-toolbox button {
+  flex: 0 1 auto;
+  width: auto;
+  padding: 6px 14px;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager {
+  margin: 0 !important;
+  border: 2px solid #000;
+  background: #f2f0e8;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 52px;
+  padding: 12px 14px;
+  color: #000;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager > summary::after {
+  content: "＋";
+  font-size: 26px;
+  line-height: 1;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager[open] > summary {
+  border-bottom: 2px solid #000;
+}
+
+body.eink-client.mode-quota .quota-eink-account-manager[open] > summary::after {
+  content: "−";
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls {
+  min-width: 0;
+  padding: 14px;
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls .quota-codex-switch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls .quota-toolbox {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  width: 100%;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+body.eink-client.mode-quota .quota-eink-account-controls .quota-toolbox button {
+  width: 100%;
+  min-height: 52px;
+  padding: 6px 12px;
+}
+
+body.eink-client .custom-cards-toolbar,
+body.eink-client .custom-source-actions,
+body.eink-client .custom-source-form-actions {
+  flex: 1 1 100%;
+  justify-content: flex-start;
+}
+
+body.eink-client .custom-cards-toolbar button,
+body.eink-client .custom-manager-header button,
+body.eink-client .custom-source-actions button,
+body.eink-client .custom-source-form-actions button {
+  flex: 1 1 112px;
+  min-width: 0;
+  white-space: normal;
+}
+
+/* Language is a product-level setting, not a display-only control. Keep it
+ * reachable after a phone or e-reader enters the trusted dashboard/quota UI. */
+body.phone-client.device-trusted:not(.mode-display) .utility-controls {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+body.phone-client.device-trusted:not(.mode-display) .utility-controls > * {
+  display: none !important;
+}
+
+body.phone-client.device-trusted:not(.mode-display) .utility-controls .locale-control {
+  display: inline-flex !important;
+  min-height: 44px;
+}
+
+body.phone-client.device-trusted:not(.mode-display) .locale-control select {
+  min-height: 44px;
+  max-width: 148px;
+}
+
+/* Persisted dashboard cards may be deliberately small. Containment lets their
+ * own controls and figures adapt to the card width instead of pushing a row
+ * outside the dashboard. */
+body.eink-client #systemSideboardPage.dashboard-grid [data-dashboard-key] {
+  container-type: inline-size;
+  container-name: eink-card;
+}
+
+@container eink-card (max-width: 280px) {
+  body.eink-client #systemSideboardPage.dashboard-grid .metric-card,
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-card,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-card {
+    padding: 8px !important;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .metric-value,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-value-row strong,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-window b {
+    font-size: clamp(24px, 18cqw, 36px) !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .side-big {
+    font-size: clamp(32px, 28cqw, 56px) !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-head,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-head,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-value-row {
+    align-items: stretch;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-head > .feed-heading,
+  body.eink-client #systemSideboardPage.dashboard-grid .quota-mini-head > strong {
+    flex: 1 1 100%;
+  }
+
+  body.eink-client #systemSideboardPage.dashboard-grid .activity-feed-filter-select {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+.phone-pair-rescue small {
+  font-size: 12px;
+}
+
+body.phone-client:not(.eink-client) .quota-tab,
+body.phone-client:not(.eink-client) .quota-page-button {
+  min-height: 36px;
+}
+
+body.phone-client:not(.eink-client) .quota-page-button {
+  width: 32px;
+  height: 36px;
+}
+
+body.phone-client:not(.eink-client) .quota-codex-select {
+  min-height: 40px;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .035);
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 9px 11px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager > summary::-webkit-details-marker {
+  display: none;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager > summary::after {
+  content: "＋";
+  font-size: 18px;
+  line-height: 1;
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager[open] > summary {
+  border-bottom: 1px solid rgba(255, 255, 255, .12);
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager[open] > summary::after {
+  content: "−";
+}
+
+body.phone-client:not(.eink-client) .quota-mobile-account-manager .quota-codex-switch-row {
+  padding: 10px;
+}
+
+body.phone-client:not(.eink-client) #quotaSummary,
+body.phone-client:not(.eink-client) #quotaUpdated,
+body.phone-client:not(.eink-client) .quota-help-block,
+body.phone-client:not(.eink-client) .quota-help-block li,
+body.phone-client:not(.eink-client) .quota-help-summary-hint,
+body.phone-client:not(.eink-client) .quota-action-status,
+body.phone-client:not(.eink-client) .quota-account-switcher,
+body.phone-client:not(.eink-client) .quota-pill,
+body.phone-client:not(.eink-client) .quota-active-badge,
+body.phone-client:not(.eink-client) .quota-window small,
+body.phone-client:not(.eink-client) .quota-time,
+body.phone-client:not(.eink-client) #quotaMiniReset {
+  font-size: 12px;
+}
+
+body.phone-client:not(.eink-client) .quota-window span {
+  font-size: 12px;
+}
+
+body.eink-client .phone-pair-rescue small,
+body.eink-client .phone-pair-rescue strong,
+body.eink-client .phone-pair-rescue > span,
+body.eink-client .phone-pair-rescue [data-pair-progress-detail],
+body.eink-client .phone-pair-rescue [data-pair-progress-label] {
+  font-size: 16px !important;
+}
+
+body.eink-client .dashboard-view-switch button,
+body.eink-client .dashboard-mode-switch button,
+body.eink-client .activity-feed-filter-select,
+body.eink-client #quotaMiniSource,
+body.eink-client .quota-tab,
+body.eink-client .quota-page-button,
+body.eink-client .quota-codex-select {
+  min-height: 44px !important;
+}
+
+body.eink-client .quota-page-button {
+  width: 44px !important;
+  height: 44px !important;
+}
+
+body.eink-client .quota-help-summary-hint,
+body.eink-client .quota-action-status,
+body.eink-client .quota-action-status span,
+body.eink-client .quota-account-switcher,
+body.eink-client .quota-account-switcher > span,
+body.eink-client .quota-pill {
+  font-size: 16px !important;
+}
+
+body.mode-quota .quota-help {
+  display: none;
+}
+
+/* Phone quota must be governed by the usable viewport, not the desktop card
+ * minimum. This matters most on iPhone landscape where Safari leaves little
+ * vertical room after the safe areas and browser chrome. */
+@media (max-width: 960px) {
+  body.phone-client:not(.eink-client).mode-quota main {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-content: start;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-view {
+    width: 100%;
+    max-width: none;
+    height: auto;
+    min-height: 0;
+    justify-self: stretch;
+    align-self: start;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-shell {
+    min-height: 0;
+    height: auto;
+    grid-template-rows: auto auto;
+    align-content: start;
+    overflow: visible;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-grid,
+  body.phone-client:not(.eink-client).mode-quota .quota-account-page,
+  body.phone-client:not(.eink-client).mode-quota .quota-account-card {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-grid {
+    grid-auto-rows: max-content;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-account-card {
+    display: block;
+    min-height: max-content;
+    align-self: start;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .quota-account-card > * + * {
+    margin-top: 10px;
+  }
+}
+
+@media (max-width: 960px) and (orientation: landscape) {
+  body.phone-client:not(.eink-client).mode-quota header {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    padding-top: calc(6px + var(--safe-area-inset-top, env(safe-area-inset-top)));
+    padding-bottom: 6px;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .brand {
+    display: none;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .top-controls {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+    width: 100%;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .utility-controls {
+    gap: 5px;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota .utility-controls button {
+    min-height: 36px;
+    padding-inline: 8px;
+  }
+
+  body.phone-client:not(.eink-client).mode-quota main {
+    padding-top: 8px;
+  }
+}

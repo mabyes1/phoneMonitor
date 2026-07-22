@@ -1,0 +1,629 @@
+/* E-ink sideboard is always single-column; no orientation-dependent board. */
+
+/* Custom cards follow the same readable, single-column rules on small and
+ * monochrome clients as the built-in sideboard pages. */
+body.phone-client.viewport-portrait .sideboard-page-tabs {
+  grid-column: 1;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+body.phone-client.viewport-portrait .custom-sideboard-page {
+  grid-column: 1;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
+}
+
+body.phone-client.viewport-portrait .custom-cards-top,
+body.phone-client.viewport-portrait .custom-manager-header {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+body.phone-client.viewport-portrait .custom-cards-toolbar,
+body.phone-client.viewport-portrait .custom-source-actions,
+body.phone-client.viewport-portrait .custom-source-form-actions {
+  justify-content: stretch;
+}
+
+body.phone-client.viewport-portrait .custom-cards-toolbar button,
+body.phone-client.viewport-portrait .custom-manager-header button,
+body.phone-client.viewport-portrait .custom-source-actions button,
+body.phone-client.viewport-portrait .custom-source-form-actions button {
+  flex: 1 1 auto;
+  min-height: 40px;
+}
+
+body.phone-client.viewport-portrait .custom-cards-grid {
+  grid-template-columns: 1fr;
+  overflow: visible;
+}
+
+body.phone-client.viewport-portrait .custom-source-row {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+body.phone-client.viewport-portrait .custom-source-actions {
+  justify-content: stretch;
+}
+
+body.phone-client.viewport-portrait .custom-source-form {
+  grid-template-columns: 1fr;
+}
+
+body.phone-client.viewport-portrait .custom-source-form > strong,
+body.phone-client.viewport-portrait .custom-credential-panel > strong,
+body.phone-client.viewport-portrait .custom-credential-panel > span,
+body.phone-client.viewport-portrait .custom-credential-panel > textarea,
+body.phone-client.viewport-portrait .custom-source-form-actions {
+  grid-column: 1;
+}
+
+body.eink-client .sideboard-page-tabs {
+  gap: 8px;
+}
+
+body.eink-client .sideboard-page-tabs button,
+body.eink-client .custom-cards-toolbar button,
+body.eink-client .custom-manager-header button,
+body.eink-client .custom-source-actions button,
+body.eink-client .custom-source-form-actions button {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 3px solid #000 !important;
+  border-radius: 4px;
+  background: #fffef8 !important;
+  color: #000 !important;
+  font-size: 16px !important;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+body.eink-client .sideboard-page-tabs button.active {
+  background: #000 !important;
+  color: #fffef8 !important;
+}
+
+body.eink-client .custom-sideboard-page,
+body.eink-client .custom-cards-grid,
+body.eink-client .custom-sources-manager {
+  gap: 16px !important;
+}
+
+body.eink-client .custom-cards-title strong,
+body.eink-client .custom-manager-header strong,
+body.eink-client .custom-card-title,
+body.eink-client .custom-status-value,
+body.eink-client .custom-metric-value,
+body.eink-client .custom-card-empty,
+body.eink-client .custom-status-detail,
+body.eink-client .custom-feed-text,
+body.eink-client .custom-key-value-list dd,
+body.eink-client .custom-card-footer,
+body.eink-client .custom-card-source,
+body.eink-client .custom-feed-meta,
+body.eink-client .custom-cards-title span,
+body.eink-client .custom-manager-header span,
+body.eink-client .custom-source-meta,
+body.eink-client .custom-source-health,
+body.eink-client .custom-source-form label,
+body.eink-client .custom-credential-panel > span,
+body.eink-client .custom-key-value-list dt {
+  color: #000 !important;
+  font-size: 18px !important;
+  line-height: 1.45 !important;
+  text-shadow: none !important;
+}
+
+body.eink-client .custom-card,
+body.eink-client .custom-empty-state,
+body.eink-client .custom-sources-manager,
+body.eink-client .custom-credential-panel,
+body.eink-client .custom-source-row,
+body.eink-client .custom-feed-item {
+  background: #fffef8 !important;
+  border: 3px solid #000 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+body.eink-client .custom-card {
+  min-height: 190px;
+  padding: 16px;
+}
+
+body.eink-client .custom-card-title,
+body.eink-client .custom-status-value,
+body.eink-client .custom-metric-value,
+body.eink-client .custom-cards-title strong,
+body.eink-client .custom-manager-header strong {
+  font-size: 28px !important;
+  font-weight: 800;
+}
+
+body.eink-client .custom-card-freshness {
+  border: 2px solid #000 !important;
+  color: #000 !important;
+  font-size: 16px !important;
+}
+
+body.eink-client .custom-feed-list,
+body.eink-client .custom-key-value-list {
+  gap: 10px !important;
+  font-size: 18px !important;
+}
+
+body.eink-client .custom-feed-item {
+  border-left: 10px solid #000 !important;
+  padding: 10px !important;
+}
+
+body.eink-client .custom-progress {
+  height: 14px !important;
+  border: 2px solid #000 !important;
+  background: #e8e3d3 !important;
+}
+
+body.eink-client .custom-progress span {
+  background: #000 !important;
+}
+
+body.eink-client .custom-source-form input,
+body.eink-client .custom-source-form select,
+body.eink-client .custom-credential-panel textarea {
+  min-height: 48px;
+  border: 3px solid #000 !important;
+  border-radius: 4px;
+  background: #fffef8 !important;
+  color: #000 !important;
+  font-size: 18px !important;
+}
+
+/* Edit mode intentionally allows vertical movement; read mode remains the
+   strict one-screen canvas above. Keep this last so legacy fullscreen rules
+   cannot lock the editor to a clipped 100dvh box. */
+body.dashboard-edit-mode.eink-client.dashboard-viewer,
+body.dashboard-edit-mode.eink-client.viewer-immersive {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  position: absolute !important;
+}
+
+body.dashboard-edit-mode.eink-client main,
+body.dashboard-edit-mode.eink-client .sideboard-view.active {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow: visible !important;
+}
+
+body.dashboard-edit-mode.eink-client .sideboard-shell.dashboard-editing {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow: visible !important;
+}
+
+body.dashboard-edit-mode.eink-client .sideboard-shell.dashboard-editing #systemSideboardPage.dashboard-grid {
+  height: calc(100dvh - 92px) !important;
+  min-height: 820px !important;
+}
+
+/* BOOX fallback: Chrome can preserve an old install-time landscape lock even
+   when Android auto-rotate is enabled. The motion sensor marks the physical
+   placement and this rotates a portrait-sized dashboard canvas into it. */
+html.eink-sensor-portrait {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body.eink-client.eink-sensor-portrait {
+  position: fixed !important;
+  width: 100dvh !important;
+  height: 100dvw !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  transform-origin: top left !important;
+}
+
+body.eink-client.eink-sensor-portrait-primary {
+  top: 100% !important;
+  left: 0 !important;
+  transform: rotate(-90deg) !important;
+}
+
+body.eink-client.eink-sensor-portrait-secondary {
+  top: 0 !important;
+  left: 100% !important;
+  transform: rotate(90deg) !important;
+}
+
+/* One-screen e-ink dashboard: reserve explicit rows so the load heading and
+   summary never get pushed through the card boundary. */
+body.eink-client #systemSideboardPage.dashboard-grid .side-load {
+  grid-template-rows: auto minmax(0, 1fr) auto !important;
+  align-content: stretch !important;
+  gap: 4px !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .side-load .side-big {
+  align-self: center !important;
+  font-size: clamp(42px, 7vw, 62px) !important;
+  line-height: .9 !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .side-load .side-summary {
+  gap: 1px !important;
+  min-height: 0 !important;
+  font-size: clamp(12px, 1.2vw, 15px) !important;
+  line-height: 1.15 !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .side-load .side-summary span {
+  overflow: hidden !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* Notification feed owns its scroll area. Compact chrome leaves enough room
+   for readable notification rows without growing the one-screen canvas. */
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed {
+  gap: 5px !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-title {
+  font-size: 23px !important;
+  line-height: 1.05 !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-source,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-footer,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-freshness {
+  font-size: 13px !important;
+  line-height: 1.15 !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-freshness {
+  padding: 2px 4px !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-list {
+  min-height: 0 !important;
+  gap: 5px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-item {
+  padding: 6px 7px !important;
+  border-width: 2px 2px 2px 7px !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-meta {
+  font-size: 12px !important;
+  line-height: 1.15 !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-text {
+  font-size: 15px !important;
+  line-height: 1.25 !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-list::-webkit-scrollbar {
+  width: 12px;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-list::-webkit-scrollbar-track {
+  border-left: 2px solid #000;
+  background: #fffef8;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-list::-webkit-scrollbar-thumb {
+  border: 2px solid #fffef8;
+  background: #000;
+}
+
+/* Work Pulse's default copy is the e-ink readability baseline. Metadata and
+   secondary values may be quieter, but never physically smaller. */
+body.eink-client {
+  --eink-dashboard-min-font: 17px;
+}
+
+body.eink-client .side-title span,
+body.eink-client #systemSideboardPage.dashboard-grid .side-kicker,
+body.eink-client #systemSideboardPage.dashboard-grid .feed-heading,
+body.eink-client #systemSideboardPage.dashboard-grid .metric-sub,
+body.eink-client #systemSideboardPage.dashboard-grid .side-summary,
+body.eink-client #systemSideboardPage.dashboard-grid .feed-list,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-source,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-footer,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-freshness,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-meta,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-feed-text,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-empty,
+body.eink-client .dashboard-edit-copy span,
+body.eink-client .dashboard-library-empty,
+body.eink-client .dashboard-edit-actions button,
+body.eink-client .dashboard-card-library button,
+body.eink-client .dashboard-selection-controls button,
+body.eink-client .dashboard-card-editor button {
+  font-size: var(--eink-dashboard-min-font) !important;
+  line-height: 1.2 !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .side-load .side-summary {
+  font-size: var(--eink-dashboard-min-font) !important;
+}
+
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-source,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-footer,
+body.eink-client #systemSideboardPage.dashboard-grid .custom-card-message-feed .custom-card-freshness {
+  font-size: var(--eink-dashboard-min-font) !important;
+}
+
+body.eink-client .dashboard-card-editor {
+  display: grid !important;
+  grid-template-columns: repeat(3, auto);
+  max-width: calc(100% - 12px);
+}
+
+body.eink-client .dashboard-card-editor button {
+  min-width: 60px;
+  min-height: 40px;
+  padding: 4px 7px;
+  white-space: nowrap;
+}
+
+/* Dashboard-local navigation appears only where the global header is hidden
+   (immersive fullscreen / deck window); otherwise the top tabs are the single
+   navigation and the in-panel switch is hidden. */
+body:not(.dashboard-viewer):not(.viewer-immersive):not(.deck-window) .dashboard-mode-switch {
+  display: none;
+}
+
+.dashboard-view-controls,
+.dashboard-mode-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.dashboard-mode-switch {
+  padding: 3px;
+  border: 1px solid var(--side-line, rgba(255,255,255,.22));
+  border-radius: 5px;
+  background: rgba(255,255,255,.06);
+}
+
+.dashboard-mode-switch button {
+  min-height: 38px;
+  padding: 5px 10px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 17px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.dashboard-mode-switch button.active {
+  border-color: var(--side-accent, currentColor);
+  background: var(--side-accent, #fff);
+  color: #071015;
+}
+
+body.phone-client.dashboard-viewer .eink-connection-state,
+body.phone-client.viewer-immersive .eink-connection-state,
+body.phone-client.deck-window .eink-connection-state {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 4px 10px;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  color: var(--side-accent, #fff);
+  background: transparent;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+body.phone-client .eink-connection-state.online {
+  color: #071015;
+  border-color: var(--side-accent, #fff);
+  background: var(--side-accent, #fff);
+}
+
+body.eink-client .eink-connection-state {
+  border: 3px solid #000;
+  color: #000;
+  background: #fffef8;
+}
+
+body.eink-client .eink-connection-state.online {
+  border-color: #000;
+  color: #fffef8;
+  background: #000;
+}
+
+body.eink-client .dashboard-mode-switch {
+  border: 2px solid #000;
+  border-radius: 4px;
+  background: #fffef8;
+}
+
+body.eink-client .dashboard-mode-switch button {
+  min-height: 42px;
+  border: 2px solid transparent;
+  background: #fffef8;
+  color: #000;
+}
+
+body.eink-client .dashboard-mode-switch button.active {
+  border-color: #000;
+  background: #000;
+  color: #fffef8;
+}
+
+/* The previous readability and card-editing work also applies to the regular
+   phone dashboard, not only to BOOX mode. */
+body.phone-client:not(.eink-client) {
+  --eink-dashboard-min-font: 17px;
+}
+
+body.phone-client:not(.eink-client) .side-title span,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .side-kicker,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .feed-heading,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .metric-sub,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .side-summary,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .feed-list,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .custom-card-source,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .custom-card-footer,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .custom-card-freshness,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .custom-feed-meta,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .custom-feed-text,
+body.phone-client:not(.eink-client) #systemSideboardPage.dashboard-grid .custom-card-empty,
+body.phone-client:not(.eink-client) .dashboard-edit-copy span,
+body.phone-client:not(.eink-client) .dashboard-library-empty,
+body.phone-client:not(.eink-client) .dashboard-edit-actions button,
+body.phone-client:not(.eink-client) .dashboard-card-library button,
+body.phone-client:not(.eink-client) .dashboard-selection-controls button,
+body.phone-client:not(.eink-client) .dashboard-card-editor button {
+  font-size: var(--eink-dashboard-min-font) !important;
+  line-height: 1.2 !important;
+}
+
+body.phone-client.viewport-portrait:not(.eink-client) .sideboard-top,
+body.phone-client.viewport-portrait:not(.eink-client) .quota-top {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+body.phone-client.viewport-portrait:not(.eink-client) .dashboard-view-controls {
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+@media (max-width: 960px) {
+  body.ios-client.phone-client:not(.eink-client).dashboard-viewer.mode-sideboard .sideboard-shell {
+    padding-top: calc(8px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)));
+    padding-right: calc(10px + var(--safe-area-inset-right, env(safe-area-inset-right, 0px)));
+    padding-bottom: calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+    padding-left: calc(10px + var(--safe-area-inset-left, env(safe-area-inset-left, 0px)));
+  }
+}
+
+/* The large load number is reserved for an actual bottleneck. Idle systems
+   get a quiet animated companion; multiple warnings rotate in the same spot. */
+.side-load-normal,
+.side-load-alert {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 5px;
+  min-height: 0;
+  text-align: center;
+}
+
+.side-load-normal[hidden],
+.side-load-alert[hidden] { display: none !important; }
+
+.side-load-normal > strong,
+.side-load-alert > strong {
+  color: var(--side-accent);
+  font-size: clamp(19px, 2.3vw, 30px);
+  line-height: 1.05;
+}
+
+.side-load-normal > span,
+.side-load-alert > span {
+  color: var(--side-muted);
+  font-size: clamp(12px, 1.4vw, 17px);
+}
+
+.side-load-alert > strong,
+.side-load-alert > span { color: var(--side-warn); }
+
+.load-pet {
+  position: relative;
+  width: clamp(72px, 8vw, 112px);
+  height: clamp(54px, 6vw, 82px);
+  border: 4px solid var(--side-accent);
+  border-radius: 42% 42% 48% 48%;
+  background: rgba(255,255,255,.05);
+  animation: load-pet-breathe 2.8s ease-in-out infinite;
+}
+
+.load-pet::before,
+.load-pet::after {
+  content: "";
+  position: absolute;
+  top: -16px;
+  width: 22px;
+  height: 22px;
+  border: 4px solid var(--side-accent);
+  background: var(--side-panel);
+  transform: rotate(45deg);
+}
+
+.load-pet::before { left: 5px; }
+.load-pet::after { right: 5px; }
+
+.load-pet span,
+.load-pet span::after {
+  position: absolute;
+  top: 22px;
+  width: 9px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--side-accent);
+  content: "";
+}
+
+.load-pet span { left: 24%; }
+.load-pet span::after { left: 250%; top: 0; }
+
+@keyframes load-pet-breathe {
+  0%, 100% { transform: translateY(1px) scale(1); }
+  50% { transform: translateY(-4px) scale(1.03); }
+}
+
+body.eink-client .side-load-normal > strong,
+body.eink-client .side-load-alert > strong,
+body.eink-client .side-load-normal > span,
+body.eink-client .side-load-alert > span {
+  color: #000;
+  font-size: var(--eink-dashboard-min-font) !important;
+}
+
+body.eink-client .load-pet {
+  border-color: #000;
+  background: #fffef8;
+  animation: none;
+}
+
+body.eink-client .load-pet::before,
+body.eink-client .load-pet::after {
+  border-color: #000;
+  background: #fffef8;
+}
+
+body.eink-client .load-pet span,
+body.eink-client .load-pet span::after { background: #000; }
+

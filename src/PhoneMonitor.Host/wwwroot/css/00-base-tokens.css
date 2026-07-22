@@ -1,0 +1,97 @@
+    :root {
+      color-scheme: dark;
+      font-family: "Outfit", "Segoe UI", system-ui, sans-serif;
+      background: #101820;
+      color: #f5f7fb;
+      --bg: #101820;
+      --surface: #17212c;
+      --surface-2: #1d2a36;
+      --surface-3: #223040;
+      --line: rgba(143, 209, 255, .16);
+      --line-strong: rgba(143, 209, 255, .28);
+      --text: #f5f7fb;
+      --muted: #b9c4d0;
+      --quiet: #7f91a5;
+      --green: #70d98b;
+      --yellow: #ffd27a;
+      --blue: #8fd1ff;
+      --viewer-width: 100dvw;
+      --viewer-height: 100dvh;
+      /* premium gradient tokens */
+      --grad-accent: linear-gradient(90deg, #8fd1ff 0%, #70d98b 100%);
+      --grad-warn: linear-gradient(90deg, #ffd27a 0%, #ff9d5c 100%);
+      --grad-hot: linear-gradient(90deg, #ff6b6b 0%, #ffd27a 100%);
+}
+
+.host-auth-gate {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(9, 14, 21, .92);
+  backdrop-filter: blur(14px);
+}
+
+.host-auth-gate[hidden] {
+  display: none;
+}
+
+.host-auth-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 28px;
+  border: 1px solid rgba(143, 209, 255, .24);
+  border-radius: 16px;
+  background: #111820;
+  color: #f5f7fb;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .42);
+}
+
+.host-auth-card h1,
+.host-auth-card p {
+  margin: 0;
+}
+
+.host-auth-card p,
+.host-auth-card small {
+  color: #aebdca;
+  line-height: 1.5;
+}
+
+.host-auth-kicker {
+  color: #8fd1ff;
+  font: 700 12px/1.2 "Share Tech Mono", monospace;
+  letter-spacing: .12em;
+}
+
+.host-auth-card label {
+  margin-top: 8px;
+  color: #d9e5ef;
+  font-size: 13px;
+}
+
+.host-auth-card input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid rgba(143, 209, 255, .28);
+  border-radius: 8px;
+  background: #0b1118;
+  color: #fff;
+  font: inherit;
+}
+
+.host-auth-card button {
+  border: 0;
+  cursor: pointer;
+}
+
+.host-auth-error {
+  min-height: 1.5em;
+  color: #ff9e9e !important;
+}
+

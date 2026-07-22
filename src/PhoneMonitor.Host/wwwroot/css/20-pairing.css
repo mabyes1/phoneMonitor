@@ -1,0 +1,146 @@
+/* PC 本機預設精簡連線面板；一旦在配對流程就必須顯示 QR / 狀態 */
+body.pc-console:not(.pairing-active) .connect-qr,
+body.pc-console:not(.pairing-active) .pairing-guide,
+body.pc-console:not(.pairing-active) .connect-status,
+body.pc-console:not(.pairing-active) #httpsCertLink {
+  display: none !important;
+}
+
+body.pc-console.pairing-active .connect-panel {
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+body.pc-console.pairing-active .connect-qr {
+  display: grid !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+body.pc-console.pairing-active .connect-qr img,
+body.pc-console.pairing-active #qrCode {
+  display: block !important;
+  visibility: visible !important;
+  width: 100%;
+  max-width: 252px;
+  aspect-ratio: 1;
+  background: #fff;
+}
+
+body.pc-console.pairing-active .pairing-guide,
+body.pc-console.pairing-active .connect-status {
+  display: grid !important;
+}
+
+/* Cert install stays inside advanced connect details — do not promote it onto
+   the healthy pairing card. Failure path reuses .pairing-needs-advanced below. */
+
+body.trusted-public-endpoint #certificateSetupTitle,
+body.trusted-public-endpoint #httpsCertLink,
+body.trusted-public-endpoint #androidCertLink,
+body.trusted-public-endpoint #androidCertHelp {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .public-endpoint-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .public-endpoint-controls input {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Healthy pairing: hide advanced connect entirely (summary row included). */
+body.pc-console.pairing-active:not(.pairing-needs-advanced) .connect-links {
+  display: none !important;
+}
+
+/* Endpoint repair during pairing: keep advanced visible and mark the surface. */
+body.pc-console.pairing-active.pairing-needs-advanced .connect-links {
+  display: block !important;
+  border-color: var(--yellow);
+}
+
+body.pc-console.pairing-active.pairing-needs-advanced .connect-links[open] {
+  border-color: var(--yellow);
+}
+
+body.pc-console .connect-copy {
+  gap: 12px;
+}
+
+body.pc-console .connect-title strong {
+  font-size: 24px;
+}
+
+body.pc-console .connect-title span {
+  font-size: 15px;
+}
+
+body.pc-console:not(.deck-window) #einkModeToggle,
+body.pc-console:not(.deck-window) #keepAwake,
+body.pc-console:not(.deck-window) #fullscreen {
+  display: none !important;
+}
+
+body:not(.device-trusted):not(.pc-console) .display-empty-actions {
+  display: none !important;
+}
+
+/* Phone cannot install the virtual display — only Sideboard/Quota escape hatches. */
+body.phone-client:not(.pc-console) #installVirtualDisplay {
+  display: none !important;
+}
+
+body.phone-client:not(.pc-console) #openSideboardFromEmpty {
+  min-width: min(100%, 280px);
+}
+
+/* PC keeps Device setup as the primary empty-state action. */
+body.pc-console .display-empty-actions #installVirtualDisplay {
+  order: -1;
+}
+
+body.phone-client:not(.eink-client) .quota-toolbox {
+  justify-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  border-radius: 8px;
+}
+
+body.phone-client:not(.eink-client) .quota-toolbox button {
+  flex: 1 1 calc(50% - 4px);
+  min-width: min(128px, 100%);
+  min-height: 40px;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.25;
+  white-space: normal;
+}
+
+/* Final E Ink legibility pass. Keep this block last so phone/skin rules cannot
+ * reintroduce low-resolution color text or narrow display fonts. */
+body.eink-client,
+body.eink-client button,
+body.eink-client select,
+body.eink-client input {
+  font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif !important;
+}
+
+body.eink-client .sideboard-shell,
+body.eink-client .quota-shell {
+  --side-line: #000;
+  --side-panel: #fffef8;
+  --side-accent: #000;
+  --side-accent-2: #000;
+  --quota-ink: #000;
+  --quota-muted: #222;
+  --quota-panel: #fffef8;
+  color: #000 !important;
+  background: #f5f2e7 !important;
+  font-size: 18px;
+}
+
