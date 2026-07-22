@@ -2,6 +2,14 @@
 
 本檔記錄每個可發佈版本的使用者可見變更、修正與產品化調整；後續改版須在打包前補入對應版本。
 
+## 0.1.37 - 2026-07-22
+
+- 修正手機首次連線實體螢幕時偶發黑畫面：DXGI 尚未取得新畫面且 bitmap 尚未初始化時，會先以 GDI 擷取目前桌面，不再送出全黑首幀。
+- 移除高耗能的 Canvas 導光波浪動畫，保留純 CSS 背景，降低遠端桌面與低 GPU 裝置的負載。
+- 將 Host 的顯示器、系統、導覽資產、資訊板、額度與串流 endpoint 拆分為獨立 partial class，路由與授權規則維持不變。
+- 將前端裝置憑證、client instance、環境與電子紙偵測抽成獨立 JavaScript module；大型樣式表依既有 cascade 順序拆為六個 CSS partial，方便後續逐步整理。
+- 新增 DeviceTrustService 配對狀態機測試，涵蓋允許、拒絕、輪詢、撤銷、清除與 token 信任流程。
+
 ## 0.1.36 - 2026-07-20
 
 - 修正 PC Web 整頁無法載入：移除 `index.js` 重複宣告的 `displayView`，以及檔案中段的 BOM，避免 `SyntaxError` 讓整個前端掛掉。
